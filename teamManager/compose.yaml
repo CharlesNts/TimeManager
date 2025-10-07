@@ -1,0 +1,9 @@
+services:
+  postgres:
+    image: 'postgres:latest'
+    environment:
+      - 'POSTGRES_DB=teammanager_db'
+      - 'POSTGRES_PASSWORD=0000'
+      - 'POSTGRES_USER=myuser'
+    ports:
+      - '5432'
