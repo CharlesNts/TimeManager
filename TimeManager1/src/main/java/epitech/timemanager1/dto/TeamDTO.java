@@ -17,7 +17,6 @@ public class TeamDTO {
 
     private String description;
 
-    // The manager represented as a nested UserDTO
     private UserDTO manager;
 
     private LocalDateTime createdAt;
