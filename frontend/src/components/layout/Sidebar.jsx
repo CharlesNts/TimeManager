@@ -32,10 +32,10 @@ export default function Sidebar({ items = [] }) {
   const location = useLocation();
 
   return (
-    <aside className="w-16 bg-blue-600 flex flex-col items-center py-6 space-y-8">
+    <aside className="w-16 bg-black flex flex-col items-center py-6 space-y-8">
       {/* Logo en haut */}
       <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-        <span className="text-blue-600 font-bold text-sm">PB</span>
+        <span className="text-black font-bold text-sm">PB</span>
       </div>
 
       {/* Navigation items */}
@@ -51,8 +51,8 @@ export default function Sidebar({ items = [] }) {
               className={`
                 w-10 h-10 rounded-lg flex items-center justify-center transition-colors
                 ${isActive
-                  ? 'bg-white text-blue-600' 
-                  : 'text-white hover:bg-blue-500'
+                  ? 'bg-white text-black' 
+                  : 'text-white hover:bg-gray-800'
                 }
               `}
               title={item.label}

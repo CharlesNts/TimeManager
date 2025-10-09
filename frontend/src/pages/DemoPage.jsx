@@ -2,6 +2,8 @@
 import React from 'react';
 import Layout from '../components/layout/Layout';
 import KPICard from '../components/dashboard/KPIcard.jsx';
+import ClockActions from '../components/employee/ClockActions';
+import ClockHistory from '../components/employee/ClockHistory';
 
 //  Quelques icônes depuis la librairie lucide-react
 import { Clock, AlertTriangle, Briefcase, LayoutDashboard, Users, UserCircle, BarChart3 } from 'lucide-react';
@@ -41,10 +43,10 @@ export default function DemoPage() {
     >
       {/* Le contenu de la page va ici - c'est ce qui s'affiche dans la zone principale */}
       <div className="p-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto space-y-12">
           
           {/* Section pour les KPICards */}
-          <section className="mb-12">
+          <section>
             <h2 className="text-2xl font-semibold text-gray-700 mb-4">
               Cartes de KPI (`KPICard.jsx`)
             </h2>
@@ -74,6 +76,31 @@ export default function DemoPage() {
               </KPICard>
 
             </div>
+          </section>
+
+          {/* Section pour ClockActions */}
+          <section>
+            <h2 className="text-2xl font-semibold text-gray-700 mb-4">
+              Actions de pointage (`ClockActions.jsx`)
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Composant permettant à l'employé de pointer son arrivée, départ et pauses.
+              Affiche le statut actuel et l'historique des actions.
+            </p>
+            <div className="max-w-md">
+              <ClockActions />
+            </div>
+          </section>
+
+          {/* Section pour ClockHistory */}
+          <section>
+            <h2 className="text-2xl font-semibold text-gray-700 mb-4">
+              Historique des pointages (`ClockHistory.jsx`)
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Tableau affichant l'historique complet des pointages avec date, heures et statut.
+            </p>
+            <ClockHistory />
           </section>
           
         </div>
