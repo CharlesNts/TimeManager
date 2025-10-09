@@ -8,31 +8,27 @@ import { Clock, AlertTriangle, Briefcase, LayoutDashboard, Users, UserCircle, Ba
 
 export default function DemoPage() {
   // Configuration des items de navigation pour la Sidebar
-  // Chaque item a: une icône, un label, s'il est actif, et une action au clic
+  // Maintenant on utilise des "path" au lieu de "onClick" et "active"
   const sidebarItems = [
     { 
       icon: LayoutDashboard, 
       label: "Dashboard", 
-      active: true, // Cette page est active
-      onClick: () => console.log("Dashboard cliqué") 
+      path: "/dashboard" // URL vers le dashboard (à créer)
     },
     { 
       icon: Users, 
       label: "Équipes", 
-      active: false,
-      onClick: () => console.log("Équipes cliqué") 
+      path: "/teams" // URL vers les équipes (à créer)
     },
     { 
       icon: UserCircle, 
       label: "Profil", 
-      active: false,
-      onClick: () => console.log("Profil cliqué") 
+      path: "/profile" // URL vers le profil (à créer)
     },
     { 
       icon: BarChart3, 
-      label: "Statistiques", 
-      active: false,
-      onClick: () => console.log("Stats cliqué") 
+      label: "Démo", 
+      path: "/demo" // Cette page !
     },
   ];
 

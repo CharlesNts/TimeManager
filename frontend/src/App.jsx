@@ -1,11 +1,31 @@
 import React from 'react';
-import DemoPage from './pages/DemoPage'; // Assure-toi que le chemin est correct
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import DemoPage from './pages/DemoPage';
 
+/**
+ * Composant App - Point d'entrée avec le système de routing
+ * 
+ * Routes disponibles:
+ * - /demo : Page de démonstration des composants
+ * - / : Redirige vers /demo par défaut
+ * 
+ * Pour ajouter une nouvelle route:
+ * <Route path="/ma-page" element={<MaPage />} />
+ */
 function App() {
-  // Pour l'instant, pendant qu'on développe,
-  // on dit à notre application d'afficher UNIQUEMENT la page de démo.
   return (
-    <DemoPage />
+    <BrowserRouter>
+      <Routes>
+        {/* Page de démo des composants */}
+        <Route path="/demo" element={<DemoPage />} />
+        
+        {/* Redirection par défaut vers /demo */}
+        <Route path="/" element={<Navigate to="/demo" replace />} />
+        
+        {/* Route 404 - redirige aussi vers /demo pour l'instant */}
+        <Route path="*" element={<Navigate to="/demo" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

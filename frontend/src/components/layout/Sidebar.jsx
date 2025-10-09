@@ -1,5 +1,6 @@
 // src/components/layout/Sidebar.jsx
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Users, 
@@ -12,19 +13,24 @@ import {
 } from 'lucide-react';
 
 /**
- * Composant Sidebar réutilisable
+ * Composant Sidebar réutilisable avec navigation React Router
  * 
  * Props:
  * - items: Array d'objets représentant les liens de navigation
- *   Chaque objet doit avoir: { icon: Component, label: string, active: boolean, onClick: function }
+ *   Chaque objet doit avoir: { icon: Component, label: string, path: string }
+ * 
+ * Le composant détecte automatiquement quelle page est active via l'URL
  * 
  * Exemple d'utilisation:
  * <Sidebar items={[
- *   { icon: LayoutDashboard, label: "Dashboard", active: true, onClick: () => {} },
- *   { icon: Users, label: "Équipes", active: false, onClick: () => {} }
+ *   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
+ *   { icon: Users, label: "Équipes", path: "/teams" }
  * ]} />
  */
 export default function Sidebar({ items = [] }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   return (
     <aside className="w-16 bg-blue-600 flex flex-col items-center py-6 space-y-8">
       {/* Logo en haut */}
@@ -36,13 +42,15 @@ export default function Sidebar({ items = [] }) {
       <nav className="flex-1 flex flex-col space-y-4">
         {items.map((item, index) => {
           const IconComponent = item.icon;
+          const isActive = location.pathname === item.path;
+          
           return (
             <button
               key={index}
-              onClick={item.onClick}
+              onClick={() => navigate(item.path)}
               className={`
                 w-10 h-10 rounded-lg flex items-center justify-center transition-colors
-                ${item.active 
+                ${isActive
                   ? 'bg-white text-blue-600' 
                   : 'text-white hover:bg-blue-500'
                 }
