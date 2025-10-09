@@ -85,7 +85,7 @@ export default function ClockHistory() {
           </thead>
           <tbody>
             {historyData.map((record) => (
-              <tr key={record.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              <tr key={record.id} className="border-b border-gray-100">
                 <td className="py-3 px-4 text-sm text-gray-700 font-medium">
                   {record.dateLabel}
                 </td>

@@ -4,6 +4,7 @@ import Layout from '../components/layout/Layout';
 import KPICard from '../components/dashboard/KPIcard.jsx';
 import ClockActions from '../components/employee/ClockActions';
 import ClockHistory from '../components/employee/ClockHistory';
+import TeamCard from '../components/manager/TeamCard';
 
 //  Quelques icônes depuis la librairie lucide-react
 import { Clock, AlertTriangle, Briefcase, LayoutDashboard, Users, UserCircle, BarChart3 } from 'lucide-react';
@@ -101,6 +102,39 @@ export default function DemoPage() {
               Tableau affichant l'historique complet des pointages avec date, heures et statut.
             </p>
             <ClockHistory />
+          </section>
+
+          {/* Section pour TeamCard */}
+          <section>
+            <h2 className="text-2xl font-semibold text-gray-700 mb-4">
+              Carte d'équipe (`TeamCard.jsx`)
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Composant pour afficher les informations d'une équipe (nom, membres, stats).
+            </p>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <TeamCard 
+                teamName="Équipe Développement"
+                memberCount={8}
+                avgHours="35h 30m"
+                trend="+3.2%"
+                onClick={() => console.log("Équipe Dev cliquée")}
+              />
+              <TeamCard 
+                teamName="Équipe Marketing"
+                memberCount={5}
+                avgHours="32h 15m"
+                trend="-1.5%"
+                onClick={() => console.log("Équipe Marketing cliquée")}
+              />
+              <TeamCard 
+                teamName="Équipe Support"
+                memberCount={12}
+                avgHours="38h 45m"
+                trend="+2.1%"
+                onClick={() => console.log("Équipe Support cliquée")}
+              />
+            </div>
           </section>
           
         </div>

@@ -107,10 +107,10 @@ export default function ClockActions() {
           onClick={handleClockIn}
           disabled={isClockedIn}
           className={`
-            flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-colors
+            flex items-center justify-center px-4 py-3 rounded-lg font-medium
             ${isClockedIn
               ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-black text-white hover:bg-gray-800'
+              : 'bg-black text-white'
             }
           `}
         >
@@ -123,10 +123,10 @@ export default function ClockActions() {
           onClick={handleClockOut}
           disabled={!isClockedIn}
           className={`
-            flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-colors
+            flex items-center justify-center px-4 py-3 rounded-lg font-medium
             ${!isClockedIn
               ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-gray-800 text-white hover:bg-gray-700'
+              : 'bg-gray-800 text-white'
             }
           `}
         >
@@ -140,12 +140,12 @@ export default function ClockActions() {
         onClick={handleBreak}
         disabled={!isClockedIn}
         className={`
-          w-full mt-3 flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-colors
+          w-full mt-3 flex items-center justify-center px-4 py-3 rounded-lg font-medium
           ${!isClockedIn
             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
             : isOnBreak
-            ? 'bg-yellow-500 text-white hover:bg-yellow-600'
-            : 'bg-white text-gray-900 border-2 border-gray-900 hover:bg-gray-50'
+            ? 'bg-yellow-500 text-white'
+            : 'bg-white text-gray-900 border-2 border-gray-900'
           }
         `}
       >

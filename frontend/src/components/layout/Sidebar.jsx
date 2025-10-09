@@ -49,10 +49,10 @@ export default function Sidebar({ items = [] }) {
               key={index}
               onClick={() => navigate(item.path)}
               className={`
-                w-10 h-10 rounded-lg flex items-center justify-center transition-colors
+                w-10 h-10 rounded-lg flex items-center justify-center
                 ${isActive
                   ? 'bg-white text-black' 
-                  : 'text-white hover:bg-gray-800'
+                  : 'text-white'
                 }
               `}
               title={item.label}
