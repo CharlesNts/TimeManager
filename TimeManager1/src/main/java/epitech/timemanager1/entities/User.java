@@ -44,8 +44,8 @@ public class User {
     @Size(max = 40)
     private String phoneNumber;
 
-    @NotBlank
-    private String password; // hashed
+    @Column(nullable = false, length = 60)
+    private String password; // BCrypt hash
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
