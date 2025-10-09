@@ -1,5 +1,5 @@
 // src/pages/EmployeeDashboard.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import Layout from '../components/layout/Layout';
 import KPICard from '../components/dashboard/KPIcard.jsx';
 import ClockActions from '../components/employee/ClockActions';
@@ -27,18 +27,23 @@ import {
  * Cette page est accessible à tous les utilisateurs (employé, manager, CEO)
  */
 export default function EmployeeDashboard() {
-  // Configuration de la navigation sidebar
+  // États pour le mode développement (simulation de rôles)
+  const [currentRole, setCurrentRole] = useState('EMPLOYEE');
+  const [currentUserId, setCurrentUserId] = useState(1);
+
+  // Configuration de la navigation sidebar - Adapté selon le rôle
   const sidebarItems = [
     { 
       icon: LayoutDashboard, 
       label: "Mon Dashboard", 
       path: "/dashboard"
     },
-    { 
+    // Équipes visible uniquement pour MANAGER et CEO
+    ...(currentRole === 'MANAGER' || currentRole === 'CEO' ? [{
       icon: Users, 
       label: "Équipes", 
       path: "/teams"
-    },
+    }] : []),
     { 
       icon: UserCircle, 
       label: "Profil", 
@@ -57,6 +62,10 @@ export default function EmployeeDashboard() {
       pageTitle="Mon dashboard"
       userName="Jonathan GROMAT"
       userRole="Employé"
+      currentRole={currentRole}
+      onRoleChange={setCurrentRole}
+      currentUserId={currentUserId}
+      onUserIdChange={setCurrentUserId}
     >
       <div className="p-8 space-y-8">
         <div className="max-w-7xl mx-auto">

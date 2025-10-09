@@ -1,7 +1,8 @@
 // src/pages/TeamDetail.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
+import TeamFormModal from '../components/manager/TeamFormModal';
 import { 
   ArrowLeft, 
   Users, 
@@ -9,6 +10,7 @@ import {
   Clock, 
   Calendar,
   TrendingUp,
+  Edit,
   LayoutDashboard, 
   BarChart3 
 } from 'lucide-react';
@@ -30,6 +32,10 @@ import {
 export default function TeamDetail() {
   const { teamId } = useParams();
   const navigate = useNavigate();
+
+  // États pour le mode développement (simulation de rôles)
+  const [currentRole, setCurrentRole] = useState('CEO'); // 'EMPLOYEE' | 'MANAGER' | 'CEO'
+  const [currentUserId, setCurrentUserId] = useState(1);
 
   // Données de démo - Plus tard viendront de l'API GET /api/teams/:id
   const teamData = {
@@ -134,6 +140,9 @@ export default function TeamDetail() {
     }
   ];
 
+  // État pour le modal d'édition
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
   // Navigation sidebar pour managers
   const sidebarItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
@@ -144,6 +153,16 @@ export default function TeamDetail() {
 
   const handleBack = () => {
     navigate('/teams');
+  };
+
+  const handleEditTeam = () => {
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveTeam = (teamData) => {
+    console.log('Modifier équipe avec les données:', teamData);
+    // Plus tard: appeler l'API PUT /api/teams/:id
+    // Exemple: await fetch(`/api/teams/${teamId}`, { method: 'PUT', body: JSON.stringify(teamData) })
   };
 
   const getStatusBadge = (status) => {
@@ -177,6 +196,10 @@ export default function TeamDetail() {
       pageTitle={teamData.name}
       userName="Jonathan GROMAT"
       userRole="Manager"
+      currentRole={currentRole}
+      onRoleChange={setCurrentRole}
+      currentUserId={currentUserId}
+      onUserIdChange={setCurrentUserId}
     >
       <div className="p-8">
         <div className="max-w-7xl mx-auto space-y-6">
@@ -216,6 +239,15 @@ export default function TeamDetail() {
                   </div>
                 </div>
               </div>
+
+              {/* Bouton Modifier */}
+              <button
+                onClick={handleEditTeam}
+                className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium"
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Modifier
+              </button>
             </div>
           </div>
 
@@ -336,6 +368,17 @@ export default function TeamDetail() {
 
         </div>
       </div>
+
+      {/* Modal de modification d'équipe */}
+      <TeamFormModal
+        isOpen={isEditModalOpen}
+        mode="edit"
+        team={teamData}
+        userRole={currentRole}
+        currentUserId={currentUserId}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={handleSaveTeam}
+      />
     </Layout>
   );
 }

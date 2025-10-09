@@ -1,7 +1,8 @@
 // src/components/layout/Layout.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import RoleSelector from '../ui/RoleSelector';
 
 /**
  * Composant Layout réutilisable - Structure principale de l'application
@@ -13,12 +14,20 @@ import Header from './Header';
  * - userName: Nom de l'utilisateur
  * - userRole: Rôle de l'utilisateur (optionnel)
  * - userAvatar: Avatar de l'utilisateur (optionnel)
+ * - currentRole: Rôle actuel (DEV MODE)
+ * - onRoleChange: Callback pour changer de rôle (DEV MODE)
+ * - currentUserId: ID utilisateur actuel (DEV MODE)
+ * - onUserIdChange: Callback pour changer d'ID (DEV MODE)
  * 
  * Exemple d'utilisation:
  * <Layout 
  *   sidebarItems={navigationItems}
  *   pageTitle="Mon dashboard"
  *   userName="Jonathan GROMAT"
+ *   currentRole={role}
+ *   onRoleChange={setRole}
+ *   currentUserId={userId}
+ *   onUserIdChange={setUserId}
  * >
  *   <div>Contenu de ma page ici</div>
  * </Layout>
@@ -29,7 +38,11 @@ export default function Layout({
   pageTitle = "Dashboard",
   userName = "Utilisateur",
   userRole = null,
-  userAvatar = null
+  userAvatar = null,
+  currentRole,
+  onRoleChange,
+  currentUserId,
+  onUserIdChange
 }) {
   return (
     <div className="flex h-screen bg-gray-50">
@@ -51,6 +64,16 @@ export default function Layout({
           {children}
         </main>
       </div>
+
+      {/* Sélecteur de rôle DEV MODE (en bas à droite) */}
+      {currentRole && onRoleChange && (
+        <RoleSelector
+          currentRole={currentRole}
+          onRoleChange={onRoleChange}
+          currentUserId={currentUserId}
+          onUserIdChange={onUserIdChange}
+        />
+      )}
     </div>
   );
 }

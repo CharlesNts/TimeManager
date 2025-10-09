@@ -26,18 +26,23 @@ import {
  * Pour l'instant en mode démo (données statiques)
  */
 export default function ProfilePage() {
-  // Configuration de la navigation sidebar
+  // États pour le mode développement (simulation de rôles)
+  const [currentRole, setCurrentRole] = useState('EMPLOYEE');
+  const [currentUserId, setCurrentUserId] = useState(1);
+
+  // Configuration de la navigation sidebar - Adapté selon le rôle
   const sidebarItems = [
     { 
       icon: LayoutDashboard, 
       label: "Mon Dashboard", 
       path: "/dashboard"
     },
-    { 
+    // Équipes visible uniquement pour MANAGER et CEO
+    ...(currentRole === 'MANAGER' || currentRole === 'CEO' ? [{
       icon: Users, 
       label: "Équipes", 
       path: "/teams"
-    },
+    }] : []),
     { 
       icon: UserCircle, 
       label: "Profil", 
@@ -95,6 +100,10 @@ export default function ProfilePage() {
       pageTitle="Mon profil"
       userName={`${profileData.firstName} ${profileData.lastName}`}
       userRole={profileData.role}
+      currentRole={currentRole}
+      onRoleChange={setCurrentRole}
+      currentUserId={currentUserId}
+      onUserIdChange={setCurrentUserId}
     >
       <div className="p-8">
         <div className="max-w-4xl mx-auto space-y-6">
