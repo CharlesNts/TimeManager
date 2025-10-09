@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import DemoPage from './pages/DemoPage';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import TeamsList from './pages/TeamsList';
+import ProfilePage from './pages/ProfilePage';
 
 /**
  * Composant App - Point d'entrée avec le système de routing
@@ -10,6 +11,7 @@ import TeamsList from './pages/TeamsList';
  * Routes disponibles:
  * - /dashboard : Dashboard employé
  * - /teams : Liste des équipes (Manager/CEO)
+ * - /profile : Profil utilisateur
  * - /demo : Page de démonstration des composants
  * - / : Redirige vers /dashboard par défaut
  * 
@@ -25,6 +27,9 @@ function App() {
         
         {/* Liste des équipes - Manager/CEO */}
         <Route path="/teams" element={<TeamsList />} />
+        
+        {/* Profil utilisateur */}
+        <Route path="/profile" element={<ProfilePage />} />
         
         {/* Page de démo des composants */}
         <Route path="/demo" element={<DemoPage />} />

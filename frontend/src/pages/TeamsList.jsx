@@ -41,48 +41,49 @@ export default function TeamsList() {
   ];
 
   // Données de démo - Plus tard viendront de l'API
+  // Correspond à la table Teams + calculs
   const teams = [
     {
       id: 1,
       name: "Équipe Développement",
+      description: "Développement de logiciels",
       memberCount: 8,
-      avgHours: "35h 30m",
-      trend: "+3.2%"
+      managerName: "Jean Dupont"
     },
     {
       id: 2,
       name: "Équipe Marketing",
+      description: "Marketing digital",
       memberCount: 5,
-      avgHours: "32h 15m",
-      trend: "+1.5%"
+      managerName: "Marie Martin"
     },
     {
       id: 3,
       name: "Équipe Support",
+      description: "Support client",
       memberCount: 12,
-      avgHours: "38h 45m",
-      trend: "-2.1%"
+      managerName: "Pierre Durand"
     },
     {
       id: 4,
       name: "Équipe RH",
+      description: "Ressources humaines",
       memberCount: 3,
-      avgHours: "35h 00m",
-      trend: "+0.8%"
+      managerName: "Sophie Bernard"
     },
     {
       id: 5,
       name: "Équipe Finance",
+      description: "Gestion financière",
       memberCount: 6,
-      avgHours: "36h 20m",
-      trend: "+4.5%"
+      managerName: "Luc Petit"
     },
     {
       id: 6,
       name: "Équipe Design",
+      description: "Design & UX",
       memberCount: 4,
-      avgHours: "33h 50m",
-      trend: "+2.3%"
+      managerName: "Emma Robert"
     },
   ];
 
@@ -135,9 +136,9 @@ export default function TeamsList() {
               <TeamCard
                 key={team.id}
                 teamName={team.name}
+                description={team.description}
                 memberCount={team.memberCount}
-                avgHours={team.avgHours}
-                trend={team.trend}
+                managerName={team.managerName}
                 onClick={() => handleTeamClick(team.id)}
               />
             ))}
