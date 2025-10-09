@@ -7,15 +7,17 @@ import { Calendar, Clock } from 'lucide-react';
  * 
  * Affiche un tableau avec:
  * - Date
- * - Heure d'arrivée
- * - Heure de départ
- * - Temps total travaillé
+ * - Heure d'arrivée (clockIn)
+ * - Heure de départ (clockOut)
+ * - Durée totale calculée
+ * - Statut: "Terminé" (clockOut existe) ou "En cours" (clockOut null)
  * 
  * Pour l'instant avec des données de démo
- * Plus tard, les données viendront de l'API
+ * Plus tard, les données viendront de l'API basée sur la table Clocks
  */
 export default function ClockHistory() {
   // Données de démo - Plus tard viendront d'un service/API
+  // Correspond à la table Clocks (id, userId, clockIn, clockOut)
   const historyData = [
     {
       id: 1,
@@ -23,8 +25,7 @@ export default function ClockHistory() {
       dateLabel: 'Aujourd\'hui',
       clockIn: '09:00',
       clockOut: '17:30',
-      totalHours: '8h 30m',
-      status: 'complete'
+      totalHours: '8h 30m'
     },
     {
       id: 2,
@@ -32,8 +33,7 @@ export default function ClockHistory() {
       dateLabel: 'Hier',
       clockIn: '08:45',
       clockOut: '17:15',
-      totalHours: '8h 30m',
-      status: 'complete'
+      totalHours: '8h 30m'
     },
     {
       id: 3,
@@ -41,8 +41,7 @@ export default function ClockHistory() {
       dateLabel: 'Lun 07 Oct',
       clockIn: '09:10',
       clockOut: '18:00',
-      totalHours: '8h 50m',
-      status: 'complete'
+      totalHours: '8h 50m'
     },
     {
       id: 4,
@@ -50,17 +49,15 @@ export default function ClockHistory() {
       dateLabel: 'Ven 04 Oct',
       clockIn: '08:30',
       clockOut: '16:45',
-      totalHours: '8h 15m',
-      status: 'complete'
+      totalHours: '8h 15m'
     },
     {
       id: 5,
       date: '2025-10-03',
       dateLabel: 'Jeu 03 Oct',
       clockIn: '09:00',
-      clockOut: null,
-      totalHours: '-',
-      status: 'missing' // Oubli de pointer la sortie
+      clockOut: null, // clockOut null = toujours en cours
+      totalHours: '6h 15m' // Durée calculée depuis clockIn jusqu'à maintenant
     },
   ];
 
@@ -79,7 +76,7 @@ export default function ClockHistory() {
               <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Date</th>
               <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Arrivée</th>
               <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Départ</th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Total</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Durée</th>
               <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Statut</th>
             </tr>
           </thead>
@@ -94,20 +91,20 @@ export default function ClockHistory() {
                 </td>
                 <td className="py-3 px-4 text-sm text-gray-600">
                   {record.clockOut || (
-                    <span className="text-orange-500">Non pointé</span>
+                    <span className="text-orange-500">En cours...</span>
                   )}
                 </td>
                 <td className="py-3 px-4 text-sm text-gray-700 font-medium">
                   {record.totalHours}
                 </td>
                 <td className="py-3 px-4">
-                  {record.status === 'complete' ? (
-                    <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
-                      ✓ Complet
+                  {record.clockOut ? (
+                    <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
+                      Terminé
                     </span>
                   ) : (
-                    <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">
-                      ⚠ Incomplet
+                    <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                      En cours
                     </span>
                   )}
                 </td>
@@ -119,10 +116,7 @@ export default function ClockHistory() {
 
       {/* Footer avec info */}
       <div className="mt-4 text-sm text-gray-500 text-center">
-        Affichage des 5 derniers pointages • 
-        <button className="text-blue-600 hover:text-blue-700 ml-1">
-          Voir tout l'historique
-        </button>
+        Affichage des 5 derniers pointages
       </div>
     </div>
   );

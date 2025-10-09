@@ -1,5 +1,6 @@
 // src/pages/TeamsList.jsx
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import TeamCard from '../components/manager/TeamCard';
 import { Plus, Users, LayoutDashboard, UserCircle, BarChart3 } from 'lucide-react';
@@ -16,6 +17,8 @@ import { Plus, Users, LayoutDashboard, UserCircle, BarChart3 } from 'lucide-reac
  * Pour l'instant avec des données de démo
  */
 export default function TeamsList() {
+  const navigate = useNavigate();
+
   // Configuration de la navigation sidebar
   const sidebarItems = [
     { 
@@ -89,8 +92,7 @@ export default function TeamsList() {
 
   // Fonction pour gérer le clic sur une équipe
   const handleTeamClick = (teamId) => {
-    console.log(`Naviguer vers le dashboard de l'équipe ${teamId}`);
-    // Plus tard: navigate(`/teams/${teamId}`)
+    navigate(`/teams/${teamId}`);
   };
 
   // Fonction pour créer une nouvelle équipe

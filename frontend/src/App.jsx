@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import DemoPage from './pages/DemoPage';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import TeamsList from './pages/TeamsList';
+import TeamDetail from './pages/TeamDetail';
 import ProfilePage from './pages/ProfilePage';
 
 /**
@@ -11,6 +12,7 @@ import ProfilePage from './pages/ProfilePage';
  * Routes disponibles:
  * - /dashboard : Dashboard employé
  * - /teams : Liste des équipes (Manager/CEO)
+ * - /teams/:teamId : Détails d'une équipe
  * - /profile : Profil utilisateur
  * - /demo : Page de démonstration des composants
  * - / : Redirige vers /dashboard par défaut
@@ -27,6 +29,9 @@ function App() {
         
         {/* Liste des équipes - Manager/CEO */}
         <Route path="/teams" element={<TeamsList />} />
+        
+        {/* Détails d'une équipe */}
+        <Route path="/teams/:teamId" element={<TeamDetail />} />
         
         {/* Profil utilisateur */}
         <Route path="/profile" element={<ProfilePage />} />

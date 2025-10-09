@@ -1,6 +1,7 @@
 // src/components/layout/Header.jsx
 import React from 'react';
 import { Bell } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Composant Header réutilisable
@@ -24,6 +25,12 @@ export default function Header({
   userRole = null,
   userAvatar = null 
 }) {
+  const navigate = useNavigate();
+
+  const handleProfileClick = () => {
+    navigate('/profile');
+  };
+
   return (
     <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
       {/* Titre de la page */}
@@ -36,8 +43,11 @@ export default function Header({
           <Bell className="w-5 h-5 text-white" />
         </button>
 
-        {/* Profil utilisateur */}
-        <div className="flex items-center space-x-3 bg-black rounded-full px-4 py-2">
+        {/* Profil utilisateur - Cliquable */}
+        <button 
+          onClick={handleProfileClick}
+          className="flex items-center space-x-3 bg-black rounded-full px-4 py-2 cursor-pointer"
+        >
           <span className="text-white font-medium text-sm">{userName}</span>
           
           {/* Avatar */}
@@ -52,7 +62,7 @@ export default function Header({
               </div>
             )}
           </div>
-        </div>
+        </button>
       </div>
     </header>
   );
