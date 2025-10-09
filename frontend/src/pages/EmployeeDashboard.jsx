@@ -13,7 +13,9 @@ import {
   LayoutDashboard, 
   Users, 
   UserCircle, 
-  BarChart3 
+  BarChart3,
+  LogIn,
+  UserPlus
 } from 'lucide-react';
 
 /**
@@ -33,6 +35,16 @@ export default function EmployeeDashboard() {
 
   // Configuration de la navigation sidebar - Adapté selon le rôle
   const sidebarItems = [
+    { 
+      icon: LogIn, 
+      label: "Connexion", 
+      path: "/login"
+    },
+    { 
+      icon: UserPlus, 
+      label: "Inscription", 
+      path: "/register"
+    },
     { 
       icon: LayoutDashboard, 
       label: "Mon Dashboard", 
@@ -90,7 +102,7 @@ export default function EmployeeDashboard() {
                 value="2"
                 icon={AlertTriangle}
               >
-                <p className="text-xs text-orange-500 mt-1">⚠️ 2 retards</p>
+                <p className="text-xs text-orange-500 mt-1">⚠️ 2 retards ce mois</p>
               </KPICard>
               
               <KPICard 

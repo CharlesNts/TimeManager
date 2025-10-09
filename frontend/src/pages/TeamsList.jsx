@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import TeamCard from '../components/manager/TeamCard';
 import TeamFormModal from '../components/manager/TeamFormModal';
-import { Plus, Users, LayoutDashboard, UserCircle, BarChart3 } from 'lucide-react';
+import { Plus, Users, LayoutDashboard, UserCircle, BarChart3, LogIn, UserPlus } from 'lucide-react';
 
 /**
  * Page TeamsList - Liste de toutes les équipes
@@ -27,6 +27,16 @@ export default function TeamsList() {
   // État pour le modal de création
   const [isModalOpen, setIsModalOpen] = useState(false);
   const sidebarItems = [
+    { 
+      icon: LogIn, 
+      label: "Connexion", 
+      path: "/login"
+    },
+    { 
+      icon: UserPlus, 
+      label: "Inscription", 
+      path: "/register"
+    },
     { 
       icon: LayoutDashboard, 
       label: "Mon Dashboard", 

@@ -7,31 +7,41 @@ import ClockHistory from '../components/employee/ClockHistory';
 import TeamCard from '../components/manager/TeamCard';
 
 //  Quelques icônes depuis la librairie lucide-react
-import { Clock, AlertTriangle, Briefcase, LayoutDashboard, Users, UserCircle, BarChart3 } from 'lucide-react';
+import { Clock, AlertTriangle, Briefcase, LayoutDashboard, Users, UserCircle, BarChart3, LogIn, UserPlus } from 'lucide-react';
 
 export default function DemoPage() {
   // Configuration des items de navigation pour la Sidebar
   // Maintenant on utilise des "path" au lieu de "onClick" et "active"
   const sidebarItems = [
     { 
+      icon: LogIn, 
+      label: "Connexion", 
+      path: "/login"
+    },
+    { 
+      icon: UserPlus, 
+      label: "Inscription", 
+      path: "/register"
+    },
+    { 
       icon: LayoutDashboard, 
       label: "Dashboard", 
-      path: "/dashboard" // URL vers le dashboard (à créer)
+      path: "/dashboard"
     },
     { 
       icon: Users, 
       label: "Équipes", 
-      path: "/teams" // URL vers les équipes (à créer)
+      path: "/teams"
     },
     { 
       icon: UserCircle, 
       label: "Profil", 
-      path: "/profile" // URL vers le profil (à créer)
+      path: "/profile"
     },
     { 
       icon: BarChart3, 
       label: "Démo", 
-      path: "/demo" // Cette page !
+      path: "/demo"
     },
   ];
 
@@ -65,7 +75,9 @@ export default function DemoPage() {
                 title="Taux de retards ce mois"
                 value="2"
                 icon={AlertTriangle}
-              />
+              >
+                <p className="text-xs text-orange-500">⚠️ Sur 20 jours travaillés</p>
+              </KPICard>
               
               <KPICard 
                 title="Moyenne hebdomadaire"

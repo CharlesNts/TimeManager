@@ -12,7 +12,9 @@ import {
   TrendingUp,
   Edit,
   LayoutDashboard, 
-  BarChart3 
+  BarChart3,
+  LogIn,
+  UserPlus
 } from 'lucide-react';
 
 /**
@@ -145,10 +147,12 @@ export default function TeamDetail() {
 
   // Navigation sidebar pour managers
   const sidebarItems = [
+    { icon: LogIn, label: 'Connexion', path: '/login' },
+    { icon: UserPlus, label: 'Inscription', path: '/register' },
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: Users, label: 'Équipes', path: '/teams', active: true },
-    { icon: BarChart3, label: 'Statistiques', path: '/stats' },
+    { icon: Users, label: 'Équipes', path: '/teams' },
     { icon: UserCircle, label: 'Profil', path: '/profile' },
+    { icon: BarChart3, label: 'Démo', path: '/demo' },
   ];
 
   const handleBack = () => {

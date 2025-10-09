@@ -1,5 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import DemoPage from './pages/DemoPage';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import TeamsList from './pages/TeamsList';
@@ -10,6 +12,8 @@ import ProfilePage from './pages/ProfilePage';
  * Composant App - Point d'entrée avec le système de routing
  * 
  * Routes disponibles:
+ * - /login : Connexion
+ * - /register : Inscription
  * - /dashboard : Dashboard employé
  * - /teams : Liste des équipes (Manager/CEO)
  * - /teams/:teamId : Détails d'une équipe
@@ -24,6 +28,10 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Authentification */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        
         {/* Dashboard employé - Page principale */}
         <Route path="/dashboard" element={<EmployeeDashboard />} />
         
