@@ -1,15 +1,2 @@
-<<<<<<< HEAD
 /.idea/
 .my-config/
-=======
-# macOS
-.DS_Store
-**/.DS_Store
-
-# Build / IDE
-target/
-.idea/
-*.iml
-.DS_Store
-**/.DS_Store
->>>>>>> cdeb021294682edeccc721da5874fcf0963fa425
