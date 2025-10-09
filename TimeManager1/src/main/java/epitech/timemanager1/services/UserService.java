@@ -111,4 +111,9 @@ public class UserService {
         if (!users.existsById(id)) throw new NotFoundException("User not found: " + id);
         users.deleteById(id);
     }
+    @Transactional(readOnly = true)
+    public UserDTO getByEmail(String email) {
+        return users.findByEmail(email).map(this::toDTO)
+                .orElseThrow(() -> new NotFoundException("User not found: " + email));
+    }
 }
