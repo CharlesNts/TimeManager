@@ -169,18 +169,15 @@ export default function TeamsList() {
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-2xl font-semibold text-gray-900">
-                {currentRole === 'CEO' ? 'Gestion des équipes' : 'Mon équipe'}
+                {currentRole === 'CEO' ? 'Gestion des équipes' : 'Mes équipes'}
               </h2>
               <p className="text-sm text-gray-600 mt-1">
-                {currentRole === 'CEO' 
-                  ? `${filteredTeams.length} ${filteredTeams.length > 1 ? 'équipes' : 'équipe'} au total`
-                  : 'Vous êtes manager de cette équipe'
-                }
+                {filteredTeams.length} {filteredTeams.length > 1 ? 'équipes' : 'équipe'}
               </p>
             </div>
 
-            {/* Bouton Créer une équipe - Visible selon les règles métier */}
-            {(currentRole === 'CEO' || (currentRole === 'MANAGER' && filteredTeams.length === 0)) && (
+            {/* Bouton Créer une équipe - Visible pour MANAGER et CEO */}
+            {(currentRole === 'MANAGER' || currentRole === 'CEO') && (
               <button
                 onClick={handleCreateTeam}
                 className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium"
