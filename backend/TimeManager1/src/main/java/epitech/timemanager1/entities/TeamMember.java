@@ -10,8 +10,13 @@ import java.time.LocalDateTime;
 
 @Entity
 @EntityListeners(AuditingEntityListener.class)
-@Table(name = "team_members",
-        uniqueConstraints = @UniqueConstraint(name = "uk_member_team", columnNames = {"user_id", "team_id"}))
+@Table(
+        name = "team_members",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_member_team",
+                columnNames = {"user_id", "team_id"}
+        )
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -26,6 +31,8 @@ public class TeamMember {
     @AllArgsConstructor
     @EqualsAndHashCode
     public static class Id implements Serializable {
+        private static final long serialVersionUID = 1L;
+
         @Column(name = "user_id")
         private Long userId;
 
@@ -34,6 +41,7 @@ public class TeamMember {
     }
 
     @EmbeddedId
+    @Builder.Default
     private Id id = new Id();
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -49,4 +57,11 @@ public class TeamMember {
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private LocalDateTime joinedAt;
+
+    @PrePersist
+    void ensureId() {
+        if (id == null) {
+            id = new Id();
+        }
+    }
 }
