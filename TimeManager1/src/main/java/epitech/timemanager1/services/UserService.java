@@ -1,6 +1,7 @@
 package epitech.timemanager1.services;
 
 import epitech.timemanager1.dto.UserDTO;
+import epitech.timemanager1.entities.Role;
 import epitech.timemanager1.entities.User;
 import epitech.timemanager1.exception.ConflictException;
 import epitech.timemanager1.exception.NotFoundException;
@@ -9,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,8 +22,8 @@ import java.util.List;
 public class UserService {
 
     private final UserRepository users;
+    private final PasswordEncoder passwordEncoder;
 
-    // ----- mapping helpers (replace later with MapStruct if you want) -----
     private User toEntity(UserDTO d) {
         if (d == null) return null;
         return User.builder()
@@ -30,8 +32,7 @@ public class UserService {
                 .lastName(d.getLastName())
                 .email(d.getEmail())
                 .phoneNumber(d.getPhoneNumber())
-                .role(d.getRole() != null ? d.getRole() : User.builder().build().getRole()) // default EMPLOYEE from entity
-                .password(d.getPassword()) // required on create due to @NotBlank on entity
+                .role(d.getRole() != null ? d.getRole() : Role.EMPLOYEE)
                 .createdAt(d.getCreatedAt())
                 .build();
     }
@@ -46,18 +47,23 @@ public class UserService {
                 .phoneNumber(e.getPhoneNumber())
                 .role(e.getRole())
                 .createdAt(e.getCreatedAt())
-                // password intentionally omitted (write-only)
                 .build();
     }
-    // ---------------------------------------------------------------------
 
     public UserDTO create(@Valid UserDTO dto) {
         if (users.existsByEmail(dto.getEmail())) {
             throw new ConflictException("Email already in use: " + dto.getEmail());
         }
-        User toSave = toEntity(dto);     // convert DTO -> Entity
-        User saved  = users.save(toSave);
-        return toDTO(saved);             // return DTO
+        if (dto.getPassword() == null || dto.getPassword().isBlank()) {
+            throw new ConflictException("Password is required for user creation");
+        }
+
+        User toSave = toEntity(dto);
+        // hash the password before saving
+        toSave.setPassword(passwordEncoder.encode(dto.getPassword()));
+
+        User saved = users.save(toSave);
+        return toDTO(saved);
     }
 
     @Transactional(readOnly = true)
@@ -95,14 +101,35 @@ public class UserService {
         }
 
         if (patch.getPassword() != null && !patch.getPassword().isBlank()) {
-            u.setPassword(patch.getPassword()); // assume already hashed for now
+            u.setPassword(passwordEncoder.encode(patch.getPassword()));
         }
 
-        return toDTO(u); // managed entity; changes will flush; return DTO
+        return toDTO(u);
     }
 
     public void delete(long id) {
         if (!users.existsById(id)) throw new NotFoundException("User not found: " + id);
         users.deleteById(id);
+    }
+    @Transactional(readOnly = true)
+    public UserDTO getByEmail(String email) {
+        return users.findByEmail(email).map(this::toDTO)
+                .orElseThrow(() -> new NotFoundException("User not found: " + email));
+    }
+
+    public void approveUser(Long id) {
+        User user = users.findById(id)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        user.setActive(true);
+    }
+
+    public void rejectUser(Long id) {
+        if (!users.existsById(id))
+            throw new NotFoundException("User not found");
+        users.deleteById(id); // or set a `rejected = true` flag instead
+    }
+
+    public List<UserDTO> findAllPending() {
+        return users.findAllByActiveFalse().stream().map(this::toDTO).toList();
     }
 }

@@ -12,8 +12,8 @@ import {
   TrendingUp,
   LayoutDashboard, 
   Users, 
-  UserCircle, 
-  BarChart3 
+  UserCircle,
+  UserCog
 } from 'lucide-react';
 
 /**
@@ -31,28 +31,27 @@ export default function EmployeeDashboard() {
   const [currentRole, setCurrentRole] = useState('EMPLOYEE');
   const [currentUserId, setCurrentUserId] = useState(1);
 
-  // Configuration de la navigation sidebar - Adapté selon le rôle
+  // Configuration de la navigation sidebar - Accessible à tous
   const sidebarItems = [
     { 
       icon: LayoutDashboard, 
-      label: "Mon Dashboard", 
+      label: "Dashboard", 
       path: "/dashboard"
     },
-    // Équipes visible uniquement pour MANAGER et CEO
-    ...(currentRole === 'MANAGER' || currentRole === 'CEO' ? [{
+    { 
       icon: Users, 
       label: "Équipes", 
       path: "/teams"
-    }] : []),
+    },
     { 
       icon: UserCircle, 
       label: "Profil", 
       path: "/profile"
     },
     { 
-      icon: BarChart3, 
-      label: "Démo", 
-      path: "/demo"
+      icon: UserCog, 
+      label: "Utilisateurs", 
+      path: "/users"
     },
   ];
 
@@ -90,7 +89,7 @@ export default function EmployeeDashboard() {
                 value="2"
                 icon={AlertTriangle}
               >
-                <p className="text-xs text-orange-500 mt-1">⚠️ 2 retards</p>
+                <p className="text-xs text-orange-500 mt-1">⚠️ 2 retards ce mois</p>
               </KPICard>
               
               <KPICard 

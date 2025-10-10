@@ -10,8 +10,8 @@ import {
   Save,
   LayoutDashboard, 
   Users, 
-  UserCircle, 
-  BarChart3 
+  UserCircle,
+  UserCog
 } from 'lucide-react';
 
 /**
@@ -30,28 +30,27 @@ export default function ProfilePage() {
   const [currentRole, setCurrentRole] = useState('EMPLOYEE');
   const [currentUserId, setCurrentUserId] = useState(1);
 
-  // Configuration de la navigation sidebar - Adapté selon le rôle
+  // Configuration de la navigation sidebar
   const sidebarItems = [
     { 
       icon: LayoutDashboard, 
-      label: "Mon Dashboard", 
+      label: "Dashboard", 
       path: "/dashboard"
     },
-    // Équipes visible uniquement pour MANAGER et CEO
-    ...(currentRole === 'MANAGER' || currentRole === 'CEO' ? [{
+    { 
       icon: Users, 
       label: "Équipes", 
       path: "/teams"
-    }] : []),
+    },
     { 
       icon: UserCircle, 
-      label: "Profil", 
+      label: "Profil",
       path: "/profile"
     },
     { 
-      icon: BarChart3, 
-      label: "Démo", 
-      path: "/demo"
+      icon: UserCog, 
+      label: "Utilisateurs", 
+      path: "/users"
     },
   ];
 

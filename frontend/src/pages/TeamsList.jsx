@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import TeamCard from '../components/manager/TeamCard';
 import TeamFormModal from '../components/manager/TeamFormModal';
-import { Plus, Users, LayoutDashboard, UserCircle, BarChart3 } from 'lucide-react';
+import { Plus, Users, LayoutDashboard, UserCircle, UserCog } from 'lucide-react';
 
 /**
  * Page TeamsList - Liste de toutes les équipes
@@ -26,10 +26,11 @@ export default function TeamsList() {
 
   // État pour le modal de création
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
   const sidebarItems = [
     { 
       icon: LayoutDashboard, 
-      label: "Mon Dashboard", 
+      label: "Dashboard", 
       path: "/dashboard"
     },
     { 
@@ -43,9 +44,9 @@ export default function TeamsList() {
       path: "/profile"
     },
     { 
-      icon: BarChart3, 
-      label: "Démo", 
-      path: "/demo"
+      icon: UserCog, 
+      label: "Utilisateurs", 
+      path: "/users"
     },
   ];
 
@@ -159,18 +160,15 @@ export default function TeamsList() {
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-2xl font-semibold text-gray-900">
-                {currentRole === 'CEO' ? 'Gestion des équipes' : 'Mon équipe'}
+                {currentRole === 'CEO' ? 'Gestion des équipes' : 'Mes équipes'}
               </h2>
               <p className="text-sm text-gray-600 mt-1">
-                {currentRole === 'CEO' 
-                  ? `${filteredTeams.length} ${filteredTeams.length > 1 ? 'équipes' : 'équipe'} au total`
-                  : 'Vous êtes manager de cette équipe'
-                }
+                {filteredTeams.length} {filteredTeams.length > 1 ? 'équipes' : 'équipe'}
               </p>
             </div>
 
-            {/* Bouton Créer une équipe - Visible selon les règles métier */}
-            {(currentRole === 'CEO' || (currentRole === 'MANAGER' && filteredTeams.length === 0)) && (
+            {/* Bouton Créer une équipe - Visible pour MANAGER et CEO */}
+            {(currentRole === 'MANAGER' || currentRole === 'CEO') && (
               <button
                 onClick={handleCreateTeam}
                 className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium"

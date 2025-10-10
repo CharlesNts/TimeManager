@@ -2,6 +2,7 @@ package epitech.timemanager1.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 import java.time.LocalDateTime;
 import epitech.timemanager1.entities.Role;
@@ -17,7 +18,7 @@ public class UserDTO {
     private Role role;
     private LocalDateTime createdAt;
 
-    // write-only: clients can send it, but we never serialize it back
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @Size(min = 8, max = 100, message = "Password must be 8–100 chars")
     private String password;
 }
