@@ -12,10 +12,8 @@ import {
   TrendingUp,
   LayoutDashboard, 
   Users, 
-  UserCircle, 
-  BarChart3,
-  LogIn,
-  UserPlus
+  UserCircle,
+  UserCog
 } from 'lucide-react';
 
 /**
@@ -33,38 +31,27 @@ export default function EmployeeDashboard() {
   const [currentRole, setCurrentRole] = useState('EMPLOYEE');
   const [currentUserId, setCurrentUserId] = useState(1);
 
-  // Configuration de la navigation sidebar - Adapté selon le rôle
+  // Configuration de la navigation sidebar - Accessible à tous
   const sidebarItems = [
     { 
-      icon: LogIn, 
-      label: "Connexion", 
-      path: "/login"
-    },
-    { 
-      icon: UserPlus, 
-      label: "Inscription", 
-      path: "/register"
-    },
-    { 
       icon: LayoutDashboard, 
-      label: "Mon Dashboard", 
+      label: "Dashboard", 
       path: "/dashboard"
     },
-    // Équipes visible uniquement pour MANAGER et CEO
-    ...(currentRole === 'MANAGER' || currentRole === 'CEO' ? [{
+    { 
       icon: Users, 
       label: "Équipes", 
       path: "/teams"
-    }] : []),
+    },
     { 
       icon: UserCircle, 
       label: "Profil", 
       path: "/profile"
     },
     { 
-      icon: BarChart3, 
-      label: "Démo", 
-      path: "/demo"
+      icon: UserCog, 
+      label: "Utilisateurs", 
+      path: "/users"
     },
   ];
 
