@@ -31,22 +31,22 @@ jobs:
 #        run: |
 #          cd backend/TimeManager1
 #          mvn test
-
-      - name: Generate coverage report
-        run: |
-          cd backend/TimeManager1
-          mvn jacoco:report
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: jacoco-report
-          path: backend/target/site/jacoco/
-
-      - name: Comment coverage on PR
-        if: github.event_name == 'pull_request'
-        run: |
-          echo "Coverage report generated"
+#
+#      - name: Generate coverage report
+#        run: |
+#          cd backend/TimeManager1
+#          mvn jacoco:report
+#
+#      - name: Upload coverage report
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: jacoco-report
+#          path: backend/target/site/jacoco/
+#
+#      - name: Comment coverage on PR
+#        if: github.event_name == 'pull_request'
+#        run: |
+#          echo "Coverage report generated"
 
   frontend-build:
     name: Frontend - Build
