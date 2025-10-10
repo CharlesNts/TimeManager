@@ -54,4 +54,7 @@ public class User {
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private boolean active = false; // user is inactive by default
 }

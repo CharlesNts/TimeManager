@@ -1,9 +1,11 @@
 package epitech.timemanager1.security;
 
+import epitech.timemanager1.entities.User;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.*;
@@ -29,17 +31,26 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
             throws ServletException, IOException {
         String header = req.getHeader("Authorization");
+
         if (StringUtils.hasText(header) && header.startsWith("Bearer ")) {
             String token = header.substring(7);
+
             if (jwtTokenService.isValid(token)) {
                 String email = jwtTokenService.getSubject(token);
-                UserDetails user = userDetailsService.loadUserByUsername(email);
+                UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-                var auth = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
+                // 🧠 Check if the user is active (approved by CEO)
+                if (userDetails instanceof User user && !user.isActive()) {
+                    throw new BadCredentialsException("User account not activated. Please wait for approval.");
+                }
+
+                var auth = new UsernamePasswordAuthenticationToken(
+                        userDetails, null, userDetails.getAuthorities());
                 auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(req));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }
+
         chain.doFilter(req, res);
     }
 }

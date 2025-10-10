@@ -116,4 +116,20 @@ public class UserService {
         return users.findByEmail(email).map(this::toDTO)
                 .orElseThrow(() -> new NotFoundException("User not found: " + email));
     }
+
+    public void approveUser(Long id) {
+        User user = users.findById(id)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        user.setActive(true);
+    }
+
+    public void rejectUser(Long id) {
+        if (!users.existsById(id))
+            throw new NotFoundException("User not found");
+        users.deleteById(id); // or set a `rejected = true` flag instead
+    }
+
+    public List<UserDTO> findAllPending() {
+        return users.findAllByActiveFalse().stream().map(this::toDTO).toList();
+    }
 }
