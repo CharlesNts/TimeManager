@@ -13,6 +13,9 @@ import { Calendar, Clock, AlertTriangle } from 'lucide-react';
  * - Retard (calculé selon les horaires de l'équipe)
  * - Statut: "Terminé", "En cours", ou "Retard"
  * 
+ * Props:
+ * - period: Nombre de jours à afficher (7, 30, 365)
+ * 
  * Règle métier :
  * - Horaires équipe : workStartTime (ex: 09:00)
  * - Retard si clockIn > workStartTime
@@ -20,7 +23,7 @@ import { Calendar, Clock, AlertTriangle } from 'lucide-react';
  * Pour l'instant avec des données de démo
  * Plus tard, les données viendront de l'API basée sur la table Clocks
  */
-export default function ClockHistory() {
+export default function ClockHistory({ period = 7 }) {
   // Horaires de l'équipe (plus tard viendront de l'API via le contexte)
   const teamSchedule = {
     workStartTime: '09:00',
@@ -41,50 +44,47 @@ export default function ClockHistory() {
     return { isLate: true, minutes: delayMinutes };
   };
 
-  // Données de démo - Plus tard viendront d'un service/API
+  // Données de démo - Plus tard viendront d'un service/API GET /api/clocks/history?period={period}
   // Correspond à la table Clocks (id, userId, clockIn, clockOut)
-  const historyData = [
-    {
-      id: 1,
-      date: '2025-10-09',
-      dateLabel: 'Aujourd\'hui',
-      clockIn: '09:00',
-      clockOut: '17:30',
-      totalHours: '8h 30m'
-    },
-    {
-      id: 2,
-      date: '2025-10-08',
-      dateLabel: 'Hier',
-      clockIn: '08:45',
-      clockOut: '17:15',
-      totalHours: '8h 30m'
-    },
-    {
-      id: 3,
-      date: '2025-10-07',
-      dateLabel: 'Lun 07 Oct',
-      clockIn: '09:10', // 10 min de retard
-      clockOut: '18:00',
-      totalHours: '8h 50m'
-    },
-    {
-      id: 4,
-      date: '2025-10-04',
-      dateLabel: 'Ven 04 Oct',
-      clockIn: '09:30', // 30 min de retard
-      clockOut: '17:45',
-      totalHours: '8h 00m'
-    },
-    {
-      id: 5,
-      date: '2025-10-03',
-      dateLabel: 'Jeu 03 Oct',
-      clockIn: '09:00',
-      clockOut: null, // clockOut null = toujours en cours
-      totalHours: '6h 15m' // Durée calculée depuis clockIn jusqu'à maintenant
-    },
-  ];
+  // MOCK : Génère des données pour la période demandée
+  const generateHistoryData = (days) => {
+    const data = [];
+    const today = new Date('2025-10-09');
+    
+    for (let i = 0; i < days && i < 30; i++) { // Limité à 30 pour la démo
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      
+      // Ignorer les week-ends
+      if (date.getDay() === 0 || date.getDay() === 6) continue;
+      
+      const clockIn = i === 0 ? '09:00' : 
+                      i === 1 ? '08:45' : 
+                      i % 3 === 0 ? '09:10' : // Quelques retards
+                      i % 5 === 0 ? '09:30' : 
+                      '09:00';
+      
+      const clockOut = i === 0 ? '17:30' :
+                       i === 1 ? '17:15' :
+                       i % 7 === 0 ? null : // Quelques "en cours"
+                       '17:30';
+      
+      data.push({
+        id: i + 1,
+        date: date.toISOString().split('T')[0],
+        dateLabel: i === 0 ? 'Aujourd\'hui' :
+                   i === 1 ? 'Hier' :
+                   date.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' }),
+        clockIn,
+        clockOut,
+        totalHours: clockOut ? '8h 30m' : '6h 15m'
+      });
+    }
+    
+    return data;
+  };
+
+  const historyData = generateHistoryData(period);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -174,7 +174,7 @@ export default function ClockHistory() {
       {/* Footer avec stats */}
       <div className="mt-4 flex items-center justify-between text-sm">
         <span className="text-gray-500">
-          Affichage des 5 derniers pointages
+          Affichage des {historyData.length} derniers pointages ({period} jours)
         </span>
         <div className="flex items-center space-x-4">
           <span className="text-green-600">

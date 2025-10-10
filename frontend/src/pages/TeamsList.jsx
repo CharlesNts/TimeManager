@@ -1,10 +1,12 @@
 // src/pages/TeamsList.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import TeamCard from '../components/manager/TeamCard';
 import TeamFormModal from '../components/manager/TeamFormModal';
-import { Plus, Users, LayoutDashboard, UserCircle, UserCog } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 /**
  * Page TeamsList - Liste de toutes les équipes
@@ -19,38 +21,15 @@ import { Plus, Users, LayoutDashboard, UserCircle, UserCog } from 'lucide-react'
  */
 export default function TeamsList() {
   const navigate = useNavigate();
-
-  // États pour le mode développement (simulation de rôles)
-  const [currentRole, setCurrentRole] = useState('CEO'); // 'EMPLOYEE' | 'MANAGER' | 'CEO'
-  const [currentUserId, setCurrentUserId] = useState(1);
-
-  // État pour le modal de création
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { user } = useAuth();
   
-  const sidebarItems = [
-    { 
-      icon: LayoutDashboard, 
-      label: "Dashboard", 
-      path: "/dashboard"
-    },
-    { 
-      icon: Users, 
-      label: "Équipes", 
-      path: "/teams"
-    },
-    { 
-      icon: UserCircle, 
-      label: "Profil", 
-      path: "/profile"
-    },
-    { 
-      icon: UserCog, 
-      label: "Utilisateurs", 
-      path: "/users"
-    },
-  ];
+  // État du modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState('create'); // 'create' ou 'edit'
+  const [selectedTeam, setSelectedTeam] = useState(null);
 
-  // Données de démo - Plus tard viendront de l'API
+  // Configuration de la navigation sidebar selon le rôle
+  const sidebarItems = getSidebarItems(user?.role);  // Données de démo - Plus tard viendront de l'API
   // Correspond à la table Teams + calculs
   const teams = [
     {
@@ -110,77 +89,75 @@ export default function TeamsList() {
 
   // Fonction pour créer une nouvelle équipe
   const handleCreateTeam = () => {
+    setModalMode('create');
+    setSelectedTeam(null);
     setIsModalOpen(true);
+  };
+
+  // Fonction pour modifier une équipe
+  const handleEditTeam = (team) => {
+    setModalMode('edit');
+    setSelectedTeam(team);
+    setIsModalOpen(true);
+  };
+
+  // Fonction pour supprimer une équipe
+  const handleDeleteTeam = (teamId) => {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette équipe ?')) {
+      console.log('Supprimer équipe:', teamId);
+      // Plus tard: API DELETE /api/teams/:id
+    }
   };
 
   // Filtrer les équipes selon le rôle
   // CEO : voit toutes les équipes
   // MANAGER : voit uniquement les équipes dont il est le manager
-  const filteredTeams = currentRole === 'CEO' 
+  const filteredTeams = user?.role === 'CEO' 
     ? teams 
-    : teams.filter(team => team.managerId === currentUserId);
+    : teams.filter(team => team.managerId === user?.id);
 
   // Fonction de sauvegarde d'une équipe
   const handleSaveTeam = (teamData) => {
-    console.log('Créer équipe avec les données:', teamData);
-    // Plus tard: appeler l'API POST /api/teams
-    // Exemple: await fetch('/api/teams', { method: 'POST', body: JSON.stringify(teamData) })
+    if (modalMode === 'create') {
+      console.log('Créer équipe avec les données:', teamData);
+      // Plus tard: API POST /api/teams
+    } else {
+      console.log('Modifier équipe', selectedTeam.id, 'avec les données:', teamData);
+      // Plus tard: API PUT /api/teams/:id
+    }
   };
 
   return (
     <Layout 
       sidebarItems={sidebarItems}
       pageTitle="Mes équipes"
-      userName="Jonathan GROMAT"
-      userRole="Manager"
-      currentRole={currentRole}
-      onRoleChange={setCurrentRole}
-      currentUserId={currentUserId}
-      onUserIdChange={setCurrentUserId}
+      userName={`${user?.firstName} ${user?.lastName}`}
+      userRole={user?.role}
     >
       <div className="p-8">
         <div className="max-w-7xl mx-auto">
           
-          {/* Message si EMPLOYEE tente d'accéder */}
-          {currentRole === 'EMPLOYEE' && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-              <p className="text-red-800 font-medium">
-                ⚠️ Cette page est réservée aux Managers et CEO
-              </p>
-              <p className="text-sm text-red-600 mt-2">
-                En tant qu'employé, vous n'avez pas accès à la gestion des équipes
-              </p>
-            </div>
-          )}
-
-          {/* Contenu normal pour MANAGER et CEO */}
-          {(currentRole === 'MANAGER' || currentRole === 'CEO') && (
-            <>
-              {/* Header avec bouton Créer */}
+          {/* Header avec bouton Créer */}
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900">
-                {currentRole === 'CEO' ? 'Gestion des équipes' : 'Mes équipes'}
-              </h2>
+              <h2 className="text-2xl font-semibold text-gray-900">Gestion des équipes</h2>
               <p className="text-sm text-gray-600 mt-1">
                 {filteredTeams.length} {filteredTeams.length > 1 ? 'équipes' : 'équipe'}
               </p>
             </div>
 
-            {/* Bouton Créer une équipe - Visible pour MANAGER et CEO */}
-            {(currentRole === 'MANAGER' || currentRole === 'CEO') && (
-              <button
-                onClick={handleCreateTeam}
-                className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium"
-              >
-                <Plus className="w-5 h-5 mr-2" />
-                Créer une équipe
-              </button>
-            )}
+            {/* Bouton Créer une équipe */}
+            <button
+              onClick={handleCreateTeam}
+              className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              Créer une équipe
+            </button>
           </div>
 
           {/* Grille des équipes */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredTeams.map((team) => (
               <TeamCard
                 key={team.id}
@@ -189,6 +166,9 @@ export default function TeamsList() {
                 memberCount={team.memberCount}
                 managerName={team.managerName}
                 onClick={() => handleTeamClick(team.id)}
+                onEdit={() => handleEditTeam(team)}
+                onDelete={() => handleDeleteTeam(team.id)}
+                showActions={user?.role === 'CEO'} // Uniquement le CEO peut modifier/supprimer
               />
             ))}
           </div>
@@ -212,18 +192,15 @@ export default function TeamsList() {
               </button>
             </div>
           )}
-            </>
-          )}
 
         </div>
       </div>
 
-      {/* Modal de création d'équipe */}
+      {/* Modal de création/modification d'équipe */}
       <TeamFormModal
         isOpen={isModalOpen}
-        mode="create"
-        userRole={currentRole}
-        currentUserId={currentUserId}
+        mode={modalMode}
+        teamData={selectedTeam}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveTeam}
       />
