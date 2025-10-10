@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
-import KPICard from '../components/dashboard/KPIcard.jsx';
+import KPICard from '../components/dashboard/KPICard.jsx';
 import ClockActions from '../components/employee/ClockActions';
 import ClockHistory from '../components/employee/ClockHistory';
 import PeriodSelector from '../components/manager/PeriodSelector';
