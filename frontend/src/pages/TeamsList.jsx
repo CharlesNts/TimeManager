@@ -22,14 +22,14 @@ import { Plus } from 'lucide-react';
 export default function TeamsList() {
   const navigate = useNavigate();
   const { user } = useAuth();
-
-  // État pour le modal de création
-  const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // Configuration de la navigation sidebar selon le rôle
-  const sidebarItems = getSidebarItems(user?.role);
+  // État du modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState('create'); // 'create' ou 'edit'
+  const [selectedTeam, setSelectedTeam] = useState(null);
 
-  // Données de démo - Plus tard viendront de l'API
+  // Configuration de la navigation sidebar selon le rôle
+  const sidebarItems = getSidebarItems(user?.role);  // Données de démo - Plus tard viendront de l'API
   // Correspond à la table Teams + calculs
   const teams = [
     {
@@ -89,21 +89,42 @@ export default function TeamsList() {
 
   // Fonction pour créer une nouvelle équipe
   const handleCreateTeam = () => {
+    setModalMode('create');
+    setSelectedTeam(null);
     setIsModalOpen(true);
+  };
+
+  // Fonction pour modifier une équipe
+  const handleEditTeam = (team) => {
+    setModalMode('edit');
+    setSelectedTeam(team);
+    setIsModalOpen(true);
+  };
+
+  // Fonction pour supprimer une équipe
+  const handleDeleteTeam = (teamId) => {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette équipe ?')) {
+      console.log('Supprimer équipe:', teamId);
+      // Plus tard: API DELETE /api/teams/:id
+    }
   };
 
   // Filtrer les équipes selon le rôle
   // CEO : voit toutes les équipes
   // MANAGER : voit uniquement les équipes dont il est le manager
-  const filteredTeams = currentRole === 'CEO' 
+  const filteredTeams = user?.role === 'CEO' 
     ? teams 
-    : teams.filter(team => team.managerId === currentUserId);
+    : teams.filter(team => team.managerId === user?.id);
 
   // Fonction de sauvegarde d'une équipe
   const handleSaveTeam = (teamData) => {
-    console.log('Créer équipe avec les données:', teamData);
-    // Plus tard: appeler l'API POST /api/teams
-    // Exemple: await fetch('/api/teams', { method: 'POST', body: JSON.stringify(teamData) })
+    if (modalMode === 'create') {
+      console.log('Créer équipe avec les données:', teamData);
+      // Plus tard: API POST /api/teams
+    } else {
+      console.log('Modifier équipe', selectedTeam.id, 'avec les données:', teamData);
+      // Plus tard: API PUT /api/teams/:id
+    }
   };
 
   return (
@@ -136,7 +157,7 @@ export default function TeamsList() {
           </div>
 
           {/* Grille des équipes */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredTeams.map((team) => (
               <TeamCard
                 key={team.id}
@@ -145,6 +166,9 @@ export default function TeamsList() {
                 memberCount={team.memberCount}
                 managerName={team.managerName}
                 onClick={() => handleTeamClick(team.id)}
+                onEdit={() => handleEditTeam(team)}
+                onDelete={() => handleDeleteTeam(team.id)}
+                showActions={user?.role === 'CEO'} // Uniquement le CEO peut modifier/supprimer
               />
             ))}
           </div>
@@ -172,10 +196,11 @@ export default function TeamsList() {
         </div>
       </div>
 
-      {/* Modal de création d'équipe */}
+      {/* Modal de création/modification d'équipe */}
       <TeamFormModal
         isOpen={isModalOpen}
-        mode="create"
+        mode={modalMode}
+        teamData={selectedTeam}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveTeam}
       />

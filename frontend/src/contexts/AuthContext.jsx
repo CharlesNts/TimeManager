@@ -1,5 +1,5 @@
 // src/contexts/AuthContext.jsx
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 
 /**
  * AuthContext - Contexte d'authentification
@@ -34,18 +34,31 @@ export const useAuth = () => {
  * - children: Les composants enfants
  */
 export const AuthProvider = ({ children }) => {
-  // MOCK : Utilisateur connecté par défaut
-  // Plus tard : cet état sera initialisé depuis le localStorage ou un appel API
-  const [user, setUser] = useState({
-    id: 1,
-    username: 'jonathan.gromat',
-    firstName: 'Jonathan',
-    lastName: 'GROMAT',
-    email: 'jonathan.gromat@example.com',
-    role: 'EMPLOYEE', // EMPLOYEE | MANAGER | CEO
-    avatar: null,
-    teamId: 1 // Pour les managers/employés
-  });
+  // MOCK : Initialiser l'utilisateur depuis le localStorage ou valeur par défaut
+  const getInitialUser = () => {
+    // Récupérer le rôle sauvegardé dans localStorage (DEV uniquement)
+    const savedRole = localStorage.getItem('dev_user_role');
+    
+    return {
+      id: 1,
+      username: 'jonathan.gromat',
+      firstName: 'Jonathan',
+      lastName: 'GROMAT',
+      email: 'jonathan.gromat@example.com',
+      role: savedRole || 'EMPLOYEE', // EMPLOYEE | MANAGER | CEO
+      avatar: null,
+      teamId: 1 // Pour les managers/employés
+    };
+  };
+
+  const [user, setUser] = useState(getInitialUser);
+
+  // Sauvegarder le rôle dans localStorage quand il change (DEV uniquement)
+  useEffect(() => {
+    if (user?.role) {
+      localStorage.setItem('dev_user_role', user.role);
+    }
+  }, [user?.role]);
 
   /**
    * Simule une connexion
@@ -72,6 +85,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     // MOCK : Simulation de déconnexion
     console.log('🔓 Mock Logout');
+    localStorage.removeItem('dev_user_role'); // Nettoyer le localStorage
     setUser(null);
   };
 

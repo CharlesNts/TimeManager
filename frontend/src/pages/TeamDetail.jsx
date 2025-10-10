@@ -7,6 +7,7 @@ import Layout from '../components/layout/Layout';
 import TeamFormModal from '../components/manager/TeamFormModal';
 import AddMemberModal from '../components/manager/AddMemberModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
+import PeriodSelector from '../components/manager/PeriodSelector';
 import { 
   ArrowLeft, 
   Users, 
@@ -15,7 +16,8 @@ import {
   Calendar,
   TrendingUp,
   Edit,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react';
 
 /**
@@ -144,6 +146,9 @@ export default function TeamDetail() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, member: null });
+  
+  // État pour la période sélectionnée
+  const [selectedPeriod, setSelectedPeriod] = useState(7); // 7 jours par défaut
 
   // Liste des utilisateurs disponibles pour ajouter (simulation)
   const availableUsers = [
@@ -183,6 +188,80 @@ export default function TeamDetail() {
     // Plus tard: API DELETE /api/teams/:teamId/members/:userId
     setConfirmDelete({ isOpen: false, member: null });
   };
+
+  /**
+   * Exporter les données de l'équipe en CSV
+   * MOCK : Génère un CSV avec les données actuelles
+   * Plus tard : appellera l'API GET /api/teams/:teamId/export?period={period}&format=csv
+   */
+  const handleExportCSV = () => {
+    console.log(`📥 Export CSV pour la période: ${selectedPeriod} jours`);
+    
+    // En-têtes du CSV
+    const headers = ['Nom', 'Prénom', 'Rôle', 'Date d\'arrivée', 'Heures (période)', 'Statut', 'Dernier pointage'];
+    
+    // Données des membres
+    const rows = members.map(member => [
+      member.lastName,
+      member.firstName,
+      member.role === 'MANAGER' ? 'Manager' : 'Employé',
+      new Date(member.joinedAt).toLocaleDateString('fr-FR'),
+      member.hoursThisWeek,
+      member.status === 'active' ? 'Actif' : member.status === 'break' ? 'Pause' : 'Hors ligne',
+      member.lastClockIn
+    ]);
+    
+    // Créer le contenu CSV
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+    
+    // Créer un blob et télécharger
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `equipe_${teamData.name}_${selectedPeriod}j_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Plus tard, cette fonction appellera :
+    // const response = await fetch(`/api/teams/${teamId}/export?period=${selectedPeriod}&format=csv`);
+    // const blob = await response.blob();
+    // ... téléchargement du blob
+  };
+
+  /**
+   * Exporter les données de l'équipe en PDF
+   * MOCK : Simule un export PDF
+   * Plus tard : appellera l'API GET /api/teams/:teamId/export?period={period}&format=pdf
+   */
+  const handleExportPDF = () => {
+    console.log(`📥 Export PDF pour la période: ${selectedPeriod} jours`);
+    
+    // MOCK : Pour l'instant, on simule juste
+    // En production, le backend générera le PDF
+    alert(`🚧 Export PDF en cours de développement\n\nLe backend générera un PDF avec:\n- Informations de l'équipe\n- KPIs de la période (${selectedPeriod} jours)\n- Liste des membres et leurs statistiques\n- Graphiques (optionnel)`);
+    
+    // Plus tard, cette fonction appellera :
+    // const response = await fetch(`/api/teams/${teamId}/export?period=${selectedPeriod}&format=pdf`);
+    // const blob = await response.blob();
+    // const url = URL.createObjectURL(blob);
+    // const link = document.createElement('a');
+    // link.href = url;
+    // link.download = `equipe_${teamData.name}_${selectedPeriod}j_${new Date().toISOString().split('T')[0]}.pdf`;
+    // link.click();
+  };
+
+  /**
+   * Menu déroulant pour choisir le format d'export
+   */
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -255,19 +334,70 @@ export default function TeamDetail() {
                 </div>
               </div>
 
-              {/* Bouton Modifier */}
-              <button
-                onClick={handleEditTeam}
-                className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium"
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Modifier
-              </button>
+              {/* Boutons d'action */}
+              <div className="flex items-center space-x-3">
+                {/* Menu Export avec dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowExportMenu(!showExportMenu)}
+                    className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                    title="Exporter les données de l'équipe"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Exporter
+                  </button>
+                  
+                  {/* Dropdown menu */}
+                  {showExportMenu && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                      <button
+                        onClick={() => {
+                          handleExportCSV();
+                          setShowExportMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center text-sm text-gray-700 rounded-t-lg"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Exporter en CSV
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleExportPDF();
+                          setShowExportMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center text-sm text-gray-700 rounded-b-lg"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Exporter en PDF
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
+                <button
+                  onClick={handleEditTeam}
+                  className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Modifier
+                </button>
+              </div>
             </div>
           </div>
 
           {/* KPIs de l'équipe */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="space-y-6">
+            
+            {/* Sélecteur de période */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              <PeriodSelector 
+                selectedPeriod={selectedPeriod}
+                onPeriodChange={setSelectedPeriod}
+              />
+            </div>
+
+            {/* Cartes KPI */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {/* Total heures cette semaine */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between">
@@ -323,6 +453,7 @@ export default function TeamDetail() {
                 </div>
               </div>
             </div>
+          </div>
           </div>
 
           {/* Tableau des membres */}
