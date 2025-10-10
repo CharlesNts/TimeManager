@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+
+  backend:
+    build: ./backend
+    container_name: time-manager-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/timemanager
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    networks:
+      - app-network
+    depends_on:
+      - bdd
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db-data:
