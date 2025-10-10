@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -30,8 +31,15 @@ public class UserIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private UserRepository userRepository;
+    @Autowired private JdbcTemplate jdbc;
 
     private UserDTO testUser;
+
+    @BeforeEach
+    void clean() {
+        // nukes everything in the right order and resets IDs
+        jdbc.execute("TRUNCATE TABLE team_members, clocks, teams, users RESTART IDENTITY CASCADE");
+    }
 
     @BeforeEach
     void setup() {

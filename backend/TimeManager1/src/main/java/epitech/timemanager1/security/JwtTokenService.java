@@ -4,7 +4,6 @@ import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
 import java.security.Key;
@@ -29,22 +28,16 @@ public class JwtTokenService {
         this.issuer = issuer;
     }
 
-    public String generate(Authentication auth) {
+    public String generate(String subject) {
         Instant now = Instant.now();
-        Instant exp = now.plusSeconds(expirationSeconds);
-        String subject = auth.getName(); // email
         return Jwts.builder()
-                .setClaims(Map.of())            // add custom claims if you want
+                .setClaims(Map.of())
                 .setSubject(subject)
                 .setIssuer(issuer)
                 .setIssuedAt(Date.from(now))
-                .setExpiration(Date.from(exp))
+                .setExpiration(Date.from(now.plusSeconds(expirationSeconds)))
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
-    }
-
-    public String getSubject(String token) {
-        return parse(token).getBody().getSubject();
     }
 
     public boolean isValid(String token) {
@@ -54,6 +47,10 @@ public class JwtTokenService {
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
+    }
+
+    public String getSubject(String token) {
+        return parse(token).getBody().getSubject();
     }
 
     private Jws<Claims> parse(String token) {

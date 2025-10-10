@@ -47,7 +47,7 @@ public class AuthController {
         Authentication auth = authManager.authenticate(
                 new UsernamePasswordAuthenticationToken(req.getEmail(), req.getPassword())
         );
-        String token = jwtTokenService.generate(auth);
+        String token = jwtTokenService.generate(String.valueOf(auth));
         return ResponseEntity.ok(new AuthResponse("Bearer", token, expiration));
     }
 

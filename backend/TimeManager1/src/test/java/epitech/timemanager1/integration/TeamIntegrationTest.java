@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -35,12 +36,15 @@ class TeamIntegrationTest {
     @Autowired private ObjectMapper om;
     @Autowired private TeamRepository teamRepo;
     @Autowired private UserRepository userRepo;
+    @Autowired private JdbcTemplate jdbc;
+
 
     @BeforeEach
     void clean() {
-        teamRepo.deleteAll();
-        userRepo.deleteAll();
+        // nukes everything in the right order and resets IDs
+        jdbc.execute("TRUNCATE TABLE team_members, clocks, teams, users RESTART IDENTITY CASCADE");
     }
+
 
 
     private static String uniq(String base) {
