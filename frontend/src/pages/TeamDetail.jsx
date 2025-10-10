@@ -1,6 +1,8 @@
 // src/pages/TeamDetail.jsx
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import TeamFormModal from '../components/manager/TeamFormModal';
 import AddMemberModal from '../components/manager/AddMemberModal';
@@ -13,8 +15,6 @@ import {
   Calendar,
   TrendingUp,
   Edit,
-  LayoutDashboard,
-  UserCog,
   Trash2
 } from 'lucide-react';
 
@@ -35,10 +35,7 @@ import {
 export default function TeamDetail() {
   const { teamId } = useParams();
   const navigate = useNavigate();
-
-  // États pour le mode développement (simulation de rôles)
-  const [currentRole, setCurrentRole] = useState('CEO'); // 'EMPLOYEE' | 'MANAGER' | 'CEO'
-  const [currentUserId, setCurrentUserId] = useState(1);
+  const { user } = useAuth();
 
   // Données de démo - Plus tard viendront de l'API GET /api/teams/:id
   const teamData = {
@@ -155,13 +152,8 @@ export default function TeamDetail() {
     { id: 11, firstName: "Nicolas", lastName: "Fontaine", email: "nicolas.fontaine@primebank.com", role: "EMPLOYEE" },
   ];
 
-  // Navigation sidebar
-  const sidebarItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: Users, label: 'Équipes', path: '/teams' },
-    { icon: UserCircle, label: 'Profil', path: '/profile' },
-    { icon: UserCog, label: 'Utilisateurs', path: '/users' },
-  ];
+  // Navigation sidebar selon le rôle
+  const sidebarItems = getSidebarItems(user?.role);
 
   const handleBack = () => {
     navigate('/teams');
@@ -221,12 +213,8 @@ export default function TeamDetail() {
     <Layout 
       sidebarItems={sidebarItems}
       pageTitle={teamData.name}
-      userName="Jonathan GROMAT"
-      userRole="Manager"
-      currentRole={currentRole}
-      onRoleChange={setCurrentRole}
-      currentUserId={currentUserId}
-      onUserIdChange={setCurrentUserId}
+      userName={`${user?.firstName} ${user?.lastName}`}
+      userRole={user?.role}
     >
       <div className="p-8">
         <div className="max-w-7xl mx-auto space-y-6">
@@ -344,15 +332,13 @@ export default function TeamDetail() {
                 <Users className="w-5 h-5 mr-2" />
                 Membres de l'équipe
               </h3>
-              {(currentRole === 'MANAGER' || currentRole === 'CEO') && (
-                <button
-                  onClick={() => setIsAddMemberModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Ajouter un membre
-                </button>
-              )}
+              <button
+                onClick={() => setIsAddMemberModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors"
+              >
+                <UserPlus className="w-4 h-4" />
+                Ajouter un membre
+              </button>
             </div>
 
             <div className="overflow-x-auto">
@@ -365,9 +351,7 @@ export default function TeamDetail() {
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Heures semaine</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Dernier pointage</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Statut</th>
-                    {(currentRole === 'MANAGER' || currentRole === 'CEO') && (
-                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Actions</th>
-                    )}
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -406,19 +390,17 @@ export default function TeamDetail() {
                       <td className="py-3 px-4">
                         {getStatusBadge(member.status)}
                       </td>
-                      {(currentRole === 'MANAGER' || currentRole === 'CEO') && (
-                        <td className="py-3 px-4 text-right">
-                          {member.role !== 'MANAGER' && (
-                            <button
-                              onClick={() => handleRemoveMember(member)}
-                              className="text-red-600 hover:text-red-800 transition-colors"
-                              title="Retirer du groupe"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </td>
-                      )}
+                      <td className="py-3 px-4 text-right">
+                        {member.role !== 'MANAGER' && (
+                          <button
+                            onClick={() => handleRemoveMember(member)}
+                            className="text-red-600 hover:text-red-800 transition-colors"
+                            title="Retirer du groupe"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -434,8 +416,6 @@ export default function TeamDetail() {
         isOpen={isEditModalOpen}
         mode="edit"
         team={teamData}
-        userRole={currentRole}
-        currentUserId={currentUserId}
         onClose={() => setIsEditModalOpen(false)}
         onSave={handleSaveTeam}
       />

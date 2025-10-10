@@ -1,5 +1,7 @@
 // src/pages/ProfilePage.jsx
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import { 
   User, 
@@ -7,17 +9,13 @@ import {
   Phone, 
   Briefcase, 
   Key,
-  Save,
-  LayoutDashboard, 
-  Users, 
-  UserCircle,
-  UserCog
+  Save
 } from 'lucide-react';
 
 /**
  * Page ProfilePage - Profil utilisateur
  * 
- * Accessible à tous les utilisateurs
+ * Accessible à tous les utilisateurs authentifiés
  * Affiche et permet de modifier:
  * - Photo de profil
  * - Informations personnelles
@@ -26,42 +24,19 @@ import {
  * Pour l'instant en mode démo (données statiques)
  */
 export default function ProfilePage() {
-  // États pour le mode développement (simulation de rôles)
-  const [currentRole, setCurrentRole] = useState('EMPLOYEE');
-  const [currentUserId, setCurrentUserId] = useState(1);
-
-  // Configuration de la navigation sidebar
-  const sidebarItems = [
-    { 
-      icon: LayoutDashboard, 
-      label: "Dashboard", 
-      path: "/dashboard"
-    },
-    { 
-      icon: Users, 
-      label: "Équipes", 
-      path: "/teams"
-    },
-    { 
-      icon: UserCircle, 
-      label: "Profil",
-      path: "/profile"
-    },
-    { 
-      icon: UserCog, 
-      label: "Utilisateurs", 
-      path: "/users"
-    },
-  ];
+  const { user } = useAuth();
+  
+  // Configuration de la navigation sidebar selon le rôle
+  const sidebarItems = getSidebarItems(user?.role);
 
   // État local pour les données du profil (mode démo)
   // Correspond à la table Users
   const [profileData, setProfileData] = useState({
-    firstName: 'Jonathan',
-    lastName: 'GROMAT',
-    email: 'jonathan.gromat@primebank.com',
+    firstName: user?.firstName || 'Jonathan',
+    lastName: user?.lastName || 'GROMAT',
+    email: user?.email || 'jonathan.gromat@primebank.com',
     phoneNumber: '+33 6 12 34 56 78',
-    role: 'MANAGER' // Enum: EMPLOYEE, MANAGER, CEO
+    role: user?.role || 'MANAGER' // Enum: EMPLOYEE, MANAGER, CEO
   });
 
   const [isEditing, setIsEditing] = useState(false);
@@ -99,10 +74,6 @@ export default function ProfilePage() {
       pageTitle="Mon profil"
       userName={`${profileData.firstName} ${profileData.lastName}`}
       userRole={profileData.role}
-      currentRole={currentRole}
-      onRoleChange={setCurrentRole}
-      currentUserId={currentUserId}
-      onUserIdChange={setCurrentUserId}
     >
       <div className="p-8">
         <div className="max-w-4xl mx-auto space-y-6">

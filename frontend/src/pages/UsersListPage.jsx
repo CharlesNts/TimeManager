@@ -1,11 +1,9 @@
 // src/pages/UsersListPage.jsx
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import { 
-  Users, 
-  UserCircle, 
-  LayoutDashboard,
-  UserCog,
   Check,
   X,
   Edit,
@@ -29,19 +27,14 @@ import {
  * - REJECTED : Rejeté, compte désactivé
  */
 export default function UsersListPage() {
-  const [currentRole, setCurrentRole] = useState('CEO');
-  const [currentUserId, setCurrentUserId] = useState(1);
-
+  const { user } = useAuth();
+  
   // Filtres
   const [filterRole, setFilterRole] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
 
-  const sidebarItems = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-    { icon: Users, label: "Équipes", path: "/teams" },
-    { icon: UserCircle, label: "Profil", path: "/profile" },
-    { icon: UserCog, label: "Utilisateurs", path: "/users" },
-  ];
+  // Configuration de la navigation sidebar selon le rôle
+  const sidebarItems = getSidebarItems(user?.role);
 
   // Données de démo - Plus tard depuis API GET /api/users
   const users = [
@@ -159,40 +152,12 @@ export default function UsersListPage() {
     );
   };
 
-  // Message si pas CEO
-  if (currentRole !== 'CEO') {
-    return (
-      <Layout 
-        sidebarItems={sidebarItems}
-        pageTitle="Gestion des utilisateurs"
-        userName="Jonathan GROMAT"
-        userRole={currentRole}
-        currentRole={currentRole}
-        onRoleChange={setCurrentRole}
-        currentUserId={currentUserId}
-        onUserIdChange={setCurrentUserId}
-      >
-        <div className="p-8">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-            <p className="text-red-800 font-medium">
-              ⚠️ Cette page est réservée au CEO
-            </p>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout 
       sidebarItems={sidebarItems}
       pageTitle="Gestion des utilisateurs"
-      userName="Jonathan GROMAT"
-      userRole="CEO"
-      currentRole={currentRole}
-      onRoleChange={setCurrentRole}
-      currentUserId={currentUserId}
-      onUserIdChange={setCurrentUserId}
+      userName={`${user?.firstName} ${user?.lastName}`}
+      userRole={user?.role}
     >
       <div className="p-8">
         <div className="max-w-7xl mx-auto">

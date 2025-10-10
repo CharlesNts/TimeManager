@@ -1,5 +1,7 @@
 // src/pages/EmployeeDashboard.jsx
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import KPICard from '../components/dashboard/KPIcard.jsx';
 import ClockActions from '../components/employee/ClockActions';
@@ -9,11 +11,7 @@ import {
   Clock, 
   AlertTriangle, 
   Briefcase, 
-  TrendingUp,
-  LayoutDashboard, 
-  Users, 
-  UserCircle,
-  UserCog
+  TrendingUp
 } from 'lucide-react';
 
 /**
@@ -24,47 +22,20 @@ import {
  * - Zone d'actions Clock In/Out
  * - Historique des pointages
  * 
- * Cette page est accessible à tous les utilisateurs (employé, manager, CEO)
+ * Cette page est accessible à tous les utilisateurs authentifiés
  */
 export default function EmployeeDashboard() {
-  // États pour le mode développement (simulation de rôles)
-  const [currentRole, setCurrentRole] = useState('EMPLOYEE');
-  const [currentUserId, setCurrentUserId] = useState(1);
-
-  // Configuration de la navigation sidebar - Accessible à tous
-  const sidebarItems = [
-    { 
-      icon: LayoutDashboard, 
-      label: "Dashboard", 
-      path: "/dashboard"
-    },
-    { 
-      icon: Users, 
-      label: "Équipes", 
-      path: "/teams"
-    },
-    { 
-      icon: UserCircle, 
-      label: "Profil", 
-      path: "/profile"
-    },
-    { 
-      icon: UserCog, 
-      label: "Utilisateurs", 
-      path: "/users"
-    },
-  ];
+  const { user } = useAuth();
+  
+  // Configuration de la navigation sidebar selon le rôle
+  const sidebarItems = getSidebarItems(user?.role);
 
   return (
     <Layout 
       sidebarItems={sidebarItems}
       pageTitle="Mon dashboard"
-      userName="Jonathan GROMAT"
-      userRole="Employé"
-      currentRole={currentRole}
-      onRoleChange={setCurrentRole}
-      currentUserId={currentUserId}
-      onUserIdChange={setCurrentUserId}
+      userName={`${user?.firstName} ${user?.lastName}`}
+      userRole={user?.role}
     >
       <div className="p-8 space-y-8">
         <div className="max-w-7xl mx-auto">
