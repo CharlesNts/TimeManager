@@ -5,6 +5,7 @@ import epitech.timemanager1.services.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -43,5 +44,25 @@ public class UserController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         userService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize("hasRole('CEO')")
+    @PutMapping("/users/{id}/approve")
+    public ResponseEntity<Void> approveUser(@PathVariable Long id) {
+        userService.approveUser(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PreAuthorize("hasRole('CEO')")
+    @PutMapping("/users/{id}/reject")
+    public ResponseEntity<Void> rejectUser(@PathVariable Long id) {
+        userService.rejectUser(id);
+        return ResponseEntity.ok().build();
+    }
+    @PreAuthorize("hasRole('CEO')")
+    @GetMapping("/users/pending")
+    public ResponseEntity<List<UserDTO>> listPendingUsers() {
+        List<UserDTO> pending = userService.findAllPending();
+        return ResponseEntity.ok(pending);
     }
 }

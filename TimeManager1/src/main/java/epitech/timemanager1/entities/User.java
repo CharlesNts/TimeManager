@@ -44,8 +44,8 @@ public class User {
     @Size(max = 40)
     private String phoneNumber;
 
-    @NotBlank
-    private String password; // hashed
+    @Column(nullable = false, length = 60)
+    private String password; // BCrypt hash
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
@@ -54,4 +54,7 @@ public class User {
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private boolean active = false; // user is inactive by default
 }

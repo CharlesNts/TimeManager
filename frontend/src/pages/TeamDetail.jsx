@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import TeamFormModal from '../components/manager/TeamFormModal';
+import AddMemberModal from '../components/manager/AddMemberModal';
+import ConfirmModal from '../components/ui/ConfirmModal';
 import { 
   ArrowLeft, 
   Users, 
@@ -11,8 +13,9 @@ import {
   Calendar,
   TrendingUp,
   Edit,
-  LayoutDashboard, 
-  BarChart3 
+  LayoutDashboard,
+  UserCog,
+  Trash2
 } from 'lucide-react';
 
 /**
@@ -142,13 +145,22 @@ export default function TeamDetail() {
 
   // État pour le modal d'édition
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, member: null });
 
-  // Navigation sidebar pour managers
+  // Liste des utilisateurs disponibles pour ajouter (simulation)
+  const availableUsers = [
+    { id: 9, firstName: "Marc", lastName: "Dubois", email: "marc.dubois@primebank.com", role: "EMPLOYEE" },
+    { id: 10, firstName: "Claire", lastName: "Leroy", email: "claire.leroy@primebank.com", role: "EMPLOYEE" },
+    { id: 11, firstName: "Nicolas", lastName: "Fontaine", email: "nicolas.fontaine@primebank.com", role: "EMPLOYEE" },
+  ];
+
+  // Navigation sidebar
   const sidebarItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: Users, label: 'Équipes', path: '/teams', active: true },
-    { icon: BarChart3, label: 'Statistiques', path: '/stats' },
+    { icon: Users, label: 'Équipes', path: '/teams' },
     { icon: UserCircle, label: 'Profil', path: '/profile' },
+    { icon: UserCog, label: 'Utilisateurs', path: '/users' },
   ];
 
   const handleBack = () => {
@@ -163,6 +175,21 @@ export default function TeamDetail() {
     console.log('Modifier équipe avec les données:', teamData);
     // Plus tard: appeler l'API PUT /api/teams/:id
     // Exemple: await fetch(`/api/teams/${teamId}`, { method: 'PUT', body: JSON.stringify(teamData) })
+  };
+
+  const handleAddMember = (userId) => {
+    console.log('Ajouter membre:', userId);
+    // Plus tard: API POST /api/teams/:teamId/members avec { userId }
+  };
+
+  const handleRemoveMember = (member) => {
+    setConfirmDelete({ isOpen: true, member });
+  };
+
+  const confirmRemoveMember = () => {
+    console.log('Retirer membre:', confirmDelete.member.id);
+    // Plus tard: API DELETE /api/teams/:teamId/members/:userId
+    setConfirmDelete({ isOpen: false, member: null });
   };
 
   const getStatusBadge = (status) => {
@@ -312,10 +339,21 @@ export default function TeamDetail() {
 
           {/* Tableau des membres */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <Users className="w-5 h-5 mr-2" />
-              Membres de l'équipe
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+                <Users className="w-5 h-5 mr-2" />
+                Membres de l'équipe
+              </h3>
+              {(currentRole === 'MANAGER' || currentRole === 'CEO') && (
+                <button
+                  onClick={() => setIsAddMemberModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Ajouter un membre
+                </button>
+              )}
+            </div>
 
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -327,14 +365,17 @@ export default function TeamDetail() {
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Heures semaine</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Dernier pointage</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Statut</th>
+                    {(currentRole === 'MANAGER' || currentRole === 'CEO') && (
+                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {members.map((member) => (
-                    <tr key={member.id} className="border-b border-gray-100">
+                    <tr key={member.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-gray-900 rounded-full flex items-center justify-center">
+                          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                             <span className="text-white text-xs font-bold">
                               {member.firstName.charAt(0)}{member.lastName.charAt(0)}
                             </span>
@@ -344,8 +385,14 @@ export default function TeamDetail() {
                           </span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-600">
-                        {member.role === 'MANAGER' ? 'Manager' : 'Employé'}
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 text-xs font-medium rounded ${
+                          member.role === 'MANAGER' 
+                            ? 'bg-blue-100 text-blue-700' 
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {member.role === 'MANAGER' ? 'Manager' : 'Employé'}
+                        </span>
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600">
                         {new Date(member.joinedAt).toLocaleDateString('fr-FR')}
@@ -359,6 +406,19 @@ export default function TeamDetail() {
                       <td className="py-3 px-4">
                         {getStatusBadge(member.status)}
                       </td>
+                      {(currentRole === 'MANAGER' || currentRole === 'CEO') && (
+                        <td className="py-3 px-4 text-right">
+                          {member.role !== 'MANAGER' && (
+                            <button
+                              onClick={() => handleRemoveMember(member)}
+                              className="text-red-600 hover:text-red-800 transition-colors"
+                              title="Retirer du groupe"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -378,6 +438,27 @@ export default function TeamDetail() {
         currentUserId={currentUserId}
         onClose={() => setIsEditModalOpen(false)}
         onSave={handleSaveTeam}
+      />
+
+      {/* Modal d'ajout de membre */}
+      <AddMemberModal
+        isOpen={isAddMemberModalOpen}
+        onClose={() => setIsAddMemberModalOpen(false)}
+        onAddMember={handleAddMember}
+        currentMembers={members}
+        availableUsers={availableUsers}
+      />
+
+      {/* Modal de confirmation de suppression */}
+      <ConfirmModal
+        isOpen={confirmDelete.isOpen}
+        onClose={() => setConfirmDelete({ isOpen: false, member: null })}
+        onConfirm={confirmRemoveMember}
+        title="Retirer ce membre ?"
+        message={`Êtes-vous sûr de vouloir retirer ${confirmDelete.member?.firstName} ${confirmDelete.member?.lastName} de cette équipe ?`}
+        confirmText="Retirer"
+        cancelText="Annuler"
+        variant="danger"
       />
     </Layout>
   );

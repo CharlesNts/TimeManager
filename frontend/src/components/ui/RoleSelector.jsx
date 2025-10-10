@@ -9,7 +9,7 @@ import { UserCircle } from 'lucide-react';
  * À RETIRER en production (remplacé par authentification réelle)
  * 
  * Props:
- * - currentRole: 'NON_INSCRIT' | 'EMPLOYEE' | 'MANAGER' | 'CEO'
+ * - currentRole: 'EMPLOYEE' | 'MANAGER' | 'CEO'
  * - onRoleChange: Function - Appelée quand on change de rôle
  * - currentUserId: Number - ID utilisateur actuel
  * - onUserIdChange: Function - Appelée quand on change d'ID
@@ -31,25 +31,22 @@ export default function RoleSelector({
             onChange={(e) => onRoleChange(e.target.value)}
             className="px-3 py-1 border border-yellow-400 rounded bg-white text-sm font-medium focus:ring-2 focus:ring-yellow-500"
           >
-            <option value="NON_INSCRIT">Non inscrit</option>
             <option value="EMPLOYEE">Employé</option>
             <option value="MANAGER">Manager</option>
             <option value="CEO">CEO</option>
           </select>
         </div>
-        {currentRole !== 'NON_INSCRIT' && (
-          <div className="flex items-center space-x-2 border-l border-yellow-400 pl-3">
-            <span className="text-xs text-yellow-800">User ID:</span>
-            <input
-              type="number"
-              value={currentUserId}
-              onChange={(e) => onUserIdChange(parseInt(e.target.value))}
-              className="w-16 px-2 py-1 border border-yellow-400 rounded bg-white text-sm"
-              min="1"
-              max="10"
-            />
-          </div>
-        )}
+        <div className="flex items-center space-x-2 border-l border-yellow-400 pl-3">
+          <span className="text-xs text-yellow-800">User ID:</span>
+          <input
+            type="number"
+            value={currentUserId}
+            onChange={(e) => onUserIdChange(parseInt(e.target.value))}
+            className="w-16 px-2 py-1 border border-yellow-400 rounded bg-white text-sm"
+            min="1"
+            max="10"
+          />
+        </div>
         <div className="border-l border-yellow-400 pl-3">
           <span className="text-xs font-bold text-yellow-900 bg-yellow-200 px-2 py-1 rounded">
             DEV MODE
