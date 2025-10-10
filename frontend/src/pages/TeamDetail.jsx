@@ -1,10 +1,13 @@
 // src/pages/TeamDetail.jsx
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import TeamFormModal from '../components/manager/TeamFormModal';
 import AddMemberModal from '../components/manager/AddMemberModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
+import PeriodSelector from '../components/manager/PeriodSelector';
 import { 
   ArrowLeft, 
   Users, 
@@ -13,9 +16,8 @@ import {
   Calendar,
   TrendingUp,
   Edit,
-  LayoutDashboard,
-  UserCog,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react';
 
 /**
@@ -35,10 +37,7 @@ import {
 export default function TeamDetail() {
   const { teamId } = useParams();
   const navigate = useNavigate();
-
-  // États pour le mode développement (simulation de rôles)
-  const [currentRole, setCurrentRole] = useState('CEO'); // 'EMPLOYEE' | 'MANAGER' | 'CEO'
-  const [currentUserId, setCurrentUserId] = useState(1);
+  const { user } = useAuth();
 
   // Données de démo - Plus tard viendront de l'API GET /api/teams/:id
   const teamData = {
@@ -147,6 +146,9 @@ export default function TeamDetail() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, member: null });
+  
+  // État pour la période sélectionnée
+  const [selectedPeriod, setSelectedPeriod] = useState(7); // 7 jours par défaut
 
   // Liste des utilisateurs disponibles pour ajouter (simulation)
   const availableUsers = [
@@ -155,13 +157,8 @@ export default function TeamDetail() {
     { id: 11, firstName: "Nicolas", lastName: "Fontaine", email: "nicolas.fontaine@primebank.com", role: "EMPLOYEE" },
   ];
 
-  // Navigation sidebar
-  const sidebarItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: Users, label: 'Équipes', path: '/teams' },
-    { icon: UserCircle, label: 'Profil', path: '/profile' },
-    { icon: UserCog, label: 'Utilisateurs', path: '/users' },
-  ];
+  // Navigation sidebar selon le rôle
+  const sidebarItems = getSidebarItems(user?.role);
 
   const handleBack = () => {
     navigate('/teams');
@@ -192,6 +189,80 @@ export default function TeamDetail() {
     setConfirmDelete({ isOpen: false, member: null });
   };
 
+  /**
+   * Exporter les données de l'équipe en CSV
+   * MOCK : Génère un CSV avec les données actuelles
+   * Plus tard : appellera l'API GET /api/teams/:teamId/export?period={period}&format=csv
+   */
+  const handleExportCSV = () => {
+    console.log(`📥 Export CSV pour la période: ${selectedPeriod} jours`);
+    
+    // En-têtes du CSV
+    const headers = ['Nom', 'Prénom', 'Rôle', 'Date d\'arrivée', 'Heures (période)', 'Statut', 'Dernier pointage'];
+    
+    // Données des membres
+    const rows = members.map(member => [
+      member.lastName,
+      member.firstName,
+      member.role === 'MANAGER' ? 'Manager' : 'Employé',
+      new Date(member.joinedAt).toLocaleDateString('fr-FR'),
+      member.hoursThisWeek,
+      member.status === 'active' ? 'Actif' : member.status === 'break' ? 'Pause' : 'Hors ligne',
+      member.lastClockIn
+    ]);
+    
+    // Créer le contenu CSV
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+    
+    // Créer un blob et télécharger
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `equipe_${teamData.name}_${selectedPeriod}j_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Plus tard, cette fonction appellera :
+    // const response = await fetch(`/api/teams/${teamId}/export?period=${selectedPeriod}&format=csv`);
+    // const blob = await response.blob();
+    // ... téléchargement du blob
+  };
+
+  /**
+   * Exporter les données de l'équipe en PDF
+   * MOCK : Simule un export PDF
+   * Plus tard : appellera l'API GET /api/teams/:teamId/export?period={period}&format=pdf
+   */
+  const handleExportPDF = () => {
+    console.log(`📥 Export PDF pour la période: ${selectedPeriod} jours`);
+    
+    // MOCK : Pour l'instant, on simule juste
+    // En production, le backend générera le PDF
+    alert(`🚧 Export PDF en cours de développement\n\nLe backend générera un PDF avec:\n- Informations de l'équipe\n- KPIs de la période (${selectedPeriod} jours)\n- Liste des membres et leurs statistiques\n- Graphiques (optionnel)`);
+    
+    // Plus tard, cette fonction appellera :
+    // const response = await fetch(`/api/teams/${teamId}/export?period=${selectedPeriod}&format=pdf`);
+    // const blob = await response.blob();
+    // const url = URL.createObjectURL(blob);
+    // const link = document.createElement('a');
+    // link.href = url;
+    // link.download = `equipe_${teamData.name}_${selectedPeriod}j_${new Date().toISOString().split('T')[0]}.pdf`;
+    // link.click();
+  };
+
+  /**
+   * Menu déroulant pour choisir le format d'export
+   */
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'active':
@@ -221,12 +292,8 @@ export default function TeamDetail() {
     <Layout 
       sidebarItems={sidebarItems}
       pageTitle={teamData.name}
-      userName="Jonathan GROMAT"
-      userRole="Manager"
-      currentRole={currentRole}
-      onRoleChange={setCurrentRole}
-      currentUserId={currentUserId}
-      onUserIdChange={setCurrentUserId}
+      userName={`${user?.firstName} ${user?.lastName}`}
+      userRole={user?.role}
     >
       <div className="p-8">
         <div className="max-w-7xl mx-auto space-y-6">
@@ -267,19 +334,70 @@ export default function TeamDetail() {
                 </div>
               </div>
 
-              {/* Bouton Modifier */}
-              <button
-                onClick={handleEditTeam}
-                className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium"
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Modifier
-              </button>
+              {/* Boutons d'action */}
+              <div className="flex items-center space-x-3">
+                {/* Menu Export avec dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowExportMenu(!showExportMenu)}
+                    className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                    title="Exporter les données de l'équipe"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Exporter
+                  </button>
+                  
+                  {/* Dropdown menu */}
+                  {showExportMenu && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                      <button
+                        onClick={() => {
+                          handleExportCSV();
+                          setShowExportMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center text-sm text-gray-700 rounded-t-lg"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Exporter en CSV
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleExportPDF();
+                          setShowExportMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center text-sm text-gray-700 rounded-b-lg"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Exporter en PDF
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
+                <button
+                  onClick={handleEditTeam}
+                  className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Modifier
+                </button>
+              </div>
             </div>
           </div>
 
           {/* KPIs de l'équipe */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="space-y-6">
+            
+            {/* Sélecteur de période */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              <PeriodSelector 
+                selectedPeriod={selectedPeriod}
+                onPeriodChange={setSelectedPeriod}
+              />
+            </div>
+
+            {/* Cartes KPI */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {/* Total heures cette semaine */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between">
@@ -336,6 +454,7 @@ export default function TeamDetail() {
               </div>
             </div>
           </div>
+          </div>
 
           {/* Tableau des membres */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -344,15 +463,13 @@ export default function TeamDetail() {
                 <Users className="w-5 h-5 mr-2" />
                 Membres de l'équipe
               </h3>
-              {(currentRole === 'MANAGER' || currentRole === 'CEO') && (
-                <button
-                  onClick={() => setIsAddMemberModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Ajouter un membre
-                </button>
-              )}
+              <button
+                onClick={() => setIsAddMemberModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors"
+              >
+                <UserPlus className="w-4 h-4" />
+                Ajouter un membre
+              </button>
             </div>
 
             <div className="overflow-x-auto">
@@ -365,9 +482,7 @@ export default function TeamDetail() {
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Heures semaine</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Dernier pointage</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Statut</th>
-                    {(currentRole === 'MANAGER' || currentRole === 'CEO') && (
-                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Actions</th>
-                    )}
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -406,19 +521,17 @@ export default function TeamDetail() {
                       <td className="py-3 px-4">
                         {getStatusBadge(member.status)}
                       </td>
-                      {(currentRole === 'MANAGER' || currentRole === 'CEO') && (
-                        <td className="py-3 px-4 text-right">
-                          {member.role !== 'MANAGER' && (
-                            <button
-                              onClick={() => handleRemoveMember(member)}
-                              className="text-red-600 hover:text-red-800 transition-colors"
-                              title="Retirer du groupe"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </td>
-                      )}
+                      <td className="py-3 px-4 text-right">
+                        {member.role !== 'MANAGER' && (
+                          <button
+                            onClick={() => handleRemoveMember(member)}
+                            className="text-red-600 hover:text-red-800 transition-colors"
+                            title="Retirer du groupe"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -434,8 +547,6 @@ export default function TeamDetail() {
         isOpen={isEditModalOpen}
         mode="edit"
         team={teamData}
-        userRole={currentRole}
-        currentUserId={currentUserId}
         onClose={() => setIsEditModalOpen(false)}
         onSave={handleSaveTeam}
       />

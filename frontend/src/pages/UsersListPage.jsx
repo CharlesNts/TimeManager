@@ -1,11 +1,10 @@
 // src/pages/UsersListPage.jsx
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
+import EditUserModal from '../components/manager/EditUserModal';
 import { 
-  Users, 
-  UserCircle, 
-  LayoutDashboard,
-  UserCog,
   Check,
   X,
   Edit,
@@ -29,19 +28,18 @@ import {
  * - REJECTED : Rejeté, compte désactivé
  */
 export default function UsersListPage() {
-  const [currentRole, setCurrentRole] = useState('CEO');
-  const [currentUserId, setCurrentUserId] = useState(1);
-
+  const { user } = useAuth();
+  
   // Filtres
   const [filterRole, setFilterRole] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
 
-  const sidebarItems = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-    { icon: Users, label: "Équipes", path: "/teams" },
-    { icon: UserCircle, label: "Profil", path: "/profile" },
-    { icon: UserCog, label: "Utilisateurs", path: "/users" },
-  ];
+  // Modal d'édition
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  // Configuration de la navigation sidebar selon le rôle
+  const sidebarItems = getSidebarItems(user?.role);
 
   // Données de démo - Plus tard depuis API GET /api/users
   const users = [
@@ -116,8 +114,15 @@ export default function UsersListPage() {
   };
 
   const handleEdit = (userId) => {
-    console.log('Modifier user:', userId);
-    // Plus tard: Ouvrir modal d'édition
+    const userToEdit = users.find(u => u.id === userId);
+    setSelectedUser(userToEdit);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveUser = (formData) => {
+    console.log('Sauvegarder user:', selectedUser.id, formData);
+    // Plus tard: API PUT /api/users/:id avec formData
+    // Mettre à jour la liste locale ou refetch
   };
 
   const handleDelete = (userId) => {
@@ -159,40 +164,12 @@ export default function UsersListPage() {
     );
   };
 
-  // Message si pas CEO
-  if (currentRole !== 'CEO') {
-    return (
-      <Layout 
-        sidebarItems={sidebarItems}
-        pageTitle="Gestion des utilisateurs"
-        userName="Jonathan GROMAT"
-        userRole={currentRole}
-        currentRole={currentRole}
-        onRoleChange={setCurrentRole}
-        currentUserId={currentUserId}
-        onUserIdChange={setCurrentUserId}
-      >
-        <div className="p-8">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-            <p className="text-red-800 font-medium">
-              ⚠️ Cette page est réservée au CEO
-            </p>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout 
       sidebarItems={sidebarItems}
       pageTitle="Gestion des utilisateurs"
-      userName="Jonathan GROMAT"
-      userRole="CEO"
-      currentRole={currentRole}
-      onRoleChange={setCurrentRole}
-      currentUserId={currentUserId}
-      onUserIdChange={setCurrentUserId}
+      userName={`${user?.firstName} ${user?.lastName}`}
+      userRole={user?.role}
     >
       <div className="p-8">
         <div className="max-w-7xl mx-auto">
@@ -260,47 +237,47 @@ export default function UsersListPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user) => (
-                    <tr key={user.id} className="border-b hover:bg-gray-50">
+                  {filteredUsers.map((userItem) => (
+                    <tr key={userItem.id} className="border-b hover:bg-gray-50">
                       <td className="py-3 px-4">
                         <div className="flex items-center">
                           <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center mr-3">
                             <span className="text-white font-bold text-sm">
-                              {user.firstName[0]}{user.lastName[0]}
+                              {userItem.firstName[0]}{userItem.lastName[0]}
                             </span>
                           </div>
                           <div>
                             <p className="font-medium text-gray-900">
-                              {user.firstName} {user.lastName}
+                              {userItem.firstName} {userItem.lastName}
                             </p>
                           </div>
                         </div>
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600">
-                        {user.email}
+                        {userItem.email}
                       </td>
                       <td className="py-3 px-4">
-                        {getRoleBadge(user.role)}
+                        {getRoleBadge(userItem.role)}
                       </td>
                       <td className="py-3 px-4">
-                        {getStatusBadge(user.status)}
+                        {getStatusBadge(userItem.status)}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600">
-                        {new Date(user.createdAt).toLocaleDateString('fr-FR')}
+                        {new Date(userItem.createdAt).toLocaleDateString('fr-FR')}
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center justify-end space-x-2">
-                          {user.status === 'PENDING' && (
+                          {userItem.status === 'PENDING' && (
                             <>
                               <button
-                                onClick={() => handleApprove(user.id)}
+                                onClick={() => handleApprove(userItem.id)}
                                 className="p-2 text-green-600 hover:bg-green-50 rounded"
                                 title="Approuver"
                               >
                                 <Check className="w-5 h-5" />
                               </button>
                               <button
-                                onClick={() => handleReject(user.id)}
+                                onClick={() => handleReject(userItem.id)}
                                 className="p-2 text-red-600 hover:bg-red-50 rounded"
                                 title="Rejeter"
                               >
@@ -309,15 +286,15 @@ export default function UsersListPage() {
                             </>
                           )}
                           <button
-                            onClick={() => handleEdit(user.id)}
+                            onClick={() => handleEdit(userItem.id)}
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded"
                             title="Modifier"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
-                          {user.id !== currentUserId && (
+                          {userItem.id !== user?.id && (
                             <button
-                              onClick={() => handleDelete(user.id)}
+                              onClick={() => handleDelete(userItem.id)}
                               className="p-2 text-red-600 hover:bg-red-50 rounded"
                               title="Supprimer"
                             >
@@ -340,6 +317,14 @@ export default function UsersListPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal de modification */}
+      <EditUserModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={handleSaveUser}
+        userData={selectedUser}
+      />
     </Layout>
   );
 }
