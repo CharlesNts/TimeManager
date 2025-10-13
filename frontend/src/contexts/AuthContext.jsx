@@ -1,148 +1,80 @@
 // src/contexts/AuthContext.jsx
-import React, { createContext, useState, useContext, useEffect } from 'react';
-
-/**
- * AuthContext - Contexte d'authentification
- * 
- * Fournit les informations de l'utilisateur connecté et les méthodes d'authentification.
- * 
- * ACTUELLEMENT : Utilise des données mockées pour le développement
- * PLUS TARD : Sera connecté aux services/authService.js pour les vraies données du backend
- * 
- * Usage:
- * const { user, login, logout, isAuthenticated } = useAuth();
- */
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import api from '../api/client';
 
 const AuthContext = createContext(null);
 
-/**
- * Hook pour accéder au contexte d'authentification
- * Doit être utilisé dans un composant wrappé par AuthProvider
- */
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth doit être utilisé à l\'intérieur d\'un AuthProvider');
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error('useAuth doit être utilisé à l’intérieur d’un AuthProvider');
   }
-  return context;
+  return ctx;
 };
 
-/**
- * AuthProvider - Provider du contexte d'authentification
- * 
- * Props:
- * - children: Les composants enfants
- */
-export const AuthProvider = ({ children }) => {
-  // MOCK : Initialiser l'utilisateur depuis le localStorage ou valeur par défaut
-  const getInitialUser = () => {
-    // Récupérer le rôle sauvegardé dans localStorage (DEV uniquement)
-    const savedRole = localStorage.getItem('dev_user_role');
-    
-    return {
-      id: 1,
-      username: 'jonathan.gromat',
-      firstName: 'Jonathan',
-      lastName: 'GROMAT',
-      email: 'jonathan.gromat@example.com',
-      role: savedRole || 'EMPLOYEE', // EMPLOYEE | MANAGER | CEO
-      avatar: null,
-      teamId: 1 // Pour les managers/employés
-    };
-  };
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);   // { id, firstName, lastName, email, role, ... }
+  const [loading, setLoading] = useState(true);
 
-  const [user, setUser] = useState(getInitialUser);
-
-  // Sauvegarder le rôle dans localStorage quand il change (DEV uniquement)
+  // Charge l’utilisateur connecté à partir du JWT présent dans localStorage
   useEffect(() => {
-    if (user?.role) {
-      localStorage.setItem('dev_user_role', user.role);
-    }
-  }, [user?.role]);
+    const init = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          setUser(null);
+          return;
+        }
+        const { data } = await api.get('/auth/me');
+        setUser(data);
+      } catch (err) {
+        // Token invalide/expiré → on nettoie et on repart propre
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('token_type');
+        localStorage.removeItem('expires_in');
+        setUser(null);
+        console.warn('[AuthContext] /auth/me:', err?.message || err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
+  }, []);
 
-  /**
-   * Simule une connexion
-   * Plus tard : appellera authService.login(credentials)
-   */
-  const login = async (credentials) => {
-    // MOCK : Simulation de connexion
-    console.log('🔐 Mock Login:', credentials);
-    
-    // Exemple de changement de rôle pour tester
-    // Décommenter pour tester différents rôles :
-    
-    // setUser({ ...user, role: 'EMPLOYEE' });
-    // setUser({ ...user, role: 'MANAGER' });
-    // setUser({ ...user, role: 'CEO' });
-    
-    return { success: true };
-  };
+  // À appeler après /auth/login :
+  // 1) stocker le token dans localStorage
+  // 2) GET /auth/me
+  // 3) setUser(me.data) —> pas besoin de reload
+  const login = (userData) => setUser(userData);
 
-  /**
-   * Simule une déconnexion
-   * Plus tard : appellera authService.logout()
-   */
   const logout = () => {
-    // MOCK : Simulation de déconnexion
-    console.log('🔓 Mock Logout');
-    localStorage.removeItem('dev_user_role'); // Nettoyer le localStorage
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('token_type');
+    localStorage.removeItem('expires_in');
     setUser(null);
   };
 
-  /**
-   * Simule une inscription
-   * Plus tard : appellera authService.register(data)
-   */
-  const register = async (data) => {
-    // MOCK : Simulation d'inscription
-    console.log('📝 Mock Register:', data);
-    return { success: true };
-  };
-
-  /**
-   * Vérifie si l'utilisateur est authentifié
-   */
-  const isAuthenticated = user !== null;
-
-  /**
-   * Vérifie si l'utilisateur a un rôle spécifique
-   */
-  const hasRole = (role) => {
-    return user?.role === role;
-  };
-
-  /**
-   * Vérifie si l'utilisateur a au moins un des rôles spécifiés
-   */
-  const hasAnyRole = (roles) => {
-    return roles.includes(user?.role);
-  };
-
-  /**
-   * Change le rôle de l'utilisateur (UNIQUEMENT POUR LE DEV/TEST)
-   * À SUPPRIMER ou désactiver en production
-   */
-  const changeRole = (newRole) => {
-    console.log(`🔄 Changement de rôle: ${user?.role} → ${newRole}`);
-    setUser({ ...user, role: newRole });
-  };
+  const isAuthenticated = !!user;
+  const hasRole = (role) => user?.role === role;
+  const hasAnyRole = (roles) => !!user && roles.includes(user.role);
 
   const value = {
     user,
-    login,
+    setUser,      // utile après /auth/me dans LoginPage
+    login,        // optionnel si tu préfères: setUser(me.data)
     logout,
-    register,
     isAuthenticated,
     hasRole,
     hasAnyRole,
-    changeRole, // Helper pour tester différents rôles
+    loading,
   };
 
+  // On ne rend pas l’app tant que /auth/me n’a pas répondu (évite les flickers de routes protégées)
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
-};
+}
 
 export default AuthContext;

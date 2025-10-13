@@ -1,72 +1,80 @@
 // src/components/employee/ClockActions.jsx
-import React, { useState } from 'react';
-import { Clock, LogIn, LogOut, Coffee } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import api from '../../api/client';
+import { Clock as ClockIcon, LogIn, LogOut, Coffee, Loader2 } from 'lucide-react';
 
-/**
- * Composant ClockActions - Zone d'actions pour pointer
- * 
- * Affiche:
- * - Le statut actuel (au travail, en pause, ou hors service)
- * - L'heure du dernier pointage
- * - Boutons Clock In / Clock Out / Pause
- * 
- * Pour l'instant en mode démo (données statiques)
- * Plus tard, ce composant appellera l'API via les services
- */
-export default function ClockActions() {
-  // États locaux pour simuler le statut (en mode démo)
-  // Plus tard, ces données viendront d'un Context ou d'un Hook
-  const [isClockedIn, setIsClockedIn] = useState(false);
+export default function ClockActions({ userId, onChanged }) {
+  const [loading, setLoading] = useState(false);
+  const [openSession, setOpenSession] = useState(null); // {id, clockIn, clockOut}
+  const [error, setError] = useState('');
+  // === Pause: conservée comme dans la maquette (local UI) ===
   const [isOnBreak, setIsOnBreak] = useState(false);
   const [lastAction, setLastAction] = useState(null);
 
-  // Fonction pour gérer le Clock In
-  const handleClockIn = () => {
-    const now = new Date();
-    setIsClockedIn(true);
-    setIsOnBreak(false);
-    setLastAction({
-      type: 'in',
-      time: now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-    });
-    // Plus tard: appel API pour enregistrer le pointage
+  const loadLast = async () => {
+    if (!userId) return;
+    setError('');
+    try {
+      const { data } = await api.get(`/api/users/${userId}/clocks`, {
+        params: { page: 0, size: 1, sort: 'clockIn,desc' },
+      });
+      const last = data?.content?.[0] || null;
+      setOpenSession(last && !last.clockOut ? last : null);
+    } catch (e) {
+      setError(e.message || 'Impossible de charger le statut de pointage');
+    }
   };
 
-  // Fonction pour gérer le Clock Out
-  const handleClockOut = () => {
-    const now = new Date();
-    setIsClockedIn(false);
-    setIsOnBreak(false);
-    setLastAction({
-      type: 'out',
-      time: now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-    });
-    // Plus tard: appel API pour enregistrer le pointage
+  useEffect(() => { loadLast(); }, [userId]);
+
+  const handleClockIn = async () => {
+    if (!userId) return;
+    setLoading(true); setError('');
+    try {
+      const { data } = await api.post(`/api/users/${userId}/clocks/in`);
+      setOpenSession(data);
+      setIsOnBreak(false);
+      setLastAction({ type: 'in', time: new Date() });
+      onChanged && onChanged();
+    } catch (e) {
+      setError(e.message || 'Échec du pointage Arrivée');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Fonction pour gérer le début/fin de pause
+  const handleClockOut = async () => {
+    if (!userId) return;
+    setLoading(true); setError('');
+    try {
+      await api.post(`/api/users/${userId}/clocks/out`);
+      setOpenSession(null);
+      setIsOnBreak(false);
+      setLastAction({ type: 'out', time: new Date() });
+      onChanged && onChanged();
+    } catch (e) {
+      setError(e.message || 'Échec du pointage Départ');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleBreak = () => {
     const now = new Date();
-    setIsOnBreak(!isOnBreak);
-    setLastAction({
-      type: isOnBreak ? 'break-end' : 'break-start',
-      time: now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-    });
-    // Plus tard: appel API pour enregistrer la pause
+    setIsOnBreak((prev) => !prev);
+    setLastAction({ type: isOnBreak ? 'break-end' : 'break-start', time: now });
+    // NOTE: pas d’API pour la pause actuellement
   };
 
-  // Déterminer le statut actuel
-  const getStatus = () => {
-    if (!isClockedIn) return { label: 'Hors service', color: 'bg-gray-100 text-gray-800' };
-    if (isOnBreak) return { label: 'En pause', color: 'bg-yellow-100 text-yellow-800' };
-    return { label: 'Au travail', color: 'bg-black text-white' };
-  };
+  const isClockedIn = !!openSession;
+  const status = !isClockedIn
+    ? { label: 'Hors service', cls: 'bg-gray-100 text-gray-800' }
+    : isOnBreak
+    ? { label: 'En pause', cls: 'bg-yellow-100 text-yellow-800' }
+    : { label: 'Au travail', cls: 'bg-black text-white' };
 
-  const status = getStatus();
-
-  // Label du dernier pointage
-  const getLastActionLabel = () => {
-    if (!lastAction) return null;
+  const lastLabel = () => {
+    if (!lastAction) return '';
     switch (lastAction.type) {
       case 'in': return 'Arrivée';
       case 'out': return 'Départ';
@@ -79,86 +87,74 @@ export default function ClockActions() {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-        <Clock className="w-5 h-5 mr-2 text-gray-900" />
+        <ClockIcon className="w-5 h-5 mr-2 text-gray-900" />
         Actions de pointage
       </h2>
 
-      {/* Statut actuel */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">Statut actuel :</span>
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${status.color}`}>
-            {status.label}
-          </span>
-        </div>
+      <div className="mb-4 flex items-center justify-between">
+        <span className="text-sm text-gray-600">Statut :</span>
+        <span className={`px-3 py-1 rounded-full text-sm font-medium ${status.cls}`}>
+          {status.label}
+        </span>
+      </div>
 
-        {/* Dernier pointage */}
+      <div className="text-sm text-gray-500 mb-4">
+        {isClockedIn
+          ? <>Arrivé à <strong>{new Date(openSession.clockIn).toLocaleTimeString()}</strong></>
+          : <>Aucune session en cours</>}
         {lastAction && (
-          <div className="mt-3 text-sm text-gray-500">
-            Dernier pointage : {getLastActionLabel()} à {lastAction.time}
+          <div className="mt-1">
+            Dernier pointage : {lastLabel()} à {lastAction.time.toLocaleTimeString()}
           </div>
         )}
       </div>
 
-      {/* Boutons d'action */}
       <div className="grid grid-cols-2 gap-3">
-        {/* Clock In */}
         <button
           onClick={handleClockIn}
-          disabled={isClockedIn}
-          className={`
-            flex items-center justify-center px-4 py-3 rounded-lg font-medium
-            ${isClockedIn
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-black text-white'
-            }
-          `}
+          disabled={loading || isClockedIn}
+          className={`flex items-center justify-center px-4 py-3 rounded-lg font-medium ${
+            loading || isClockedIn ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-black text-white'
+          }`}
         >
-          <LogIn className="w-5 h-5 mr-2" />
+          {loading ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <LogIn className="w-5 h-5 mr-2" />}
           Arrivée
         </button>
 
-        {/* Clock Out */}
         <button
           onClick={handleClockOut}
-          disabled={!isClockedIn}
-          className={`
-            flex items-center justify-center px-4 py-3 rounded-lg font-medium
-            ${!isClockedIn
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-gray-800 text-white'
-            }
-          `}
+          disabled={loading || !isClockedIn}
+          className={`flex items-center justify-center px-4 py-3 rounded-lg font-medium ${
+            loading || !isClockedIn ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-800 text-white'
+          }`}
         >
-          <LogOut className="w-5 h-5 mr-2" />
+          {loading ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <LogOut className="w-5 h-5 mr-2" />}
           Départ
         </button>
       </div>
 
-      {/* Bouton Pause (pleine largeur) */}
       <button
         onClick={handleBreak}
         disabled={!isClockedIn}
-        className={`
-          w-full mt-3 flex items-center justify-center px-4 py-3 rounded-lg font-medium
-          ${!isClockedIn
+        className={`w-full mt-3 flex items-center justify-center px-4 py-3 rounded-lg font-medium ${
+          !isClockedIn
             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
             : isOnBreak
             ? 'bg-yellow-500 text-white'
             : 'bg-white text-gray-900 border-2 border-gray-900'
-          }
-        `}
+        }`}
       >
         <Coffee className="w-5 h-5 mr-2" />
         {isOnBreak ? 'Terminer la pause' : 'Prendre une pause'}
       </button>
 
-      {/* Info supplémentaire */}
       <div className="mt-4 p-3 bg-gray-100 rounded-lg">
         <p className="text-xs text-gray-700">
-          💡 N'oubliez pas de pointer vos pauses pour un suivi précis.
+          💡 La pause est locale pour l’instant. 
         </p>
       </div>
+
+      {error && <div className="mt-4 p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
     </div>
   );
 }

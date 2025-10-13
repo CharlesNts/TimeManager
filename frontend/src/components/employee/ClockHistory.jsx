@@ -1,90 +1,113 @@
 // src/components/employee/ClockHistory.jsx
-import React from 'react';
-import { Calendar, Clock, AlertTriangle } from 'lucide-react';
+import React, { useEffect, useState, useMemo } from 'react';
+import api from '../../api/client';
+import { Calendar, AlertTriangle } from 'lucide-react';
 
-/**
- * Composant ClockHistory - Historique des pointages avec détection de retards
- * 
- * Affiche un tableau avec:
- * - Date
- * - Heure d'arrivée (clockIn)
- * - Heure de départ (clockOut)
- * - Durée totale calculée
- * - Retard (calculé selon les horaires de l'équipe)
- * - Statut: "Terminé", "En cours", ou "Retard"
- * 
- * Props:
- * - period: Nombre de jours à afficher (7, 30, 365)
- * 
- * Règle métier :
- * - Horaires équipe : workStartTime (ex: 09:00)
- * - Retard si clockIn > workStartTime
- * 
- * Pour l'instant avec des données de démo
- * Plus tard, les données viendront de l'API basée sur la table Clocks
- */
-export default function ClockHistory({ period = 7 }) {
-  // Horaires de l'équipe (plus tard viendront de l'API via le contexte)
-  const teamSchedule = {
-    workStartTime: '09:00',
-    workEndTime: '17:30'
-  };
+// Horaires “flex”
+const WORK_START_HOUR = 9;
+const WORK_START_MINUTE = 30;
+const EARLY_CREDIT_CAP_MIN = 60; // 60 minutes max d'avance créditée
 
-  // Fonction pour calculer le retard
-  const calculateDelay = (clockIn) => {
-    const [clockHour, clockMin] = clockIn.split(':').map(Number);
-    const [scheduleHour, scheduleMin] = teamSchedule.workStartTime.split(':').map(Number);
-    
-    const clockInMinutes = clockHour * 60 + clockMin;
-    const expectedMinutes = scheduleHour * 60 + scheduleMin;
-    
-    const delayMinutes = clockInMinutes - expectedMinutes;
-    
-    if (delayMinutes <= 0) return { isLate: false, minutes: 0 };
-    return { isLate: true, minutes: delayMinutes };
-  };
+// Utils date (Europe/Paris strict)
+const pad2 = (x) => String(x).padStart(2, '0');
 
-  // Données de démo - Plus tard viendront d'un service/API GET /api/clocks/history?period={period}
-  // Correspond à la table Clocks (id, userId, clockIn, clockOut)
-  // MOCK : Génère des données pour la période demandée
-  const generateHistoryData = (days) => {
-    const data = [];
-    const today = new Date('2025-10-09');
-    
-    for (let i = 0; i < days && i < 30; i++) { // Limité à 30 pour la démo
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      
-      // Ignorer les week-ends
-      if (date.getDay() === 0 || date.getDay() === 6) continue;
-      
-      const clockIn = i === 0 ? '09:00' : 
-                      i === 1 ? '08:45' : 
-                      i % 3 === 0 ? '09:10' : // Quelques retards
-                      i % 5 === 0 ? '09:30' : 
-                      '09:00';
-      
-      const clockOut = i === 0 ? '17:30' :
-                       i === 1 ? '17:15' :
-                       i % 7 === 0 ? null : // Quelques "en cours"
-                       '17:30';
-      
-      data.push({
-        id: i + 1,
-        date: date.toISOString().split('T')[0],
-        dateLabel: i === 0 ? 'Aujourd\'hui' :
-                   i === 1 ? 'Hier' :
-                   date.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' }),
-        clockIn,
-        clockOut,
-        totalHours: clockOut ? '8h 30m' : '6h 15m'
-      });
+const toISOParis = (date) => {
+  const d = toParis(new Date(date));
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` +
+         `T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+};
+
+const startOfDayParis = (d) => { const x = toParis(new Date(d)); x.setHours(0,0,0,0); return x; };
+const endOfDayParis   = (d) => { const x = toParis(new Date(d)); x.setHours(23,59,59,999); return x; };
+const addDaysParis    = (d, n) => { const x = toParis(new Date(d)); x.setDate(x.getDate() + n); return x; };
+
+// Europe/Paris
+const toParis = (date) => new Date(date.toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
+const minutesSinceMidnightParis = (d) => {
+  const p = toParis(d);
+  return p.getHours() * 60 + p.getMinutes();
+};
+
+// Format durée
+function formatDuration(clock) {
+  const start = toParis(new Date(clock.clockIn));
+  const end = clock.clockOut ? toParis(new Date(clock.clockOut)) : toParis(new Date());
+  const diff = Math.max(0, end - start);
+  const mins = Math.round(diff / 60000);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}h ${String(m).padStart(2, '0')}m`;
+}
+
+// Règle flex pour une session
+function complianceInfo(clockInDate, clockOutDate) {
+  const REQUIRED_DAY_MIN = 8 * 60;
+
+  const inMin = minutesSinceMidnightParis(clockInDate);
+  const expectedStartMin = WORK_START_HOUR * 60 + WORK_START_MINUTE;
+  const earlyRaw = Math.max(0, expectedStartMin - inMin);
+  const earlyArrivalMin = Math.min(EARLY_CREDIT_CAP_MIN, earlyRaw);
+  const lateArrivalMin = Math.max(0, inMin - expectedStartMin);
+
+  const endRef = clockOutDate ? toParis(clockOutDate) : toParis(new Date());
+  const workedMs = Math.max(0, endRef - toParis(clockInDate));
+  const workedMin = Math.round(workedMs / 60000);
+
+  const requiredMin = Math.max(0, REQUIRED_DAY_MIN - earlyArrivalMin + lateArrivalMin);
+  const deficitMin = Math.max(0, requiredMin - workedMin);
+
+  return { earlyArrivalMin, lateArrivalMin, workedMin, requiredMin, deficitMin, isLate: deficitMin > 0 };
+}
+
+export default function ClockHistory({ userId, period = 7, refreshKey = 0 }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!userId) return;
+      setLoading(true);
+      setErr('');
+      setItems([]); // important: vider avant refetch pour éviter l’illusion de données figées
+      try {
+        const now = new Date();
+        const today = toParis(now);
+        const from = startOfDayParis(addDaysParis(today, -period + 1));
+        const to   = endOfDayParis(today);
+
+        const { data } = await api.get(`/api/users/${userId}/clocks/range`, {
+          params: { from: toISOParis(from), to: toISOParis(to) },
+        });
+
+        if (!cancelled) {
+          const arr = Array.isArray(data) ? data : [];
+          arr.sort((a, b) => new Date(b.clockIn) - new Date(a.clockIn));
+          setItems(arr);
+        }
+      } catch (e) {
+        if (!cancelled) setErr(e.message || 'Erreur de chargement de l’historique');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
-    
-    return data;
-  };
+    load();
+    return () => { cancelled = true; };
+  }, [userId, period, refreshKey]);
 
-  const historyData = generateHistoryData(period);
+  const { onTimeCount, lateCount } = useMemo(() => {
+    let onTime = 0, late = 0;
+    for (const c of items) {
+      const dIn = new Date(c.clockIn);
+      const dOut = c.clockOut ? new Date(c.clockOut) : null;
+      const comp = complianceInfo(dIn, dOut);
+      if (comp.isLate) late++; else onTime++;
+    }
+    return { onTimeCount: onTime, lateCount: late };
+  }, [items]);
+
+  if (!userId) return null;
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -93,96 +116,81 @@ export default function ClockHistory({ period = 7 }) {
           <Calendar className="w-5 h-5 mr-2 text-blue-600" />
           Historique des pointages
         </h2>
-        
-        {/* Info horaires équipe */}
-        <div className="text-xs text-gray-500">
-          Horaires : {teamSchedule.workStartTime} - {teamSchedule.workEndTime}
+        <div className="text-xs text-gray-500">Horaires: 09:30 - 17:30 (flex)</div>
+      </div>
+
+      {loading && <div className="text-sm text-gray-500">Chargement…</div>}
+      {err && <div className="text-sm text-red-600 mb-2">{err}</div>}
+      {!loading && !items.length && !err && (
+        <div className="text-sm text-gray-500">Aucun pointage sur la période sélectionnée.</div>
+      )}
+
+      <div className="overflow-x-auto">
+        <div className="max-h-[480px] overflow-y-auto rounded border border-gray-100">
+          <table className="w-full">
+            <thead className="sticky top-0 bg-white">
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Date</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Arrivée</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Départ</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Durée</th>
+                <th className="text-left py-3 px-4 text-sm">Retard</th>
+                <th className="text-left py-3 px-4">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((c) => {
+                const inDate = new Date(c.clockIn);
+                const outDate = c.clockOut ? new Date(c.clockOut) : null;
+                const comp = complianceInfo(inDate, outDate);
+                return (
+                  <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3 px-4 text-sm text-gray-700 font-medium">
+                      {inDate.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' })}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-600">
+                      <div className="flex items-center">
+                        {toParis(inDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}
+                        {comp.isLate && <AlertTriangle className="w-4 h-4 ml-2 text-orange-500" />}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-600">
+                      {outDate ? toParis(outDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }) : <span className="text-orange-500">En cours…</span>}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-700 font-medium">
+                      {formatDuration(c)}
+                    </td>
+                    <td className="py-3 px-4 text-sm">
+                      {comp.isLate ? (
+                        <span className="text-orange-600 font-medium">+{comp.deficitMin} min</span>
+                      ) : (
+                        <span className="text-green-600">À l'heure</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      {comp.isLate ? (
+                        <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full font-medium">⚠️ Retard</span>
+                      ) : outDate ? (
+                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">✓ Terminé</span>
+                      ) : (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">En cours</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Tableau */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gray-200">
-              <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Date</th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Arrivée</th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Départ</th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Durée</th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Retard</th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Statut</th>
-            </tr>
-          </thead>
-          <tbody>
-            {historyData.map((record) => {
-              const delay = calculateDelay(record.clockIn);
-              
-              return (
-                <tr key={record.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4 text-sm text-gray-700 font-medium">
-                    {record.dateLabel}
-                  </td>
-                  <td className="py-3 px-4 text-sm text-gray-600">
-                    <div className="flex items-center">
-                      {record.clockIn}
-                      {delay.isLate && (
-                        <AlertTriangle className="w-4 h-4 ml-2 text-orange-500" />
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-sm text-gray-600">
-                    {record.clockOut || (
-                      <span className="text-orange-500">En cours...</span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-sm text-gray-700 font-medium">
-                    {record.totalHours}
-                  </td>
-                  <td className="py-3 px-4 text-sm">
-                    {delay.isLate ? (
-                      <span className="text-orange-600 font-medium">
-                        +{delay.minutes} min
-                      </span>
-                    ) : (
-                      <span className="text-green-600">
-                        À l'heure
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4">
-                    {delay.isLate ? (
-                      <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full font-medium">
-                        ⚠️ Retard
-                      </span>
-                    ) : record.clockOut ? (
-                      <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
-                        ✓ Terminé
-                      </span>
-                    ) : (
-                      <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
-                        En cours
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Footer avec stats */}
       <div className="mt-4 flex items-center justify-between text-sm">
         <span className="text-gray-500">
-          Affichage des {historyData.length} derniers pointages ({period} jours)
+          {items.length} pointage{items.length > 1 ? 's' : ''} sur {period} jour{period > 1 ? 's' : ''}.
         </span>
         <div className="flex items-center space-x-4">
-          <span className="text-green-600">
-            ✓ {historyData.filter(r => !calculateDelay(r.clockIn).isLate).length} à l'heure
-          </span>
-          <span className="text-orange-600">
-            ⚠️ {historyData.filter(r => calculateDelay(r.clockIn).isLate).length} retards
-          </span>
+          <span className="text-green-600">✓ {onTimeCount} à l'heure</span>
+          <span className="text-orange-600">⚠️ {lateCount} retards</span>
         </div>
       </div>
     </div>
