@@ -73,6 +73,16 @@ function App() {
             } 
           />
           
+          {/* Dashboard personnel / Mes pointages - Accessible à tous */}
+          <Route 
+            path="/my-clocks" 
+            element={
+              <ProtectedRoute>
+                <EmployeeDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
           {/* Liste des équipes - Manager/CEO uniquement */}
           <Route 
             path="/teams" 

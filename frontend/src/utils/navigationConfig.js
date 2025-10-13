@@ -2,8 +2,8 @@
 import { 
   LayoutDashboard, 
   Users, 
-  UserCircle,
-  UserCog
+  UserCog,
+  Clock
 } from 'lucide-react';
 
 /**
@@ -20,47 +20,47 @@ const navigationByRole = {
   EMPLOYEE: [
     { 
       icon: LayoutDashboard, 
-      label: "Dashboard", 
+      label: "Vue d'ensemble", 
       path: "/dashboard"
     },
     { 
-      icon: UserCircle, 
-      label: "Profil", 
-      path: "/profile"
+      icon: Clock, 
+      label: "Mes pointages", 
+      path: "/my-clocks"
     }
   ],
   MANAGER: [
     { 
       icon: LayoutDashboard, 
-      label: "Dashboard", 
+      label: "Vue d'ensemble", 
       path: "/dashboard"
+    },
+    { 
+      icon: Clock, 
+      label: "Mes pointages", 
+      path: "/my-clocks"
     },
     { 
       icon: Users, 
       label: "Équipes", 
       path: "/teams"
-    },
-    { 
-      icon: UserCircle, 
-      label: "Profil", 
-      path: "/profile"
     }
   ],
   CEO: [
     { 
       icon: LayoutDashboard, 
-      label: "Dashboard", 
+      label: "Vue d'ensemble", 
       path: "/dashboard"
+    },
+    { 
+      icon: Clock, 
+      label: "Mes pointages", 
+      path: "/my-clocks"
     },
     { 
       icon: Users, 
       label: "Équipes", 
       path: "/teams"
-    },
-    { 
-      icon: UserCircle, 
-      label: "Profil", 
-      path: "/profile"
     },
     { 
       icon: UserCog, 
