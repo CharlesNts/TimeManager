@@ -5,6 +5,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import EditUserModal from '../components/manager/EditUserModal';
+import ExportMenu from '../components/ui/ExportMenu';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { exportUsersListPDF } from '../utils/pdfExport';
+import { exportUsersListCSV } from '../utils/csvExport';
 import {
   Check,
   X,
@@ -157,33 +162,23 @@ export default function UsersListPage() {
 
   // Badges
   const getRoleBadge = (role) => {
-    const styles = {
-      CEO: 'bg-purple-100 text-purple-800',
-      MANAGER: 'bg-blue-100 text-blue-800',
-      EMPLOYEE: 'bg-gray-100 text-gray-800',
-    };
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium ${styles[role] || 'bg-gray-100 text-gray-800'}`}>
+      <Badge variant={role === 'CEO' ? 'default' : role === 'MANAGER' ? 'secondary' : 'outline'}>
         {role}
-      </span>
+      </Badge>
     );
   };
 
   const getStatusBadge = (status) => {
-    const styles = {
-      PENDING: 'bg-orange-100 text-orange-800',
-      APPROVED: 'bg-green-100 text-green-800',
-      REJECTED: 'bg-red-100 text-red-800',
-    };
     const labels = {
       PENDING: 'En attente',
       APPROVED: 'Approuvé',
       REJECTED: 'Rejeté',
     };
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium ${styles[status] || 'bg-gray-100 text-gray-800'}`}>
+      <Badge variant={status === 'APPROVED' ? 'default' : status === 'PENDING' ? 'destructive' : 'outline'}>
         {labels[status] || status}
-      </span>
+      </Badge>
     );
   };
 
@@ -198,20 +193,23 @@ export default function UsersListPage() {
         <div className="max-w-7xl mx-auto">
 
           {/* Header avec stats */}
-          <div className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2">
-              Gestion des utilisateurs
-            </h2>
-            <div className="flex items-center space-x-6 text-sm">
-              <span className="text-gray-600">
-                Total : <strong>{rows.length}</strong> utilisateurs
-              </span>
-              <span className="text-orange-600">
-                En attente : <strong>{rows.filter((u) => u.status === 'PENDING').length}</strong>
-              </span>
-              <span className="text-green-600">
-                Approuvés : <strong>{rows.filter((u) => u.status === 'APPROVED').length}</strong>
-              </span>
+          <div className="mb-8 flex items-start justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-2">Gestion des utilisateurs</h2>
+              <div className="flex items-center space-x-6 text-sm">
+                <span className="text-gray-600">Total : <strong>{rows.length}</strong> utilisateurs</span>
+                <span className="text-orange-600">En attente : <strong>{rows.filter((u) => u.status === 'PENDING').length}</strong></span>
+                <span className="text-green-600">Approuvés : <strong>{rows.filter((u) => u.status === 'APPROVED').length}</strong></span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <ExportMenu 
+                onExportCSV={() => exportUsersListCSV(filteredUsers)} 
+                onExportPDF={() => exportUsersListPDF(filteredUsers)} 
+                variant="outline" 
+              />
+              <Button onClick={() => navigate('/users/create')} variant="default">Créer un utilisateur</Button>
             </div>
           </div>
 
@@ -290,47 +288,32 @@ export default function UsersListPage() {
                         <td className="py-3 px-4">
                           <div className="flex items-center justify-end space-x-2">
                             {/* Voir dashboard */}
-                            <button
+                            <Button
                               onClick={() => navigate(`/employee/${u.id}/dashboard`)}
-                              className="p-2 text-gray-600 hover:bg-gray-100 rounded"
+                              variant="ghost"
+                              size="icon"
                               title="Voir le dashboard"
                             >
                               <Clock className="w-4 h-4" />
-                            </button>
+                            </Button>
                             
                             {u.status === 'PENDING' && (
                               <>
-                                <button
-                                  onClick={() => handleApprove(u.id)}
-                                  className="p-2 text-green-600 hover:bg-green-50 rounded"
-                                  title="Approuver"
-                                >
-                                  <Check className="w-5 h-5" />
-                                </button>
-                                <button
-                                  onClick={() => handleReject(u.id)}
-                                  className="p-2 text-red-600 hover:bg-red-50 rounded"
-                                  title="Rejeter"
-                                >
-                                  <X className="w-5 h-5" />
-                                </button>
+                                <Button onClick={() => handleApprove(u.id)} variant="ghost" size="icon" title="Approuver">
+                                  <Check className="w-5 h-5 text-green-600" />
+                                </Button>
+                                <Button onClick={() => handleReject(u.id)} variant="ghost" size="icon" title="Rejeter">
+                                  <X className="w-5 h-5 text-red-600" />
+                                </Button>
                               </>
                             )}
-                            <button
-                              onClick={() => handleEdit(u.id)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                              title="Modifier"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
+                            <Button onClick={() => handleEdit(u.id)} variant="ghost" size="icon" title="Modifier">
+                              <Edit className="w-4 h-4 text-blue-600" />
+                            </Button>
                             {u.id !== user?.id && (
-                              <button
-                                onClick={() => handleDelete(u.id)}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded"
-                                title="Supprimer"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              <Button onClick={() => handleDelete(u.id)} variant="ghost" size="icon" title="Supprimer">
+                                <Trash2 className="w-4 h-4 text-red-600" />
+                              </Button>
                             )}
                           </div>
                         </td>

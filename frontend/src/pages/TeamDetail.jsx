@@ -10,6 +10,7 @@ import TeamFormModal from '../components/manager/TeamFormModal';
 import AddMemberModal from '../components/manager/AddMemberModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import PeriodSelector from '../components/manager/PeriodSelector';
+import ExportMenu from '../components/ui/ExportMenu';
 
 import {
   ArrowLeft,
@@ -33,6 +34,11 @@ import {
   addMember,
   removeMember,
 } from '../api/teamMembersApi';
+
+// shadcn components
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
 
 // ---------- Utils time (Europe/Paris) ----------
 const toParis = (date) => new Date(date.toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
@@ -393,7 +399,7 @@ export default function TeamDetail() {
             ) : err ? (
               <div className="text-sm text-red-600">{err}</div>
             ) : (
-              <div className="flex items-start justify-between">
+              <div className="flex items-center justify-between">
                 <div className="flex items-start space-x-4">
                   <div className="w-16 h-16 bg-black rounded-lg flex items-center justify-center">
                     <Users className="w-8 h-8 text-white" />
@@ -402,7 +408,7 @@ export default function TeamDetail() {
                     <h2 className="text-2xl font-semibold text-gray-900">{team?.name}</h2>
                     <p className="text-gray-600 mt-1">{team?.description}</p>
                     <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500">
-                      <span className="flex items-center">
+                      <span className="flex items-center whitespace-nowrap">
                         <UserCircle className="w-4 h-4 mr-1" />
                         Manager: <span className="font-medium ml-1">{team?.managerName}</span>
                       </span>
@@ -421,59 +427,46 @@ export default function TeamDetail() {
                 </div>
 
                 <div className="flex items-center space-x-3">
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowExportMenu((v) => !v)}
-                      className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
-                      title="Exporter les données de l'équipe"
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Exporter
-                    </button>
-                    {showExportMenu && (
-                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                        <button
-                          onClick={() => {
-                            handleExportCSV();
-                            setShowExportMenu(false);
-                          }}
-                          className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center text-sm text-gray-700 rounded-t-lg"
-                        >
-                          <Download className="w-4 h-4 mr-2" />
-                          Exporter en CSV
-                        </button>
-                        <button
-                          onClick={() => {
-                            handleExportPDF();
-                            setShowExportMenu(false);
-                          }}
-                          className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center text-sm text-gray-700 rounded-b-lg"
-                        >
-                          <Download className="w-4 h-4 mr-2" />
-                          Exporter en PDF
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <Button
+                    onClick={handleBack}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Retour
+                  </Button>
 
-                  {(user?.role === 'CEO' || user?.id === team?.managerId) && (
+                  <ExportMenu
+                    onExportPDF={handleExportPDF}
+                    onExportCSV={handleExportCSV}
+                    variant="outline"
+                  />
+
+                  {/* Actions équipe (CEO seulement) */}
+                  {user?.role === 'CEO' && (
                     <>
-                      <button
+                      <Button
                         onClick={handleEditTeam}
-                        className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800"
+                        variant="outline"
+                        size="sm"
                       >
                         <Edit className="w-4 h-4 mr-2" />
                         Modifier
-                      </button>
-                      <button
+                      </Button>
+
+                      <Button
                         onClick={() => setConfirmDeleteTeam(true)}
-                        className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700"
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700"
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
                         Supprimer
-                      </button>
+                      </Button>
                     </>
                   )}
+
+                  {/* Ajouter membre déplacé dans la section 'Membres' ci-dessous */}
                 </div>
               </div>
             )}
@@ -481,85 +474,99 @@ export default function TeamDetail() {
 
           {/* KPIs */}
           <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
-            </div>
+            <Card>
+              <CardContent className="p-4">
+                <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+              </CardContent>
+            </Card>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total heures</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.totalHoursThisWeek}</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {selectedPeriod === 7 ? 'Cette semaine' : selectedPeriod === 30 ? 'Ce mois' : '12 derniers mois'}
-                    </p>
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total heures</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.totalHoursThisWeek}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {selectedPeriod === 7 ? 'Cette semaine' : selectedPeriod === 30 ? 'Ce mois' : '12 derniers mois'}
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
+                      <Clock className="w-6 h-6 text-white" />
+                    </div>
                   </div>
-                  <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
 
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Moyenne</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.averageHoursPerMember}</p>
-                    <p className="text-xs text-gray-500 mt-1">Par membre</p>
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Moyenne</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.averageHoursPerMember}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Par membre</p>
+                    </div>
+                    <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
+                      <TrendingUp className="w-6 h-6 text-white" />
+                    </div>
                   </div>
-                  <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
-                    <TrendingUp className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
 
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Actifs</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.activeMembers}</p>
-                    <p className="text-xs text-gray-500 mt-1">En ce moment</p>
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Actifs</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.activeMembers}</p>
+                      <p className="text-xs text-muted-foreground mt-1">En ce moment</p>
+                    </div>
+                    <div className="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center">
+                      <Users className="w-6 h-6 text-white" />
+                    </div>
                   </div>
-                  <div className="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center">
-                    <Users className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
 
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">En pause</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.onBreak}</p>
-                    <p className="text-xs text-gray-500 mt-1">Actuellement</p>
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">En pause</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.onBreak}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Actuellement</p>
+                    </div>
+                    <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
+                      <Clock className="w-6 h-6 text-white" />
+                    </div>
                   </div>
-                  <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
 
           {/* Membres */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-800 flex items-center">
-                <Users className="w-5 h-5 mr-2" />
-                Membres de l'équipe
-              </h3>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center">
+                  <Users className="w-5 h-5 mr-2" />
+                  Membres de l'équipe
+                </CardTitle>
 
-              {(user?.role === 'CEO' || user?.id === team?.managerId) && (
-                <button
-                  onClick={() => setIsAddMemberModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Ajouter un membre
-                </button>
-              )}
-            </div>
+                {(user?.role === 'CEO' || user?.role === 'MANAGER') && (
+                  <Button
+                    onClick={() => setIsAddMemberModalOpen(true)}
+                    variant="default"
+                    size="sm"
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Ajouter un membre
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
 
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -641,7 +648,8 @@ export default function TeamDetail() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </CardContent>
+        </Card>
         </div>
       </div>
 
