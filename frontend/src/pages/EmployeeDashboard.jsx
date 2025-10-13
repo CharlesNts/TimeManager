@@ -159,7 +159,7 @@ export default function EmployeeDashboard() {
   });
   const [recentClocks, setRecentClocks] = useState([]);
 
-  // Charger KPIs (dépend de refreshKey)
+  // Charger KPIs (dépend de refreshKey et selectedPeriod)
   useEffect(() => {
     if (!user?.id) return;
 
@@ -167,74 +167,67 @@ export default function EmployeeDashboard() {
       try {
         const now = new Date();
 
-        const thisWeekStart = startOfWeekMon(now);
-        const thisWeekEnd = endOfWeekSun(now);
-        const lastWeekEnd = addDays(thisWeekStart, -1);
-        const lastWeekStart = startOfWeekMon(lastWeekEnd);
+        // Calculer les dates selon la période sélectionnée
+        const periodEnd = endOfDay(now);
+        const periodStart = startOfDay(addDays(now, -(selectedPeriod - 1)));
+        
+        // Période précédente (pour comparaison)
+        const prevPeriodEnd = addDays(periodStart, -1);
+        const prevPeriodStart = addDays(prevPeriodEnd, -(selectedPeriod - 1));
 
-        const monthStart = firstDayOfMonth(now);
-        const monthEnd = lastDayOfMonth(now);
-
-        const [clocksThisWeek, clocksLastWeek, clocksThisMonth] = await Promise.all([
-          fetchClocksRange(user.id, thisWeekStart, thisWeekEnd),
-          fetchClocksRange(user.id, lastWeekStart, lastWeekEnd),
-          fetchClocksRange(user.id, monthStart, monthEnd),
+        const [clocksThisPeriod, clocksPrevPeriod] = await Promise.all([
+          fetchClocksRange(user.id, periodStart, periodEnd),
+          fetchClocksRange(user.id, prevPeriodStart, prevPeriodEnd),
         ]);
 
         // Stocker pour PDF
-        setRecentClocks(clocksThisMonth.slice(0, 20));
+        setRecentClocks(clocksThisPeriod.slice(0, 20));
 
-        // Heures cette semaine
+        // Heures sur la période
         const minutesBetweenLocal = (a, b) => Math.max(0, Math.round((toParis(b) - toParis(a)) / 60000));
-        const totalWeekMin = clocksThisWeek.reduce((sum, c) => {
+        const totalPeriodMin = clocksThisPeriod.reduce((sum, c) => {
           const inD = new Date(c.clockIn);
           const outD = c.clockOut ? new Date(c.clockOut) : new Date();
           return sum + minutesBetweenLocal(inD, outD);
         }, 0);
-        const hwH = Math.floor(totalWeekMin / 60);
-        const hwM = totalWeekMin % 60;
-        const hoursWeek = `${hwH}h ${String(hwM).padStart(2, '0')}m`;
+        const hwH = Math.floor(totalPeriodMin / 60);
+        const hwM = totalPeriodMin % 60;
+        const hoursPeriod = `${hwH}h ${String(hwM).padStart(2, '0')}m`;
 
-        // Jours en retard (mois)
-        const daysAggMonth = aggregateByDay(clocksThisMonth);
-        const delaysMonthCount = daysAggMonth.reduce((acc, d) => {
+        // Jours en retard sur la période
+        const daysAggPeriod = aggregateByDay(clocksThisPeriod);
+        const delaysPeriodCount = daysAggPeriod.reduce((acc, d) => {
           const comp = complianceForDay(d.firstIn, d.totalWorkedMin);
           return acc + (comp.isLate ? 1 : 0);
         }, 0);
 
-        // Moyenne hebdo (sur semaines du mois)
-        let weekBuckets = new Map(); // key: ISO lundi -> minutes
-        for (const d of daysAggMonth) {
-          const [year, mm, dd] = d.dateKey.split('-').map(Number);
-          const dateObj = toParis(new Date(year, mm - 1, dd));
-          const monday = startOfWeekMon(dateObj);
-          const key = `${monday.getFullYear()}-${pad(monday.getMonth() + 1)}-${pad(monday.getDate())}`;
+        // Moyenne quotidienne sur la période
+        const daysWorked = daysAggPeriod.length || 1;
+        const avgDailyMin = Math.round(totalPeriodMin / daysWorked);
+        const adH = Math.floor(avgDailyMin / 60);
+        const adM = avgDailyMin % 60;
+        const avgDaily = `${adH}h ${String(adM).padStart(2, '0')}m`;
 
-          const prev = weekBuckets.get(key) || 0;
-          weekBuckets.set(key, prev + d.totalWorkedMin);
-        }
-        const weekValues = Array.from(weekBuckets.values());
-        const divisor = weekValues.length || 1;
-        const avgWeekMin = Math.round(weekValues.reduce((a, b) => a + b, 0) / divisor);
-        const awH = Math.floor(avgWeekMin / 60);
-        const awM = avgWeekMin % 60;
-        const avgWeek = `${awH}h ${String(awM).padStart(2, '0')}m`;
-
-        // Comparaison vs semaine passée
-        const totalLastWeekMin = clocksLastWeek.reduce((sum, c) => {
+        // Comparaison vs période précédente
+        const totalPrevPeriodMin = clocksPrevPeriod.reduce((sum, c) => {
           const inD = new Date(c.clockIn);
           const outD = c.clockOut ? new Date(c.clockOut) : new Date();
           return sum + minutesBetweenLocal(inD, outD);
         }, 0);
         let comparison = '0%';
-        if (totalLastWeekMin > 0) {
-          const diffPct = ((totalWeekMin - totalLastWeekMin) / totalLastWeekMin) * 100;
+        if (totalPrevPeriodMin > 0) {
+          const diffPct = ((totalPeriodMin - totalPrevPeriodMin) / totalPrevPeriodMin) * 100;
           comparison = `${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(1)}%`;
-        } else if (totalWeekMin > 0) {
+        } else if (totalPeriodMin > 0) {
           comparison = '+100%';
         }
 
-        setStats({ hoursWeek, delaysMonth: String(delaysMonthCount), avgWeek, comparison });
+        setStats({ 
+          hoursWeek: hoursPeriod, 
+          delaysMonth: String(delaysPeriodCount), 
+          avgWeek: avgDaily, 
+          comparison 
+        });
       } catch (e) {
         console.warn('[Dashboard KPIs] error:', e?.message || e);
         setStats({ hoursWeek: '—', delaysMonth: '—', avgWeek: '—', comparison: '—' });
@@ -242,7 +235,7 @@ export default function EmployeeDashboard() {
     };
 
     loadKpis();
-  }, [user?.id, refreshKey]);
+  }, [user?.id, refreshKey, selectedPeriod]);
 
   const handleChanged = async () => {
     if (!user?.id) return;
@@ -325,17 +318,21 @@ export default function EmployeeDashboard() {
             </div>
             
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <KPICard title="Heures cette semaine" value={stats.hoursWeek} icon={Clock}>
-                <p className="text-xs text-gray-500 mt-1">Du lun au dim</p>
+              <KPICard 
+                title={`Heures (${selectedPeriod === 7 ? 'semaine' : selectedPeriod === 30 ? 'mois' : `${selectedPeriod}j`})`} 
+                value={stats.hoursWeek} 
+                icon={Clock}
+              >
+                <p className="text-xs text-gray-500 mt-1">Derniers {selectedPeriod} jours</p>
               </KPICard>
-              <KPICard title="Jours en retard (mois)" value={stats.delaysMonth} icon={AlertTriangle}>
+              <KPICard title="Jours en retard" value={stats.delaysMonth} icon={AlertTriangle}>
                 <p className="text-xs text-orange-500 mt-1">Règle flex 09:30–17:30</p>
               </KPICard>
-              <KPICard title="Moyenne hebdo (mois)" value={stats.avgWeek} icon={Briefcase}>
-                <p className="text-xs text-gray-500 mt-1">Sur les semaines du mois</p>
+              <KPICard title="Moyenne quotidienne" value={stats.avgWeek} icon={Briefcase}>
+                <p className="text-xs text-gray-500 mt-1">Sur la période</p>
               </KPICard>
               <KPICard title="Comparaison" value={stats.comparison} icon={TrendingUp}>
-                <p className="text-xs text-green-500 mt-1">vs semaine passée</p>
+                <p className="text-xs text-green-500 mt-1">vs période précédente</p>
               </KPICard>
             </div>
           </section>
