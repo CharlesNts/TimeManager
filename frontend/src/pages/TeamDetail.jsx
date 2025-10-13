@@ -252,12 +252,28 @@ export default function TeamDetail() {
       const payload = {
         name: patch.name,
         description: patch.description,
+        managerId: patch.managerId, // Support du changement de manager
       };
       const updated = await updateTeam(team.id, payload);
       setTeam((prev) => ({ ...prev, ...updated }));
       setIsEditModalOpen(false);
+      // Recharger tout pour avoir les nouvelles infos du manager
+      await loadAll();
     } catch (e) {
       alert(e?.message || 'Échec de la modification');
+    }
+  };
+
+  // ====== DELETE TEAM ======
+  const [confirmDeleteTeam, setConfirmDeleteTeam] = useState(false);
+  
+  const handleDeleteTeam = async () => {
+    try {
+      const { deleteTeam } = await import('../api/teamApi');
+      await deleteTeam(team.id);
+      navigate('/teams');
+    } catch (e) {
+      alert(e?.message || 'Échec de la suppression');
     }
   };
 
@@ -441,13 +457,22 @@ export default function TeamDetail() {
                   </div>
 
                   {(user?.role === 'CEO' || user?.id === team?.managerId) && (
-                    <button
-                      onClick={handleEditTeam}
-                      className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800"
-                    >
-                      <Edit className="w-4 h-4 mr-2" />
-                      Modifier
-                    </button>
+                    <>
+                      <button
+                        onClick={handleEditTeam}
+                        className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Modifier
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteTeam(true)}
+                        className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Supprimer
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -506,10 +531,10 @@ export default function TeamDetail() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">En pause</p>
-                    <p className="text-2xl font-bold text-gray-400 mt-1">N/A</p>
-                    <p className="text-xs text-gray-500 mt-1">Fonctionnalité à venir</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.onBreak}</p>
+                    <p className="text-xs text-gray-500 mt-1">Actuellement</p>
                   </div>
-                  <div className="w-12 h-12 bg-gray-400 rounded-lg flex items-center justify-center">
+                  <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
                     <Clock className="w-6 h-6 text-white" />
                   </div>
                 </div>
@@ -653,6 +678,18 @@ export default function TeamDetail() {
             : ''
         }
         confirmText="Retirer"
+        cancelText="Annuler"
+        variant="danger"
+      />
+
+      {/* Confirm DELETE TEAM */}
+      <ConfirmModal
+        isOpen={confirmDeleteTeam}
+        onClose={() => setConfirmDeleteTeam(false)}
+        onConfirm={handleDeleteTeam}
+        title="Supprimer cette équipe ?"
+        message={`Êtes-vous sûr de vouloir supprimer l'équipe "${team?.name}" ? Cette action est irréversible et supprimera également tous les membres de l'équipe.`}
+        confirmText="Supprimer"
         cancelText="Annuler"
         variant="danger"
       />

@@ -45,6 +45,8 @@ export default function CEODashboard() {
       setLoading(true);
       try {
         // Charger tous les utilisateurs et utilisateurs en attente
+        // Note : /api/users retourne tous les users avec active=true (approuvés par CEO)
+        //        /api/users/active ferait la même chose
         const [usersRes, pendingRes] = await Promise.all([
           api.get('/api/users'),
           api.get('/api/users/users/pending')
