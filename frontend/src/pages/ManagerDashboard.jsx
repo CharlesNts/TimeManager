@@ -6,6 +6,7 @@ import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import {
   Users,
+  User,
   Clock,
   TrendingUp,
   Building2,
@@ -21,6 +22,7 @@ import { exportManagerDashboardCSV } from '../utils/csvExport';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
+import KPICard from '../components/dashboard/KPICard';
 import ExportMenu from '../components/ui/ExportMenu';
 
 export default function ManagerDashboard() {
@@ -154,100 +156,121 @@ export default function ManagerDashboard() {
       userName={`${user?.firstName} ${user?.lastName}`}
       userRole={user?.role}
     >
-      <div className="p-8">
-        <div className="max-w-7xl mx-auto space-y-6">
+      <div className="p-8 space-y-6">
+        <div className="max-w-7xl mx-auto">
           
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard Manager</h1>
-              <p className="text-gray-500 mt-1">
-                Gérez vos équipes et suivez les performances
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <ExportMenu 
-                onExportPDF={handleExportPDF}
-                onExportCSV={handleExportCSV}
-                variant="outline"
-              />
-              <Button
-                onClick={() => navigate('/teams')}
-                variant="default"
-                size="sm"
-              >
-                <Plus className="w-4 h-4" />
-                Créer une équipe
+          <div className="mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard Manager</h1>
+                <p className="text-gray-500 mt-1">
+                  Gérez vos équipes et suivez les performances
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <ExportMenu 
+                  onExportPDF={handleExportPDF}
+                  onExportCSV={handleExportCSV}
+                  variant="outline"
+                />
+                <Button
+                  onClick={() => navigate('/teams')}
+                  variant="default"
+                  size="sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  Créer une équipe
               </Button>
             </div>
           </div>
 
           {loading ? (
-            <div className="text-gray-600">Chargement...</div>
+            <div className="flex items-center justify-center py-12">
+              <div className="text-gray-600">Chargement...</div>
+            </div>
           ) : (
-            <>
+            <div className="space-y-6">
               {/* KPIs Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                
-                {/* Total Équipes */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Mes Équipes</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalTeams}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center">
-                      <Building2 className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Total Membres */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Total Membres</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalMembers}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-                      <Users className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Membres Actifs */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Actifs maintenant</p>
-                      <p className="text-3xl font-bold text-green-600 mt-1">{stats.activeMembers}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center">
-                      <TrendingUp className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Heures cette semaine */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Heures cette semaine</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalHoursThisWeek}h</p>
-                    </div>
-                    <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
-                      <Clock className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </div>
+                <KPICard
+                  title="Mes Équipes"
+                  value={stats.totalTeams}
+                  icon={Building2}
+                />
+                <KPICard
+                  title="Total Membres"
+                  value={stats.totalMembers}
+                  icon={Users}
+                />
+                <KPICard
+                  title="Actifs maintenant"
+                  value={stats.activeMembers}
+                  icon={TrendingUp}
+                />
+                <KPICard
+                  title="Heures cette semaine"
+                  value={`${stats.totalHoursThisWeek}h`}
+                  icon={Clock}
+                />
               </div>
 
-              {/* Liste des équipes */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                  <Building2 className="w-5 h-5 mr-2" />
-                  Vos équipes
-                </h3>
+              {/* Layout en 2 colonnes */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* Colonne gauche : Actions rapides (33%) */}
+                <div className="lg:col-span-1">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Building2 className="w-5 h-5" />
+                        Actions rapides
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <Button
+                          onClick={() => navigate('/teams')}
+                          variant="default"
+                          className="w-full justify-start"
+                          size="lg"
+                        >
+                          <Building2 className="w-4 h-4 mr-2" />
+                          Gérer mes équipes
+                        </Button>
+                        <Button
+                          onClick={() => navigate('/profile')}
+                          variant="outline"
+                          className="w-full justify-start"
+                          size="lg"
+                        >
+                          <User className="w-4 h-4 mr-2" />
+                          Mon profil
+                        </Button>
+                        <Button
+                          onClick={() => navigate('/my-clocks')}
+                          variant="outline"
+                          className="w-full justify-start"
+                          size="lg"
+                        >
+                          <Clock className="w-4 h-4 mr-2" />
+                          Mes pointages
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Colonne droite : Liste des équipes (67%) */}
+                <div className="lg:col-span-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Building2 className="w-5 h-5" />
+                        Vos équipes
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
 
                 {teams.length === 0 ? (
                   <div className="text-center py-12">
@@ -290,40 +313,13 @@ export default function ManagerDashboard() {
                     ))}
                   </div>
                 )}
-              </div>
-
-              {/* Actions rapides - Compactes */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <h3 className="text-base font-semibold text-gray-900 mb-3">Actions rapides</h3>
-                <div className="flex flex-wrap gap-3">
-                  <Button
-                    onClick={() => navigate('/teams')}
-                    variant="default"
-                    size="sm"
-                  >
-                    <Building2 className="w-4 h-4" />
-                    Gérer mes équipes
-                  </Button>
-                  <Button
-                    onClick={() => navigate('/profile')}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    <Users className="w-4 h-4" />
-                    Mon profil
-                  </Button>
-                  <Button
-                    onClick={() => navigate('/my-clocks')}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    <Clock className="w-4 h-4" />
-                    Mes pointages
-                  </Button>
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
-            </>
+            </div>
           )}
+          </div>
         </div>
       </div>
     </Layout>

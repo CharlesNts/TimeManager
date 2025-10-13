@@ -21,6 +21,7 @@ import api from '../api/client';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
+import KPICard from '../components/dashboard/KPICard';
 import ExportMenu from '../components/ui/ExportMenu';
 import { exportCEODashboardPDF } from '../utils/pdfExport';
 import { exportCEODashboardCSV } from '../utils/csvExport';
@@ -159,240 +160,226 @@ export default function CEODashboard() {
       userName={`${user?.firstName} ${user?.lastName}`}
       userRole={user?.role}
     >
-      <div className="p-8">
-        <div className="max-w-7xl mx-auto space-y-6">
+      <div className="p-8 space-y-6">
+        <div className="max-w-7xl mx-auto">
           
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard CEO</h1>
-              <p className="text-gray-500 mt-1">
-                Vue d'ensemble globale des statistiques et indicateurs clés de l'entreprise
-              </p>
+          <div className="mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard CEO</h1>
+                <p className="text-gray-500 mt-1">
+                  Vue d'ensemble globale des statistiques et indicateurs clés de l'entreprise
+                </p>
+              </div>
+              <ExportMenu 
+                onExportPDF={handleExportPDF}
+                onExportCSV={handleExportCSV}
+                variant="default"
+              />
             </div>
-            <ExportMenu 
-              onExportPDF={handleExportPDF}
-              onExportCSV={handleExportCSV}
-              variant="default"
-            />
           </div>
 
+          <div className="space-y-6">
+
           {loading ? (
-            <div className="text-gray-600">Chargement...</div>
+            <div className="flex items-center justify-center py-12">
+              <div className="text-gray-600">Chargement...</div>
+            </div>
           ) : (
-            <>
+            <div className="space-y-6">
               {/* KPIs Grid - 3 colonnes x 2 lignes */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <KPICard
+                  title="Total employés"
+                  value={stats.totalUsers}
+                  icon={Users}
+                />
+                <KPICard
+                  title="En attente"
+                  value={stats.pendingUsers}
+                  icon={AlertCircle}
+                />
+                <KPICard
+                  title="Approuvés"
+                  value={stats.approvedUsers}
+                  icon={UserCheck}
+                />
+                <KPICard
+                  title="Total Équipes"
+                  value={stats.totalTeams}
+                  icon={Building2}
+                />
+                <KPICard
+                  title="Managers"
+                  value={stats.totalManagers}
+                  icon={Users}
+                />
+                <KPICard
+                  title="Employés"
+                  value={stats.activeEmployees}
+                  icon={UserCheck}
+                />
+              </div>
+
+              {/* Layout en 2 colonnes */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* Total Employés */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Total employés</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalUsers}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-                      <Users className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
+                {/* Colonne gauche : Actions rapides (33%) */}
+                <div className="lg:col-span-1">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5" />
+                        Actions rapides
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <Button
+                          onClick={() => navigate('/users')}
+                          variant="default"
+                          className="w-full justify-start"
+                          size="lg"
+                        >
+                          <Users className="w-4 h-4 mr-2" />
+                          Gérer les utilisateurs
+                        </Button>
+                        <Button
+                          onClick={() => navigate('/teams')}
+                          variant="outline"
+                          className="w-full justify-start"
+                          size="lg"
+                        >
+                          <Building2 className="w-4 h-4 mr-2" />
+                          Gérer les équipes
+                        </Button>
+                        <Button
+                          onClick={() => navigate('/profile')}
+                          variant="outline"
+                          className="w-full justify-start"
+                          size="lg"
+                        >
+                          <BarChart3 className="w-4 h-4 mr-2" />
+                          Mon profil
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
 
-                {/* Utilisateurs en attente */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">En attente d'approbation</p>
-                      <p className="text-3xl font-bold text-orange-600 mt-1">{stats.pendingUsers}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
-                      <AlertCircle className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Utilisateurs approuvés */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Utilisateurs approuvés</p>
-                      <p className="text-3xl font-bold text-green-600 mt-1">{stats.approvedUsers}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center">
-                      <UserCheck className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Total Équipes */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Total Équipes</p>
-                      <p className="text-3xl font-bold text-purple-600 mt-1">{stats.totalTeams}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center">
-                      <Building2 className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Total Managers */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Managers</p>
-                      <p className="text-3xl font-bold text-gray-700 mt-1">{stats.totalManagers}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center">
-                      <Users className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Employés (EMPLOYEE role) */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Employés</p>
-                      <p className="text-3xl font-bold text-indigo-600 mt-1">{stats.activeEmployees}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center">
-                      <UserCheck className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Utilisateurs en attente */}
-              {pendingUsers.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                      <AlertCircle className="w-5 h-5 mr-2 text-orange-600" />
-                      Utilisateurs en attente d'approbation
-                    </h3>
-                    <Button
-                      onClick={() => navigate('/users')}
-                      variant="link"
-                      size="sm"
-                    >
-                      Voir tous
-                    </Button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {pendingUsers.map(u => (
-                      <div key={u.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-pink-600 rounded-full flex items-center justify-center">
-                            <span className="text-white text-sm font-bold">
-                              {u.firstName?.[0]}{u.lastName?.[0]}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">{u.firstName} {u.lastName}</p>
-                            <p className="text-sm text-gray-500">{u.email}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
+                {/* Colonne droite : Utilisateurs en attente + Équipes récentes (67%) */}
+                <div className="lg:col-span-2 space-y-6">
+                  
+                  {/* Utilisateurs en attente */}
+                  {pendingUsers.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="flex items-center gap-2">
+                            <AlertCircle className="w-5 h-5 text-orange-600" />
+                            Utilisateurs en attente
+                          </CardTitle>
                           <Button
-                            onClick={() => handleApprove(u.id)}
-                            variant="default"
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            Approuver
-                          </Button>
-                          <Button
-                            onClick={() => handleReject(u.id)}
-                            variant="destructive"
+                            onClick={() => navigate('/users')}
+                            variant="link"
                             size="sm"
                           >
-                            <XCircle className="w-4 h-4" />
-                            Rejeter
+                            Voir tous
                           </Button>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Équipes récentes */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                    <Building2 className="w-5 h-5 mr-2" />
-                    Équipes récentes
-                  </h3>
-                  <button
-                    onClick={() => navigate('/teams')}
-                    className="text-sm text-blue-600 hover:underline"
-                  >
-                    Voir toutes
-                  </button>
-                </div>
-
-                {recentTeams.length === 0 ? (
-                  <p className="text-sm text-gray-500">Aucune équipe créée</p>
-                ) : (
-                  <div className="space-y-3">
-                    {recentTeams.map(t => (
-                      <div
-                        key={t.id}
-                        onClick={() => navigate(`/teams/${t.id}`)}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
-                            <Building2 className="w-5 h-5 text-white" />
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">{t.name}</p>
-                            <p className="text-sm text-gray-500">
-                              Manager: {t.manager ? `${t.manager.firstName} ${t.manager.lastName}` : '—'}
-                            </p>
-                          </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {pendingUsers.map(u => (
+                            <div key={u.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-pink-600 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-sm font-bold">
+                                    {u.firstName?.[0]}{u.lastName?.[0]}
+                                  </span>
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{u.firstName} {u.lastName}</p>
+                                  <p className="text-sm text-gray-500">{u.email}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  onClick={() => handleApprove(u.id)}
+                                  variant="default"
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                >
+                                  <CheckCircle className="w-4 h-4 mr-1" />
+                                  Approuver
+                                </Button>
+                                <Button
+                                  onClick={() => handleReject(u.id)}
+                                  variant="destructive"
+                                  size="sm"
+                                >
+                                  <XCircle className="w-4 h-4 mr-1" />
+                                  Rejeter
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
-              {/* Actions rapides - Compactes */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <h3 className="text-base font-semibold text-gray-900 mb-3">Actions rapides</h3>
-                <div className="flex flex-wrap gap-3">
-                  <Button
-                    onClick={() => navigate('/users')}
-                    variant="default"
-                    size="sm"
-                  >
-                    <Users className="w-4 h-4" />
-                    Gérer les utilisateurs
-                  </Button>
-                  <Button
-                    onClick={() => navigate('/teams')}
-                    variant="default"
-                    size="sm"
-                  >
-                    <Building2 className="w-4 h-4" />
-                    Gérer les équipes
-                  </Button>
-                  <Button
-                    onClick={() => navigate('/profile')}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    <BarChart3 className="w-4 h-4" />
-                    Mon profil
-                  </Button>
+                  {/* Équipes récentes */}
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                          <Building2 className="w-5 h-5" />
+                          Équipes récentes
+                        </CardTitle>
+                        <Button
+                          onClick={() => navigate('/teams')}
+                          variant="link"
+                          size="sm"
+                        >
+                          Voir toutes
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {recentTeams.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Aucune équipe créée</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {recentTeams.map(t => (
+                            <div
+                              key={t.id}
+                              onClick={() => navigate(`/teams/${t.id}`)}
+                              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
+                                  <Building2 className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{t.name}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    Manager: {t.manager ? `${t.manager.firstName} ${t.manager.lastName}` : '—'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
-            </>
+            </div>
           )}
+          </div>
         </div>
       </div>
     </Layout>

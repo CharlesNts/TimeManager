@@ -2,7 +2,6 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, ArrowLeft, Search } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import Layout from '../components/layout/Layout';
 
 /**
  * Page 404 - Page non trouvée
@@ -11,9 +10,8 @@ const NotFoundPage = () => {
   const navigate = useNavigate();
 
   return (
-    <Layout>
-      <div className="min-h-[calc(100vh-200px)] flex items-center justify-center px-4">
-        <div className="text-center max-w-md">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="text-center max-w-md bg-white border border-gray-200 rounded-lg shadow-sm px-8 py-12">
           {/* Illustration 404 */}
           <div className="mb-8">
             <h1 className="text-9xl font-bold text-gray-900 mb-4">404</h1>
@@ -48,32 +46,8 @@ const NotFoundPage = () => {
           </div>
 
           {/* Suggestions */}
-          <div className="mt-12 pt-8 border-t border-gray-200">
-            <p className="text-sm text-gray-500 mb-4">Pages populaires :</p>
-            <div className="flex flex-wrap gap-2 justify-center">
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Dashboard
-              </button>
-              <button
-                onClick={() => navigate('/teams')}
-                className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Équipes
-              </button>
-              <button
-                onClick={() => navigate('/profile')}
-                className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Profil
-              </button>
-            </div>
-          </div>
         </div>
       </div>
-    </Layout>
   );
 };
 
