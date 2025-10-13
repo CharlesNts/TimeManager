@@ -8,13 +8,14 @@ import KPICard from '../components/dashboard/KPICard.jsx';
 import ClockActions from '../components/employee/ClockActions';
 import ClockHistory from '../components/employee/ClockHistory';
 import PeriodSelector from '../components/manager/PeriodSelector';
-import { Clock, AlertTriangle, Briefcase, TrendingUp, FileDown, FileSpreadsheet, ArrowLeft } from 'lucide-react';
+import { Clock, AlertTriangle, Briefcase, TrendingUp, ArrowLeft } from 'lucide-react';
 import api from '../api/client';
 import { exportEmployeeDashboardPDF } from '../utils/pdfExport';
 import { exportEmployeeDashboardCSV } from '../utils/csvExport';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
+import ExportMenu from '../components/ui/ExportMenu';
 
 // ---------- Constantes règle “flex” ----------
 const WORK_START_HOUR = 9;
@@ -409,24 +410,11 @@ export default function EmployeeDashboard() {
                         Aperçu de vos performances sur {selectedPeriod} jours
                       </CardDescription>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        onClick={handleExportPDF}
-                        variant="default"
-                        size="sm"
-                      >
-                        <FileDown className="w-4 h-4" />
-                        PDF
-                      </Button>
-                      <Button
-                        onClick={handleExportCSV}
-                        variant="secondary"
-                        size="sm"
-                      >
-                        <FileSpreadsheet className="w-4 h-4" />
-                        CSV
-                      </Button>
-                    </div>
+                    <ExportMenu 
+                      onExportPDF={handleExportPDF}
+                      onExportCSV={handleExportCSV}
+                      variant="default"
+                    />
                   </div>
                   <div className="pt-4">
                     <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />

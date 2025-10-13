@@ -19,6 +19,9 @@ import {
 } from 'lucide-react';
 import api from '../api/client';
 import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import ExportMenu from '../components/ui/ExportMenu';
 import { exportCEODashboardPDF } from '../utils/pdfExport';
 import { exportCEODashboardCSV } from '../utils/csvExport';
 
@@ -162,29 +165,16 @@ export default function CEODashboard() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900">Vue d'ensemble globale</h2>
-              <p className="text-sm text-gray-600 mt-1">
-                Statistiques et indicateurs clés de l'entreprise
+              <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard CEO</h1>
+              <p className="text-gray-500 mt-1">
+                Vue d'ensemble globale des statistiques et indicateurs clés de l'entreprise
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={handleExportPDF}
-                variant="default"
-                size="default"
-              >
-                <FileDown className="w-5 h-5" />
-                PDF
-              </Button>
-              <Button
-                onClick={handleExportCSV}
-                variant="secondary"
-                size="default"
-              >
-                <FileSpreadsheet className="w-5 h-5" />
-                CSV
-              </Button>
-            </div>
+            <ExportMenu 
+              onExportPDF={handleExportPDF}
+              onExportCSV={handleExportCSV}
+              variant="default"
+            />
           </div>
 
           {loading ? (

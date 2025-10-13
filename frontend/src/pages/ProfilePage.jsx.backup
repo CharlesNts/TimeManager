@@ -300,6 +300,69 @@ export default function ProfilePage() {
             )}
 
               {/* Boutons d'action */}
+                </div>
+
+                {/* Nom */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <User className="w-4 h-4 inline mr-2" /> Nom
+                  </label>
+                  <input
+                    type="text"
+                    value={profileData.lastName}
+                    onChange={(e) => handleInputChange('lastName', e.target.value)}
+                    disabled={!isEditing}
+                    className={`w-full px-4 py-2 border rounded-lg ${isEditing ? 'bg-white border-gray-300' : 'bg-gray-50 border-gray-200'}`}
+                  />
+                </div>
+
+                {/* Email (lecture seule – backend ne l’update pas via PUT) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Mail className="w-4 h-4 inline mr-2" /> Email
+                  </label>
+                  <input
+                    type="email"
+                    value={profileData.email}
+                    disabled
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">L’email n’est pas modifiable ici.</p>
+                </div>
+
+                {/* Téléphone */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Phone className="w-4 h-4 inline mr-2" /> Téléphone
+                  </label>
+                  <input
+                    type="tel"
+                    value={profileData.phoneNumber || ''}
+                    onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
+                    disabled={!isEditing}
+                    className={`w-full px-4 py-2 border rounded-lg ${isEditing ? 'bg-white border-gray-300' : 'bg-gray-50 border-gray-200'}`}
+                  />
+                </div>
+
+                {/* Rôle (non modifiable dans l’UI) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Briefcase className="w-4 h-4 inline mr-2" /> Rôle
+                  </label>
+                  <input
+                    type="text"
+                    value={profileData.role === 'MANAGER' ? 'Manager' : profileData.role === 'CEO' ? 'CEO' : 'Employé'}
+                    disabled
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Le rôle ne peut être modifié que par le CEO.
+                  </p>
+                </div>
+              </div>
+            )}
+
+              {/* Boutons d'action */}
               {isEditing && !loading && (
                 <div className="flex gap-3 mt-6">
                   <Button
@@ -323,6 +386,35 @@ export default function ProfilePage() {
               )}
             </CardContent>
           </Card>
+                </div>
+              </div>
+            )}
+
+                          {/* Boutons d'action */}
+              {isEditing && !loading && (
+                <div className="flex gap-3 mt-6">
+                  <Button
+                    onClick={handleSave}
+                    disabled={saving}
+                    variant="default"
+                    className="flex-1"
+                  >
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Sauvegarder
+                  </Button>
+                  <Button
+                    onClick={handleCancel}
+                    disabled={saving}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Annuler
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
 
           {/* Mes équipes */}
           {userTeams.length > 0 && (
