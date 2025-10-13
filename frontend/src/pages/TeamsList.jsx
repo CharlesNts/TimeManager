@@ -39,12 +39,12 @@ export default function TeamsList() {
         // 1) Récupérer tous les utilisateurs
         const { data: allUsers } = await api.get('/api/users');
 
-        // 2) Garder uniquement les MANAGERs
+        // 2) Garder MANAGERs ET CEOs (car CEOs peuvent être managers d'équipes)
         const managerIds = (allUsers || [])
-          .filter((u) => u.role === 'MANAGER')
+          .filter((u) => u.role === 'MANAGER' || u.role === 'CEO')
           .map((u) => u.id);
 
-        // 3) Pour chaque manager, récupérer ses équipes via /api/teams?managerId=:id
+        // 3) Pour chaque manager/CEO, récupérer ses équipes via /api/teams?managerId=:id
         const perManager = await Promise.all(
           managerIds.map((id) =>
             api

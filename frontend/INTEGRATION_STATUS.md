@@ -38,10 +38,19 @@
 - ✅ `GET /api/users/{userId}/clocks/range` - Pointages sur une période
 - ✅ `POST /api/users/{userId}/clocks` - Créer un pointage (clock in/out)
 
-### � Dashboards
-- ✅ **CEODashboard.jsx** - Vue globale entreprise, stats, utilisateurs en attente
+### 📊 Dashboards
+- ✅ **CEODashboard.jsx** - Vue globale entreprise, stats, utilisateurs en attente (charge équipes de MANAGER + CEO)
 - ✅ **ManagerDashboard.jsx** - Vue d'ensemble des équipes du manager
-- ✅ **EmployeeDashboard.jsx** - Dashboard employé avec pointages et stats
+- ✅ **EmployeeDashboard.jsx** - Dashboard personnel avec pointages et stats (accessible à TOUS les rôles via `/my-clocks`)
+- ✅ **Routing intelligent** - Redirige vers le bon dashboard selon le rôle sur `/dashboard`
+
+### 🎨 Navigation et UX
+- ✅ **Sidebar adaptée par rôle** - Items différents selon EMPLOYEE/MANAGER/CEO
+- ✅ **Route `/my-clocks`** - Dashboard personnel accessible à tous (CEO, MANAGER, EMPLOYEE)
+- ✅ **Menu utilisateur** - Dropdown dans le header avec :
+  - Mon profil
+  - Se déconnecter
+- ✅ **Profil retiré de la sidebar** - Accessible uniquement via le menu utilisateur
 
 ---
 

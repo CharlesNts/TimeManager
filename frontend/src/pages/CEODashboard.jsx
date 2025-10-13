@@ -49,9 +49,13 @@ export default function CEODashboard() {
         const managers = allUsers.filter(u => u.role === 'MANAGER');
         const employees = allUsers.filter(u => u.role === 'EMPLOYEE' && u.status === 'APPROVED');
 
-        // Charger toutes les équipes (via tous les managers)
-        const managerIds = managers.map(m => m.id);
-        const teamPromises = managerIds.map(id =>
+        // Charger toutes les équipes (via tous les managers + CEO)
+        // On inclut aussi les CEO car ils peuvent être managers d'équipes
+        const managerAndCEOIds = allUsers
+          .filter(u => u.role === 'MANAGER' || u.role === 'CEO')
+          .map(u => u.id);
+          
+        const teamPromises = managerAndCEOIds.map(id =>
           api.get('/api/teams', { params: { managerId: id } })
             .then(res => Array.isArray(res.data) ? res.data : [])
             .catch(() => [])
