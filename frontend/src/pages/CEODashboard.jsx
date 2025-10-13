@@ -44,14 +44,19 @@ export default function CEODashboard() {
       
       setLoading(true);
       try {
-        // Charger tous les utilisateurs
-        const { data: allUsers } = await api.get('/api/users');
+        // Charger tous les utilisateurs et utilisateurs en attente
+        const [usersRes, pendingRes] = await Promise.all([
+          api.get('/api/users'),
+          api.get('/api/users/pending')
+        ]);
+        
+        const allUsers = Array.isArray(usersRes.data) ? usersRes.data : [];
+        const pendingList = Array.isArray(pendingRes.data) ? pendingRes.data : [];
         
         // Calculer les stats utilisateurs
-        const pending = allUsers.filter(u => u.status === 'PENDING');
-        const approved = allUsers.filter(u => u.status === 'APPROVED');
         const managers = allUsers.filter(u => u.role === 'MANAGER');
-        const employees = allUsers.filter(u => u.role === 'EMPLOYEE' && u.status === 'APPROVED');
+        const employees = allUsers.filter(u => u.role === 'EMPLOYEE');
+        const approvedCount = allUsers.length; // Les users dans /api/users sont déjà approuvés
 
         // Charger toutes les équipes (via tous les managers + CEO)
         // On inclut aussi les CEO car ils peuvent être managers d'équipes
@@ -73,15 +78,15 @@ export default function CEODashboard() {
         );
 
         setStats({
-          totalUsers: allUsers.length,
-          pendingUsers: pending.length,
-          approvedUsers: approved.length,
+          totalUsers: approvedCount + pendingList.length, // Total = approuvés + en attente
+          pendingUsers: pendingList.length,
+          approvedUsers: approvedCount,
           totalTeams: uniqueTeams.length,
           totalManagers: managers.length,
-          activeEmployees: employees.length,
+          activeEmployees: employees.length, // Tous les employés approuvés
         });
 
-        setPendingUsers(pending.slice(0, 5)); // Top 5 en attente
+        setPendingUsers(pendingList.slice(0, 5)); // Top 5 en attente
         setRecentTeams(uniqueTeams.slice(0, 5)); // Top 5 équipes récentes
 
       } catch (err) {
@@ -172,11 +177,11 @@ export default function CEODashboard() {
               {/* KPIs Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 
-                {/* Total Utilisateurs */}
+                {/* Total Employés */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-600">Total Utilisateurs</p>
+                      <p className="text-sm text-gray-600">Total employés</p>
                       <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalUsers}</p>
                     </div>
                     <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -242,9 +247,10 @@ export default function CEODashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600">Employés actifs</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-1">{stats.activeEmployees}</p>
+                      <p className="text-lg font-medium text-gray-500 mt-1">Endpoint manquant</p>
+                      <p className="text-xs text-gray-400 mt-1">Backend optimization required</p>
                     </div>
-                    <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
+                    <div className="w-12 h-12 bg-gray-400 rounded-lg flex items-center justify-center">
                       <TrendingUp className="w-6 h-6 text-white" />
                     </div>
                   </div>
