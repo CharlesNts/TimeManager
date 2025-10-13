@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserPlus, X, Search, Check } from 'lucide-react';
+import api from '../../api/client';
 
 /**
  * Modal pour ajouter des membres à une équipe
@@ -9,23 +10,51 @@ import { UserPlus, X, Search, Check } from 'lucide-react';
  * @param {function} onClose - Callback de fermeture
  * @param {function} onAddMember - Callback d'ajout de membre (userId)
  * @param {Array} currentMembers - Liste des membres actuels (pour les exclure)
- * @param {Array} availableUsers - Liste des utilisateurs disponibles
+ * @param {Array} availableUsers - Liste des utilisateurs disponibles (optionnel, sinon chargé depuis API)
  */
 const AddMemberModal = ({ 
   isOpen, 
   onClose, 
   onAddMember,
   currentMembers = [],
-  availableUsers = []
+  availableUsers = null // Si null, on charge depuis l'API
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUsers, setSelectedUsers] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
+  // Charger les utilisateurs depuis l'API si non fournis en props
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!isOpen) return;
+      
+      // Si availableUsers fourni en props, on les utilise
+      if (availableUsers !== null) {
+        setUsers(availableUsers);
+        return;
+      }
+      
+      // Sinon, charger depuis l'API
+      setLoadingUsers(true);
+      try {
+        const { data } = await api.get('/api/users');
+        setUsers(data || []);
+      } catch (err) {
+        console.error('[AddMemberModal] Erreur chargement users:', err);
+        setUsers([]);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+    fetchUsers();
+  }, [isOpen, availableUsers]);
 
   if (!isOpen) return null;
 
   // Filtrer les utilisateurs déjà membres
-  const currentMemberIds = currentMembers.map(m => m.userId || m.id);
-  const usersToShow = availableUsers.filter(
+  const currentMemberIds = currentMembers.map(m => m.userId || m.id || m.user?.id).filter(Boolean);
+  const usersToShow = users.filter(
     user => !currentMemberIds.includes(user.id)
   );
 
@@ -93,7 +122,9 @@ const AddMemberModal = ({
 
         {/* User List */}
         <div className="flex-1 overflow-y-auto p-6">
-          {filteredUsers.length === 0 ? (
+          {loadingUsers ? (
+            <div className="text-center py-8 text-gray-500">Chargement des utilisateurs...</div>
+          ) : filteredUsers.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               {searchTerm ? 'Aucun utilisateur trouvé' : 'Tous les utilisateurs sont déjà membres'}
             </div>

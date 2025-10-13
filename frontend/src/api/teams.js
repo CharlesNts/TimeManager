@@ -86,13 +86,47 @@ export async function fetchTeamsForCurrentUser(user) {
 
 /** Création / Mise à jour / Suppression (pour brancher le modal si besoin) */
 export async function createTeam(payload) {
-  // payload attendu: { name, description }
-  const { data } = await api.post('/api/teams', payload);
+  // payload attendu: { name, description, managerId }
+  // 1. Créer l'équipe (sans manager)
+  const { data } = await api.post('/api/teams', {
+    name: payload.name,
+    description: payload.description,
+  });
+  
+  // 2. Assigner le manager si managerId fourni
+  if (payload.managerId) {
+    await api.put(`/api/teams/${data.id}/manager/${payload.managerId}`);
+    
+    // 3. Ajouter automatiquement le manager comme membre de l'équipe
+    try {
+      await api.post(`/api/teams/${data.id}/members/${payload.managerId}`);
+    } catch (e) {
+      console.warn('[createTeam] Le manager est peut-être déjà membre:', e.message);
+    }
+    
+    // 4. Recharger l'équipe pour avoir le manager à jour
+    const { data: updated } = await api.get(`/api/teams/${data.id}`);
+    return mapTeamDTO(updated);
+  }
+  
   return mapTeamDTO(data);
 }
 
 export async function updateTeam(teamId, payload) {
-  const { data } = await api.put(`/api/teams/${teamId}`, payload);
+  // payload attendu: { name, description, managerId }
+  // 1. Mettre à jour l'équipe (name, description)
+  const { data } = await api.put(`/api/teams/${teamId}`, {
+    name: payload.name,
+    description: payload.description,
+  });
+  
+  // 2. Mettre à jour le manager si changé
+  if (payload.managerId) {
+    await api.put(`/api/teams/${teamId}/manager/${payload.managerId}`);
+    const { data: updated } = await api.get(`/api/teams/${teamId}`);
+    return mapTeamDTO(updated);
+  }
+  
   return mapTeamDTO(data);
 }
 
