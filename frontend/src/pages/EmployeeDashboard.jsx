@@ -12,6 +12,9 @@ import { Clock, AlertTriangle, Briefcase, TrendingUp, FileDown, FileSpreadsheet,
 import api from '../api/client';
 import { exportEmployeeDashboardPDF } from '../utils/pdfExport';
 import { exportEmployeeDashboardCSV } from '../utils/csvExport';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
 
 // ---------- Constantes règle “flex” ----------
 const WORK_START_HOUR = 9;
@@ -309,36 +312,62 @@ export default function EmployeeDashboard() {
       userName={`${user?.firstName} ${user?.lastName}`}
       userRole={user?.role}
     >
-      <div className="p-8 space-y-8">
+      <div className="p-8 space-y-6">
         <div className="max-w-7xl mx-auto">
           
-          {/* Bouton retour si consultation d'un autre employé */}
-          {isViewingOtherEmployee && (
-            <button
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Retour
-            </button>
-          )}
+          {/* En-tête de la page */}
+          <div className="mb-6">
+            {isViewingOtherEmployee && (
+              <Button
+                onClick={() => navigate(-1)}
+                variant="ghost"
+                size="sm"
+                className="gap-2 mb-4"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Retour
+              </Button>
+            )}
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
+                  {isViewingOtherEmployee 
+                    ? `Dashboard de ${viewedEmployee?.firstName} ${viewedEmployee?.lastName}`
+                    : "Mon Dashboard"}
+                </h1>
+                <p className="text-gray-500 mt-1">
+                  {isViewingOtherEmployee 
+                    ? `Consultez les statistiques et pointages de ${viewedEmployee?.firstName}`
+                    : "Gérez vos pointages et consultez vos statistiques"}
+                </p>
+              </div>
+              {!isViewingOtherEmployee && (
+                <Badge 
+                  variant={hasClockedInToday ? "default" : "secondary"}
+                  className="text-sm px-4 py-2"
+                >
+                  {hasClockedInToday ? "✓ Pointé aujourd'hui" : "⏰ Non pointé"}
+                </Badge>
+              )}
+            </div>
+          </div>
 
           {!hasClockedInToday && !isViewingOtherEmployee && (
-            <div className="bg-orange-50 border-l-4 border-orange-400 p-4 mb-6 rounded-r-lg">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <AlertTriangle className="h-5 w-5 text-orange-400" />
+            <Card className="mb-6 border-l-4 border-orange-400 bg-orange-50">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-orange-900">
+                      ⏰ Vous n'avez pas encore pointé aujourd'hui
+                    </p>
+                    <p className="text-xs text-orange-800 mt-1">
+                      N'oubliez pas de pointer votre arrivée pour que vos heures soient comptabilisées.
+                    </p>
+                  </div>
                 </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-orange-800">
-                    ⏰ Vous n'avez pas encore pointé aujourd'hui
-                  </p>
-                  <p className="text-xs text-orange-700 mt-1">
-                    N'oubliez pas de pointer votre arrivée pour que vos heures soient comptabilisées.
-                  </p>
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Layout en 2 colonnes : Actions à gauche (33%), Stats + Historique à droite (67%) */}
@@ -347,61 +376,87 @@ export default function EmployeeDashboard() {
             {/* Colonne gauche : Actions de pointage */}
             {!isViewingOtherEmployee && (
               <div className="lg:col-span-1">
-                <section className="sticky top-6">
-                  <h2 className="text-lg font-semibold text-gray-800 mb-4">Actions de pointage</h2>
-                  <ClockActions userId={targetUserId} onChanged={handleChanged} />
-                </section>
+                <div className="sticky top-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Clock className="w-5 h-5" />
+                        Actions de pointage
+                      </CardTitle>
+                      <CardDescription>
+                        Gérez vos arrivées et départs
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ClockActions userId={targetUserId} onChanged={handleChanged} />
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             )}
             
             {/* Colonne droite : Statistiques + Historique */}
             <div className={!isViewingOtherEmployee ? "lg:col-span-2" : "lg:col-span-3"}>
               {/* Statistiques */}
-              <section className="mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold text-gray-800">
-                    {isViewingOtherEmployee ? 'Statistiques' : 'Mes statistiques'}
-                  </h2>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={handleExportPDF}
-                      className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-                    >
-                      <FileDown className="w-4 h-4" />
-                      PDF
-                    </button>
-                    <button
-                      onClick={handleExportCSV}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                    >
-                      <FileSpreadsheet className="w-4 h-4" />
-                      CSV
-                    </button>
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-                      <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+              <Card className="mb-6">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-xl">
+                        {isViewingOtherEmployee ? 'Statistiques' : 'Mes statistiques'}
+                      </CardTitle>
+                      <CardDescription>
+                        Aperçu de vos performances sur {selectedPeriod} jours
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={handleExportPDF}
+                        variant="default"
+                        size="sm"
+                      >
+                        <FileDown className="w-4 h-4" />
+                        PDF
+                      </Button>
+                      <Button
+                        onClick={handleExportCSV}
+                        variant="secondary"
+                        size="sm"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" />
+                        CSV
+                      </Button>
                     </div>
                   </div>
-                </div>
-                
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                  <KPICard 
-                    title={`Heures (${selectedPeriod === 7 ? 'semaine' : selectedPeriod === 30 ? 'mois' : `${selectedPeriod}j`})`} 
-                    value={stats.hoursWeek} 
-                    icon={Clock}
-                  >
-                    <p className="text-xs text-gray-500 mt-1">Derniers {selectedPeriod} jours</p>
-                  </KPICard>
-                  <KPICard title="Jours en retard" value="—" icon={AlertTriangle}>
-                    <p className="text-xs text-blue-600 mt-1">⚙️ Fonctionnalité à venir (horaires de travail requis)</p>
-                  </KPICard>
-                  <KPICard title="Moyenne quotidienne" value={stats.avgWeek} icon={Briefcase}>
-                    <p className="text-xs text-gray-500 mt-1">Sur la période</p>
-                  </KPICard>
-                  <KPICard title="Comparaison" value={stats.comparison} icon={TrendingUp}>
-                    <p className="text-xs text-green-500 mt-1">vs période précédente</p>
-                  </KPICard>
-                </div>
-              </section>
+                  <div className="pt-4">
+                    <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <KPICard 
+                      title={`Heures (${selectedPeriod === 7 ? 'semaine' : selectedPeriod === 30 ? 'mois' : `${selectedPeriod}j`})`} 
+                      value={stats.hoursWeek} 
+                      icon={Clock}
+                    >
+                      <p className="text-xs text-gray-500 mt-1">Derniers {selectedPeriod} jours</p>
+                    </KPICard>
+                    <KPICard title="Jours en retard" value="—" icon={AlertTriangle}>
+                      <Badge variant="secondary" className="mt-2 text-xs">
+                        ⚙️ À venir
+                      </Badge>
+                    </KPICard>
+                    <KPICard title="Moyenne quotidienne" value={stats.avgWeek} icon={Briefcase}>
+                      <p className="text-xs text-gray-500 mt-1">Sur la période</p>
+                    </KPICard>
+                    <KPICard title="Comparaison" value={stats.comparison} icon={TrendingUp}>
+                      <Badge variant={stats.comparison.startsWith('+') ? 'default' : 'secondary'} className="mt-2">
+                        vs période précédente
+                      </Badge>
+                    </KPICard>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Historique */}
               <section>

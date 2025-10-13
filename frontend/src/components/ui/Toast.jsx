@@ -1,159 +1,83 @@
-import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, AlertCircle, Info, X } from 'lucide-react';
+"use client";
+import * as React from "react"
+import * as ToastPrimitives from "@radix-ui/react-toast"
+import { cva } from "class-variance-authority";
+import { X } from "lucide-react"
 
-/**
- * Composant Toast - Notifications temporaires
- * 
- * @param {string} type - Type de notification (success, error, warning, info)
- * @param {string} message - Message à afficher
- * @param {string} title - Titre optionnel
- * @param {number} duration - Durée d'affichage en ms (défaut: 4000)
- * @param {function} onClose - Callback de fermeture
- */
-const Toast = ({ 
-  type = 'info', 
-  message, 
-  title,
-  duration = 4000, 
-  onClose 
-}) => {
-  const [isVisible, setIsVisible] = useState(true);
+import { cn } from "src/lib/utils"
 
-  useEffect(() => {
-    if (duration > 0) {
-      const timer = setTimeout(() => {
-        setIsVisible(false);
-        setTimeout(onClose, 300); // Attendre la fin de l'animation
-      }, duration);
+const ToastProvider = ToastPrimitives.Provider
 
-      return () => clearTimeout(timer);
-    }
-  }, [duration, onClose]);
+const ToastViewport = React.forwardRef(({ className, ...props }, ref) => (
+  <ToastPrimitives.Viewport
+    ref={ref}
+    className={cn(
+      "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]",
+      className
+    )}
+    {...props} />
+))
+ToastViewport.displayName = ToastPrimitives.Viewport.displayName
 
-  const config = {
-    success: {
-      icon: CheckCircle,
-      bgColor: 'bg-green-50',
-      borderColor: 'border-green-500',
-      iconColor: 'text-green-500',
-      textColor: 'text-green-900'
+const toastVariants = cva(
+  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full",
+  {
+    variants: {
+      variant: {
+        default: "border bg-background text-foreground",
+        destructive:
+          "destructive group border-destructive bg-destructive text-destructive-foreground",
+      },
     },
-    error: {
-      icon: XCircle,
-      bgColor: 'bg-red-50',
-      borderColor: 'border-red-500',
-      iconColor: 'text-red-500',
-      textColor: 'text-red-900'
+    defaultVariants: {
+      variant: "default",
     },
-    warning: {
-      icon: AlertCircle,
-      bgColor: 'bg-orange-50',
-      borderColor: 'border-orange-500',
-      iconColor: 'text-orange-500',
-      textColor: 'text-orange-900'
-    },
-    info: {
-      icon: Info,
-      bgColor: 'bg-gray-50',
-      borderColor: 'border-gray-900',
-      iconColor: 'text-gray-900',
-      textColor: 'text-gray-900'
-    }
-  };
+  }
+)
 
-  const { icon: Icon, bgColor, borderColor, iconColor, textColor } = config[type];
-
+const Toast = React.forwardRef(({ className, variant, ...props }, ref) => {
   return (
-    <div
-      className={`
-        fixed top-4 right-4 z-50 max-w-md w-full pointer-events-auto
-        transition-all duration-300 ease-in-out transform
-        ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
-      `}
-    >
-      <div className={`${bgColor} ${borderColor} border-l-4 rounded-lg shadow-lg p-4`}>
-        <div className="flex items-start">
-          <Icon className={`${iconColor} h-6 w-6 mt-0.5 flex-shrink-0`} />
-          <div className="ml-3 flex-1">
-            {title && (
-              <h3 className={`text-sm font-semibold ${textColor} mb-1`}>
-                {title}
-              </h3>
-            )}
-            <p className={`text-sm ${textColor}`}>
-              {message}
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              setIsVisible(false);
-              setTimeout(onClose, 300);
-            }}
-            className={`ml-4 ${iconColor} hover:opacity-70 transition-opacity flex-shrink-0`}
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-      </div>
-    </div>
+    <ToastPrimitives.Root
+      ref={ref}
+      className={cn(toastVariants({ variant }), className)}
+      {...props} />
   );
-};
+})
+Toast.displayName = ToastPrimitives.Root.displayName
 
-/**
- * Provider de Toast avec gestion de la file d'attente
- */
-export const ToastProvider = ({ children }) => {
-  const [toasts, setToasts] = useState([]);
+const ToastAction = React.forwardRef(({ className, ...props }, ref) => (
+  <ToastPrimitives.Action
+    ref={ref}
+    className={cn(
+      "inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:border-muted/40 group-[.destructive]:hover:border-destructive/30 group-[.destructive]:hover:bg-destructive group-[.destructive]:hover:text-destructive-foreground group-[.destructive]:focus:ring-destructive",
+      className
+    )}
+    {...props} />
+))
+ToastAction.displayName = ToastPrimitives.Action.displayName
 
-  const addToast = (toast) => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { ...toast, id }]);
-  };
+const ToastClose = React.forwardRef(({ className, ...props }, ref) => (
+  <ToastPrimitives.Close
+    ref={ref}
+    className={cn(
+      "absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100 group-[.destructive]:text-red-300 group-[.destructive]:hover:text-red-50 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-600",
+      className
+    )}
+    toast-close=""
+    {...props}>
+    <X className="h-4 w-4" />
+  </ToastPrimitives.Close>
+))
+ToastClose.displayName = ToastPrimitives.Close.displayName
 
-  const removeToast = (id) => {
-    setToasts(prev => prev.filter(toast => toast.id !== id));
-  };
+const ToastTitle = React.forwardRef(({ className, ...props }, ref) => (
+  <ToastPrimitives.Title ref={ref} className={cn("text-sm font-semibold", className)} {...props} />
+))
+ToastTitle.displayName = ToastPrimitives.Title.displayName
 
-  // Exposer addToast via window pour utilisation globale (optionnel)
-  useEffect(() => {
-    window.showToast = addToast;
-    return () => {
-      delete window.showToast;
-    };
-  }, []);
+const ToastDescription = React.forwardRef(({ className, ...props }, ref) => (
+  <ToastPrimitives.Description ref={ref} className={cn("text-sm opacity-90", className)} {...props} />
+))
+ToastDescription.displayName = ToastPrimitives.Description.displayName
 
-  return (
-    <>
-      {children}
-      <div className="fixed top-0 right-0 p-4 space-y-4 z-50 pointer-events-none">
-        {toasts.map((toast) => (
-          <Toast
-            key={toast.id}
-            {...toast}
-            onClose={() => removeToast(toast.id)}
-          />
-        ))}
-      </div>
-    </>
-  );
-};
-
-/**
- * Hook pour utiliser les toasts
- */
-export const useToast = () => {
-  const showToast = (type, message, title, duration) => {
-    if (window.showToast) {
-      window.showToast({ type, message, title, duration });
-    }
-  };
-
-  return {
-    success: (message, title, duration) => showToast('success', message, title, duration),
-    error: (message, title, duration) => showToast('error', message, title, duration),
-    warning: (message, title, duration) => showToast('warning', message, title, duration),
-    info: (message, title, duration) => showToast('info', message, title, duration),
-  };
-};
-
-export default Toast;
+export { ToastProvider, ToastViewport, Toast, ToastTitle, ToastDescription, ToastClose, ToastAction };

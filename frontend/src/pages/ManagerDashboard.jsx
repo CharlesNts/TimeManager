@@ -18,6 +18,7 @@ import {
 import api from '../api/client';
 import { exportManagerDashboardPDF } from '../utils/pdfExport';
 import { exportManagerDashboardCSV } from '../utils/csvExport';
+import { Button } from '../components/ui/button';
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
@@ -162,27 +163,30 @@ export default function ManagerDashboard() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <button
+              <Button
                 onClick={handleExportPDF}
-                className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-lg font-medium hover:bg-gray-600"
+                variant="default"
+                size="default"
               >
-                <FileDown className="w-5 h-5 mr-2" />
+                <FileDown className="w-5 h-5" />
                 PDF
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleExportCSV}
-                className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-500"
+                variant="secondary"
+                size="default"
               >
-                <FileSpreadsheet className="w-5 h-5 mr-2" />
+                <FileSpreadsheet className="w-5 h-5" />
                 CSV
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => navigate('/teams')}
-                className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800"
+                variant="default"
+                size="default"
               >
-                <Plus className="w-5 h-5 mr-2" />
+                <Plus className="w-5 h-5" />
                 Créer une équipe
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -300,27 +304,30 @@ export default function ManagerDashboard() {
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                 <h3 className="text-base font-semibold text-gray-900 mb-3">Actions rapides</h3>
                 <div className="flex flex-wrap gap-3">
-                  <button
+                  <Button
                     onClick={() => navigate('/teams')}
-                    className="flex items-center px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition"
+                    variant="default"
+                    size="sm"
                   >
-                    <Building2 className="w-4 h-4 mr-2" />
+                    <Building2 className="w-4 h-4" />
                     Gérer mes équipes
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => navigate('/profile')}
-                    className="flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition"
+                    variant="secondary"
+                    size="sm"
                   >
-                    <Users className="w-4 h-4 mr-2" />
+                    <Users className="w-4 h-4" />
                     Mon profil
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => navigate('/my-clocks')}
-                    className="flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition"
+                    variant="secondary"
+                    size="sm"
                   >
-                    <Clock className="w-4 h-4 mr-2" />
+                    <Clock className="w-4 h-4" />
                     Mes pointages
-                  </button>
+                  </Button>
                 </div>
               </div>
             </>

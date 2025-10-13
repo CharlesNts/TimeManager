@@ -1,6 +1,7 @@
 // src/components/manager/PeriodSelector.jsx
 import React from 'react';
 import { Calendar } from 'lucide-react';
+import { Button } from '../ui/button';
 
 /**
  * PeriodSelector - Sélecteur de période pour les statistiques
@@ -33,19 +34,14 @@ const PeriodSelector = ({ selectedPeriod = 7, onPeriodChange }) => {
       <span className="text-sm font-medium text-gray-700">Période :</span>
       <div className="flex space-x-2">
         {periods.map((period) => (
-          <button
+          <Button
             key={period.days}
             onClick={() => onPeriodChange(period.days)}
-            className={`
-              px-4 py-2 rounded-lg text-sm font-medium transition-colors
-              ${selectedPeriod === period.days
-                ? 'bg-black text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }
-            `}
+            variant={selectedPeriod === period.days ? "default" : "outline"}
+            size="sm"
           >
             {period.label}
-          </button>
+          </Button>
         ))}
       </div>
     </div>
