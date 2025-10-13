@@ -186,7 +186,7 @@ export default function CEODashboard() {
             <div className="text-gray-600">Chargement...</div>
           ) : (
             <>
-              {/* KPIs Grid */}
+              {/* KPIs Grid - 3 colonnes x 2 lignes */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 
                 {/* Total Employés */}
@@ -233,7 +233,7 @@ export default function CEODashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600">Total Équipes</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalTeams}</p>
+                      <p className="text-3xl font-bold text-purple-600 mt-1">{stats.totalTeams}</p>
                     </div>
                     <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center">
                       <Building2 className="w-6 h-6 text-white" />
@@ -246,7 +246,7 @@ export default function CEODashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600">Managers</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalManagers}</p>
+                      <p className="text-3xl font-bold text-gray-700 mt-1">{stats.totalManagers}</p>
                     </div>
                     <div className="w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center">
                       <Users className="w-6 h-6 text-white" />
@@ -254,16 +254,15 @@ export default function CEODashboard() {
                   </div>
                 </div>
 
-                {/* Employés actifs */}
+                {/* Employés (EMPLOYEE role) */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-600">Employés actifs</p>
-                      <p className="text-lg font-medium text-gray-500 mt-1">Endpoint manquant</p>
-                      <p className="text-xs text-gray-400 mt-1">Backend optimization required</p>
+                      <p className="text-sm text-gray-600">Employés</p>
+                      <p className="text-3xl font-bold text-indigo-600 mt-1">{stats.activeEmployees}</p>
                     </div>
-                    <div className="w-12 h-12 bg-gray-400 rounded-lg flex items-center justify-center">
-                      <TrendingUp className="w-6 h-6 text-white" />
+                    <div className="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center">
+                      <UserCheck className="w-6 h-6 text-white" />
                     </div>
                   </div>
                 </div>
@@ -363,29 +362,29 @@ export default function CEODashboard() {
                 )}
               </div>
 
-              {/* Actions rapides */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions rapides</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Actions rapides - Compactes */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <h3 className="text-base font-semibold text-gray-900 mb-3">Actions rapides</h3>
+                <div className="flex flex-wrap gap-3">
                   <button
                     onClick={() => navigate('/users')}
-                    className="flex items-center justify-center px-4 py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition"
+                    className="flex items-center px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition"
                   >
-                    <Users className="w-5 h-5 mr-2" />
+                    <Users className="w-4 h-4 mr-2" />
                     Gérer les utilisateurs
                   </button>
                   <button
                     onClick={() => navigate('/teams')}
-                    className="flex items-center justify-center px-4 py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition"
+                    className="flex items-center px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition"
                   >
-                    <Building2 className="w-5 h-5 mr-2" />
+                    <Building2 className="w-4 h-4 mr-2" />
                     Gérer les équipes
                   </button>
                   <button
                     onClick={() => navigate('/profile')}
-                    className="flex items-center justify-center px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition"
+                    className="flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition"
                   >
-                    <BarChart3 className="w-5 h-5 mr-2" />
+                    <BarChart3 className="w-4 h-4 mr-2" />
                     Mon profil
                   </button>
                 </div>

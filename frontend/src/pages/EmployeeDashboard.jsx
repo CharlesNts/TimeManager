@@ -341,65 +341,74 @@ export default function EmployeeDashboard() {
             </div>
           )}
 
-          {/* Actions de pointage - Seulement si c'est son propre dashboard */}
-          {!isViewingOtherEmployee && (
-            <section>
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Actions de pointage</h2>
-              <ClockActions userId={targetUserId} onChanged={handleChanged} />
-            </section>
-          )}
-          
-          {/* Statistiques */}
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-800">
-                {isViewingOtherEmployee ? 'Statistiques' : 'Mes statistiques'}
-              </h2>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleExportPDF}
-                  className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-                >
-                  <FileDown className="w-4 h-4" />
-                  PDF
-                </button>
-                <button
-                  onClick={handleExportCSV}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  CSV
-                </button>
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-                  <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
-                </div>
-              </div>
-            </div>
+          {/* Layout en 2 colonnes : Actions à gauche (33%), Stats + Historique à droite (67%) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <KPICard 
-                title={`Heures (${selectedPeriod === 7 ? 'semaine' : selectedPeriod === 30 ? 'mois' : `${selectedPeriod}j`})`} 
-                value={stats.hoursWeek} 
-                icon={Clock}
-              >
-                <p className="text-xs text-gray-500 mt-1">Derniers {selectedPeriod} jours</p>
-              </KPICard>
-              <KPICard title="Jours en retard" value="—" icon={AlertTriangle}>
-                <p className="text-xs text-blue-600 mt-1">⚙️ Fonctionnalité à venir (horaires de travail requis)</p>
-              </KPICard>
-              <KPICard title="Moyenne quotidienne" value={stats.avgWeek} icon={Briefcase}>
-                <p className="text-xs text-gray-500 mt-1">Sur la période</p>
-              </KPICard>
-              <KPICard title="Comparaison" value={stats.comparison} icon={TrendingUp}>
-                <p className="text-xs text-green-500 mt-1">vs période précédente</p>
-              </KPICard>
-            </div>
-          </section>
+            {/* Colonne gauche : Actions de pointage */}
+            {!isViewingOtherEmployee && (
+              <div className="lg:col-span-1">
+                <section className="sticky top-6">
+                  <h2 className="text-lg font-semibold text-gray-800 mb-4">Actions de pointage</h2>
+                  <ClockActions userId={targetUserId} onChanged={handleChanged} />
+                </section>
+              </div>
+            )}
+            
+            {/* Colonne droite : Statistiques + Historique */}
+            <div className={!isViewingOtherEmployee ? "lg:col-span-2" : "lg:col-span-3"}>
+              {/* Statistiques */}
+              <section className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-gray-800">
+                    {isViewingOtherEmployee ? 'Statistiques' : 'Mes statistiques'}
+                  </h2>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={handleExportPDF}
+                      className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+                    >
+                      <FileDown className="w-4 h-4" />
+                      PDF
+                    </button>
+                    <button
+                      onClick={handleExportCSV}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      CSV
+                    </button>
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
+                      <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <KPICard 
+                    title={`Heures (${selectedPeriod === 7 ? 'semaine' : selectedPeriod === 30 ? 'mois' : `${selectedPeriod}j`})`} 
+                    value={stats.hoursWeek} 
+                    icon={Clock}
+                  >
+                    <p className="text-xs text-gray-500 mt-1">Derniers {selectedPeriod} jours</p>
+                  </KPICard>
+                  <KPICard title="Jours en retard" value="—" icon={AlertTriangle}>
+                    <p className="text-xs text-blue-600 mt-1">⚙️ Fonctionnalité à venir (horaires de travail requis)</p>
+                  </KPICard>
+                  <KPICard title="Moyenne quotidienne" value={stats.avgWeek} icon={Briefcase}>
+                    <p className="text-xs text-gray-500 mt-1">Sur la période</p>
+                  </KPICard>
+                  <KPICard title="Comparaison" value={stats.comparison} icon={TrendingUp}>
+                    <p className="text-xs text-green-500 mt-1">vs période précédente</p>
+                  </KPICard>
+                </div>
+              </section>
 
-          {/* Historique */}
-          <section>
-            <ClockHistory userId={targetUserId} period={selectedPeriod} refreshKey={refreshKey} />
-          </section>
+              {/* Historique */}
+              <section>
+                <ClockHistory userId={targetUserId} period={selectedPeriod} refreshKey={refreshKey} />
+              </section>
+            </div>
+          </div>
 
         </div>
       </div>
