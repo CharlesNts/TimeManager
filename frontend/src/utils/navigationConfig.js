@@ -19,26 +19,26 @@ import {
 const navigationByRole = {
   EMPLOYEE: [
     { 
+      icon: Clock, 
+      label: "Mon dashboard", 
+      path: "/my-clocks"
+    },
+    { 
       icon: LayoutDashboard, 
       label: "Vue d'ensemble", 
       path: "/dashboard"
-    },
-    { 
-      icon: Clock, 
-      label: "Mes pointages", 
-      path: "/my-clocks"
     }
   ],
   MANAGER: [
     { 
+      icon: Clock, 
+      label: "Mon dashboard", 
+      path: "/my-clocks"
+    },
+    { 
       icon: LayoutDashboard, 
       label: "Vue d'ensemble", 
       path: "/dashboard"
-    },
-    { 
-      icon: Clock, 
-      label: "Mes pointages", 
-      path: "/my-clocks"
     },
     { 
       icon: Users, 
@@ -48,14 +48,14 @@ const navigationByRole = {
   ],
   CEO: [
     { 
+      icon: Clock, 
+      label: "Mon dashboard", 
+      path: "/my-clocks"
+    },
+    { 
       icon: LayoutDashboard, 
       label: "Vue d'ensemble", 
       path: "/dashboard"
-    },
-    { 
-      icon: Clock, 
-      label: "Mes pointages", 
-      path: "/my-clocks"
     },
     { 
       icon: Users, 

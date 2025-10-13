@@ -83,6 +83,16 @@ function App() {
             } 
           />
           
+          {/* Dashboard d'un employé spécifique - Manager/CEO uniquement */}
+          <Route 
+            path="/employee/:userId/dashboard" 
+            element={
+              <ProtectedRoute allowedRoles={['MANAGER', 'CEO']}>
+                <EmployeeDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
           {/* Liste des équipes - Manager/CEO uniquement */}
           <Route 
             path="/teams" 
