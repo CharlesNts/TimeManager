@@ -3,6 +3,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getSidebarItems } from '../utils/navigationConfig';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 
 import Layout from '../components/layout/Layout';
@@ -340,7 +342,51 @@ export default function TeamDetail() {
   };
 
   const handleExportPDF = () => {
-    alert(`🚧 Export PDF backend à brancher : /api/teams/${teamId}/export?period=${selectedPeriod}&format=pdf`);
+    if (!team) return;
+    
+    const doc = new jsPDF();
+    const today = new Date().toLocaleDateString('fr-FR');
+    
+    // Titre
+    doc.setFontSize(20);
+    doc.text(`Rapport d'équipe: ${team.name}`, 14, 20);
+    
+    // Infos générales
+    doc.setFontSize(12);
+    doc.text(`Date: ${today}`, 14, 30);
+    doc.text(`Manager: ${team.managerName}`, 14, 37);
+    doc.text(`Nombre de membres: ${members.length}`, 14, 44);
+    doc.text(`Période: ${selectedPeriod === 7 ? 'Cette semaine' : selectedPeriod === 30 ? 'Ce mois' : '12 derniers mois'}`, 14, 51);
+    
+    // KPIs
+    doc.setFontSize(14);
+    doc.text('Indicateurs clés', 14, 65);
+    doc.setFontSize(11);
+    doc.text(`Total heures: ${teamStats.totalHoursThisWeek}`, 14, 73);
+    doc.text(`Moyenne par membre: ${teamStats.averageHoursPerMember}`, 14, 80);
+    doc.text(`Membres actifs: ${teamStats.activeMembers}`, 14, 87);
+    
+    // Table des membres
+    const tableData = enrichedMembers.map(m => [
+      `${m.firstName} ${m.lastName}`,
+      m.role === 'MANAGER' ? 'Manager' : 'Employé',
+      m.joinedAt ? new Date(m.joinedAt).toLocaleDateString('fr-FR') : '-',
+      m.hoursInPeriod,
+      m.status === 'active' ? 'Actif' : m.status === 'break' ? 'Pause' : 'Hors ligne',
+      m.lastClockIn || '-'
+    ]);
+    
+    doc.autoTable({
+      startY: 95,
+      head: [['Nom', 'Rôle', 'Date d\'arrivée', `Heures (${selectedPeriod}j)`, 'Statut', 'Dernier pointage']],
+      body: tableData,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [0, 0, 0] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    });
+    
+    // Sauvegarde
+    doc.save(`equipe_${team.name}_${selectedPeriod}j_${today.replace(/\//g, '-')}.pdf`);
   };
 
   const [showExportMenu, setShowExportMenu] = useState(false);

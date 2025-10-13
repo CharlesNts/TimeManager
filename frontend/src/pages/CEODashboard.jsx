@@ -14,8 +14,12 @@ import {
   BarChart3,
   CheckCircle,
   XCircle,
+  FileDown,
+  FileSpreadsheet,
 } from 'lucide-react';
 import api from '../api/client';
+import { exportCEODashboardPDF } from '../utils/pdfExport';
+import { exportCEODashboardCSV } from '../utils/csvExport';
 
 export default function CEODashboard() {
   const navigate = useNavigate();
@@ -117,6 +121,14 @@ export default function CEODashboard() {
     }
   };
 
+  const handleExportPDF = () => {
+    exportCEODashboardPDF(user, stats, pendingUsers, recentTeams);
+  };
+
+  const handleExportCSV = () => {
+    exportCEODashboardCSV(user, stats, pendingUsers, recentTeams);
+  };
+
   return (
     <Layout
       sidebarItems={sidebarItems}
@@ -128,11 +140,29 @@ export default function CEODashboard() {
         <div className="max-w-7xl mx-auto space-y-6">
           
           {/* Header */}
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900">Vue d'ensemble globale</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Statistiques et indicateurs clés de l'entreprise
-            </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900">Vue d'ensemble globale</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Statistiques et indicateurs clés de l'entreprise
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleExportPDF}
+                className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-lg font-medium hover:bg-gray-600"
+              >
+                <FileDown className="w-5 h-5 mr-2" />
+                PDF
+              </button>
+              <button
+                onClick={handleExportCSV}
+                className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-500"
+              >
+                <FileSpreadsheet className="w-5 h-5 mr-2" />
+                CSV
+              </button>
+            </div>
           </div>
 
           {loading ? (
