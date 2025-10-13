@@ -18,6 +18,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import api from '../api/client';
+import { Button } from '../components/ui/button';
 import { exportCEODashboardPDF } from '../utils/pdfExport';
 import { exportCEODashboardCSV } from '../utils/csvExport';
 
@@ -167,20 +168,22 @@ export default function CEODashboard() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <button
+              <Button
                 onClick={handleExportPDF}
-                className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-lg font-medium hover:bg-gray-600"
+                variant="default"
+                size="default"
               >
-                <FileDown className="w-5 h-5 mr-2" />
+                <FileDown className="w-5 h-5" />
                 PDF
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleExportCSV}
-                className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-500"
+                variant="secondary"
+                size="default"
               >
-                <FileSpreadsheet className="w-5 h-5 mr-2" />
+                <FileSpreadsheet className="w-5 h-5" />
                 CSV
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -278,12 +281,13 @@ export default function CEODashboard() {
                       <AlertCircle className="w-5 h-5 mr-2 text-orange-600" />
                       Utilisateurs en attente d'approbation
                     </h3>
-                    <button
+                    <Button
                       onClick={() => navigate('/users')}
-                      className="text-sm text-blue-600 hover:underline"
+                      variant="link"
+                      size="sm"
                     >
                       Voir tous
-                    </button>
+                    </Button>
                   </div>
 
                   <div className="space-y-3">
@@ -301,20 +305,23 @@ export default function CEODashboard() {
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <button
+                          <Button
                             onClick={() => handleApprove(u.id)}
-                            className="flex items-center px-3 py-1 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
+                            variant="default"
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
                           >
-                            <CheckCircle className="w-4 h-4 mr-1" />
+                            <CheckCircle className="w-4 h-4" />
                             Approuver
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             onClick={() => handleReject(u.id)}
-                            className="flex items-center px-3 py-1 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+                            variant="destructive"
+                            size="sm"
                           >
-                            <XCircle className="w-4 h-4 mr-1" />
+                            <XCircle className="w-4 h-4" />
                             Rejeter
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -368,27 +375,30 @@ export default function CEODashboard() {
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                 <h3 className="text-base font-semibold text-gray-900 mb-3">Actions rapides</h3>
                 <div className="flex flex-wrap gap-3">
-                  <button
+                  <Button
                     onClick={() => navigate('/users')}
-                    className="flex items-center px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition"
+                    variant="default"
+                    size="sm"
                   >
-                    <Users className="w-4 h-4 mr-2" />
+                    <Users className="w-4 h-4" />
                     Gérer les utilisateurs
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => navigate('/teams')}
-                    className="flex items-center px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition"
+                    variant="default"
+                    size="sm"
                   >
-                    <Building2 className="w-4 h-4 mr-2" />
+                    <Building2 className="w-4 h-4" />
                     Gérer les équipes
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => navigate('/profile')}
-                    className="flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition"
+                    variant="secondary"
+                    size="sm"
                   >
-                    <BarChart3 className="w-4 h-4 mr-2" />
+                    <BarChart3 className="w-4 h-4" />
                     Mon profil
-                  </button>
+                  </Button>
                 </div>
               </div>
             </>
