@@ -19,6 +19,9 @@ import api from '../api/client';
 import { exportManagerDashboardPDF } from '../utils/pdfExport';
 import { exportManagerDashboardCSV } from '../utils/csvExport';
 import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import ExportMenu from '../components/ui/ExportMenu';
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
@@ -157,34 +160,23 @@ export default function ManagerDashboard() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900">Vue d'ensemble de vos équipes</h2>
-              <p className="text-sm text-gray-600 mt-1">
+              <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard Manager</h1>
+              <p className="text-gray-500 mt-1">
                 Gérez vos équipes et suivez les performances
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={handleExportPDF}
-                variant="default"
-                size="default"
-              >
-                <FileDown className="w-5 h-5" />
-                PDF
-              </Button>
-              <Button
-                onClick={handleExportCSV}
-                variant="secondary"
-                size="default"
-              >
-                <FileSpreadsheet className="w-5 h-5" />
-                CSV
-              </Button>
+            <div className="flex items-center gap-2">
+              <ExportMenu 
+                onExportPDF={handleExportPDF}
+                onExportCSV={handleExportCSV}
+                variant="outline"
+              />
               <Button
                 onClick={() => navigate('/teams')}
                 variant="default"
-                size="default"
+                size="sm"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="w-4 h-4" />
                 Créer une équipe
               </Button>
             </div>
