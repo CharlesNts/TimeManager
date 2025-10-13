@@ -32,10 +32,10 @@ export const exportEmployeeDashboardPDF = (user, stats, recentClocks = [], perio
   doc.text('STATISTIQUES', 14, 54);
 
   const statsData = [
-    ['Heures cette semaine', stats.weekHours || '0h 00m'],
-    ['Heures ce mois', stats.monthHours || '0h 00m'],
-    ['Moyenne quotidienne', stats.avgDaily || '0h 00m'],
-    ['Statut actuel', stats.currentStatus || 'Hors ligne'],
+    ['Heures cette semaine', stats.hoursWeek || '0h 00m'],
+    ['Heures ce mois', stats.hoursWeek || '0h 00m'], // Même valeur car basé sur période sélectionnée
+    ['Moyenne quotidienne', stats.avgWeek || '0h 00m'],
+    ['Statut actuel', 'Hors ligne'], // Pas de statut actuel dans les stats
   ];
 
   autoTable(doc, {
