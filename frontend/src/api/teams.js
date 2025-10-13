@@ -1,0 +1,111 @@
+// src/api/teams.js
+import api from './client';
+
+/**
+ * Mappe un TeamDTO en objet pratique pour la carte.
+ * On garde: id, name, description, managerId/managerName, createdAt
+ */
+const mapTeamDTO = (t) => ({
+  id: t.id,
+  name: t.name,
+  description: t.description || '',
+  managerId: t.manager?.id ?? null,
+  managerName: t.manager ? `${t.manager.firstName} ${t.manager.lastName}` : '—',
+  createdAt: t.createdAt || null,
+  // memberCount sera rempli séparément
+  memberCount: typeof t.memberCount === 'number' ? t.memberCount : null,
+});
+
+/** GET /api/teams?managerId=:id */
+export async function fetchTeamsByManager(managerId) {
+  const { data } = await api.get('/api/teams', { params: { managerId } });
+  return Array.isArray(data) ? data.map(mapTeamDTO) : [];
+}
+
+/** GET /api/users/{userId}/teams  (retourne TeamMemberDTO[]) */
+export async function fetchUserMemberships(userId) {
+  const { data } = await api.get(`/api/users/${userId}/teams`);
+  if (!Array.isArray(data)) return [];
+  // Chaque TeamMemberDTO contient { user, team, joinedAt }
+  return data
+    .map((row) => row.team)
+    .filter(Boolean)
+    .map(mapTeamDTO);
+}
+
+/** GET /api/users  (pour CEO: on récupère tous les MANAGERs) */
+export async function fetchAllManagers() {
+  const { data } = await api.get('/api/users');
+  if (!Array.isArray(data)) return [];
+  return data.filter((u) => u.role === 'MANAGER');
+}
+
+/** GET /api/teams/{teamId}/members (TeamMemberDTO[]) -> .length */
+export async function fetchTeamMemberCount(teamId) {
+  const { data } = await api.get(`/api/teams/${teamId}/members`);
+  return Array.isArray(data) ? data.length : 0;
+}
+
+/**
+ * Charge les équipes selon le rôle:
+ * - CEO: agrège toutes les équipes en appelant /api/teams?managerId=... pour chaque manager
+ * - MANAGER: ses équipes via /api/teams?managerId=:id
+ * - EMPLOYEE: ses équipes (membership) via /api/users/{id}/teams
+ *
+ * Puis, pour chaque équipe, charge memberCount via /api/teams/{id}/members.
+ */
+export async function fetchTeamsForCurrentUser(user) {
+  if (!user) return [];
+
+  let teams = [];
+
+  if (user.role === 'CEO') {
+    const managers = await fetchAllManagers();
+    const results = await Promise.all(
+      managers.map((m) => fetchTeamsByManager(m.id))
+    );
+    // fusion + dédoublonnage par id
+    const map = new Map();
+    results.flat().forEach((t) => map.set(t.id, t));
+    teams = Array.from(map.values());
+  } else if (user.role === 'MANAGER') {
+    teams = await fetchTeamsByManager(user.id);
+  } else {
+    // EMPLOYEE
+    teams = await fetchUserMemberships(user.id);
+  }
+
+  // Compléter memberCount (en parallèle)
+  const counts = await Promise.all(
+    teams.map((t) => fetchTeamMemberCount(t.id).catch(() => 0))
+  );
+  teams = teams.map((t, idx) => ({ ...t, memberCount: counts[idx] }));
+
+  return teams;
+}
+
+/** Création / Mise à jour / Suppression (pour brancher le modal si besoin) */
+export async function createTeam(payload) {
+  // payload attendu: { name, description }
+  const { data } = await api.post('/api/teams', payload);
+  return mapTeamDTO(data);
+}
+
+export async function updateTeam(teamId, payload) {
+  const { data } = await api.put(`/api/teams/${teamId}`, payload);
+  return mapTeamDTO(data);
+}
+
+export async function deleteTeam(teamId) {
+  await api.delete(`/api/teams/${teamId}`);
+}
+
+/** Membre (optionnel si tu ajoutes les actions) */
+export async function addMember(teamId, userId) {
+  const { data } = await api.post(`/api/teams/${teamId}/members/${userId}`);
+  return data;
+}
+
+export async function removeMember(teamId, userId) {
+  await api.delete(`/api/teams/${teamId}/members/${userId}`);
+}

@@ -5,131 +5,103 @@ import epitech.timemanager1.entities.Role;
 import epitech.timemanager1.entities.User;
 import epitech.timemanager1.exception.ConflictException;
 import epitech.timemanager1.exception.NotFoundException;
+import epitech.timemanager1.mapper.UserMapper;
 import epitech.timemanager1.repositories.UserRepository;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
-@Transactional
 @RequiredArgsConstructor
+@Transactional
 public class UserService {
 
-    private final UserRepository users;
+    private final UserRepository userRepository;
+    private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
 
-    private User toEntity(UserDTO d) {
-        if (d == null) return null;
-        return User.builder()
-                .id(d.getId())
-                .firstName(d.getFirstName())
-                .lastName(d.getLastName())
-                .email(d.getEmail())
-                .phoneNumber(d.getPhoneNumber())
-                .role(d.getRole() != null ? d.getRole() : Role.EMPLOYEE)
-                .createdAt(d.getCreatedAt())
-                .build();
-    }
-
-    private UserDTO toDTO(User e) {
-        if (e == null) return null;
-        return UserDTO.builder()
-                .id(e.getId())
-                .firstName(e.getFirstName())
-                .lastName(e.getLastName())
-                .email(e.getEmail())
-                .phoneNumber(e.getPhoneNumber())
-                .role(e.getRole())
-                .createdAt(e.getCreatedAt())
-                .build();
-    }
-
-    public UserDTO create(@Valid UserDTO dto) {
-        if (users.existsByEmail(dto.getEmail())) {
-            throw new ConflictException("Email already in use: " + dto.getEmail());
-        }
+    public UserDTO create(UserDTO dto) {
         if (dto.getPassword() == null || dto.getPassword().isBlank()) {
             throw new ConflictException("Password is required for user creation");
         }
 
-        User toSave = toEntity(dto);
-        // hash the password before saving
-        toSave.setPassword(passwordEncoder.encode(dto.getPassword()));
+        if (userRepository.existsByEmail(dto.getEmail())) {
+            throw new ConflictException("Email already in use");
+        }
 
-        User saved = users.save(toSave);
-        return toDTO(saved);
+        User user = userMapper.toEntity(dto);
+        user.setCreatedAt(LocalDateTime.now());
+        user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        user.setActive(false); // CEO must approve new users
+
+        return userMapper.toDTO(userRepository.save(user));
     }
 
     @Transactional(readOnly = true)
-    public UserDTO get(long id) {
-        return users.findById(id)
-                .map(this::toDTO)
-                .orElseThrow(() -> new NotFoundException("User not found: " + id));
+    public UserDTO get(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        return userMapper.toDTO(user);
+    }
+
+    @Transactional(readOnly = true)
+    public UserDTO getByEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("User not found with email " + email));
+        return userMapper.toDTO(user);
     }
 
     @Transactional(readOnly = true)
     public List<UserDTO> list() {
-        return users.findAll().stream().map(this::toDTO).toList();
+        return userRepository.findAll().stream()
+                .map(userMapper::toDTO)
+                .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
-    public Page<UserDTO> searchByName(String q, Pageable pageable) {
-        String s = q == null ? "" : q;
-        return users.findByLastNameContainingIgnoreCaseOrFirstNameContainingIgnoreCase(s, s, pageable)
-                .map(this::toDTO);
+    public UserDTO update(Long id, UserDTO dto) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        user.setFirstName(dto.getFirstName());
+        user.setLastName(dto.getLastName());
+        user.setPhoneNumber(dto.getPhoneNumber());
+        user.setRole(dto.getRole());
+
+        return userMapper.toDTO(userRepository.save(user));
     }
 
-    public UserDTO update(long id, @Valid UserDTO patch) {
-        User u = users.findById(id)
-                .orElseThrow(() -> new NotFoundException("User not found: " + id));
-
-        if (patch.getFirstName() != null)   u.setFirstName(patch.getFirstName());
-        if (patch.getLastName() != null)    u.setLastName(patch.getLastName());
-        if (patch.getPhoneNumber() != null) u.setPhoneNumber(patch.getPhoneNumber());
-        if (patch.getRole() != null)        u.setRole(patch.getRole());
-
-        if (patch.getEmail() != null && !patch.getEmail().equals(u.getEmail())) {
-            if (users.existsByEmail(patch.getEmail()))
-                throw new ConflictException("Email already in use: " + patch.getEmail());
-            u.setEmail(patch.getEmail());
+    public void delete(Long id) {
+        if (!userRepository.existsById(id)) {
+            throw new NotFoundException("User not found");
         }
-
-        if (patch.getPassword() != null && !patch.getPassword().isBlank()) {
-            u.setPassword(passwordEncoder.encode(patch.getPassword()));
-        }
-
-        return toDTO(u);
+        userRepository.deleteById(id);
     }
 
-    public void delete(long id) {
-        if (!users.existsById(id)) throw new NotFoundException("User not found: " + id);
-        users.deleteById(id);
-    }
-    @Transactional(readOnly = true)
-    public UserDTO getByEmail(String email) {
-        return users.findByEmail(email).map(this::toDTO)
-                .orElseThrow(() -> new NotFoundException("User not found: " + email));
-    }
 
     public void approveUser(Long id) {
-        User user = users.findById(id)
+        User user = userRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("User not found"));
         user.setActive(true);
+        userRepository.save(user);
     }
 
     public void rejectUser(Long id) {
-        if (!users.existsById(id))
-            throw new NotFoundException("User not found");
-        users.deleteById(id); // or set a `rejected = true` flag instead
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        user.setActive(false);
+        userRepository.save(user);
     }
 
+    @Transactional(readOnly = true)
     public List<UserDTO> findAllPending() {
-        return users.findAllByActiveFalse().stream().map(this::toDTO).toList();
+        return userRepository.findAll().stream()
+                .filter(u -> !u.isActive())
+                .map(userMapper::toDTO)
+                .collect(Collectors.toList());
     }
 }

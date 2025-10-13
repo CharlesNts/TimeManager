@@ -1,101 +1,146 @@
 // src/pages/ProfilePage.jsx
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  Briefcase, 
-  Key,
-  Save
-} from 'lucide-react';
+import { User, Mail, Phone, Briefcase, Key, Save, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { getUserById, updateUserById /*, updateUserPassword*/ } from '../api/userApi';
 
-/**
- * Page ProfilePage - Profil utilisateur
- * 
- * Accessible à tous les utilisateurs authentifiés
- * Affiche et permet de modifier:
- * - Photo de profil
- * - Informations personnelles
- * - Mot de passe
- * 
- * Pour l'instant en mode démo (données statiques)
- */
 export default function ProfilePage() {
-  const { user } = useAuth();
-  
-  // Configuration de la navigation sidebar selon le rôle
+  const { user, setUser } = useAuth();
   const sidebarItems = getSidebarItems(user?.role);
 
-  // État local pour les données du profil (mode démo)
-  // Correspond à la table Users
   const [profileData, setProfileData] = useState({
-    firstName: user?.firstName || 'Jonathan',
-    lastName: user?.lastName || 'GROMAT',
-    email: user?.email || 'jonathan.gromat@primebank.com',
-    phoneNumber: '+33 6 12 34 56 78',
-    role: user?.role || 'MANAGER' // Enum: EMPLOYEE, MANAGER, CEO
+    firstName: '',
+    lastName: '',
+    email: '',
+    phoneNumber: '',
+    role: 'EMPLOYEE',
   });
 
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [error, setError]       = useState('');
+  const [ok, setOk]             = useState('');
 
-  // Gérer les changements dans les champs
+  // Charger depuis l’API
+  useEffect(() => {
+    let cancel = false;
+    const load = async () => {
+      if (!user?.id) return;
+      setLoading(true);
+      setError(''); setOk('');
+      try {
+        const data = await getUserById(user.id);
+        if (!cancel) {
+          setProfileData({
+            firstName: data.firstName || '',
+            lastName: data.lastName || '',
+            email: data.email || '',
+            phoneNumber: data.phoneNumber || '',
+            role: data.role || 'EMPLOYEE',
+          });
+        }
+      } catch (e) {
+        if (!cancel) setError(e?.message || 'Erreur de chargement du profil');
+      } finally {
+        if (!cancel) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancel = true; };
+  }, [user?.id]);
+
   const handleInputChange = (field, value) => {
-    setProfileData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setError(''); setOk('');
+    setProfileData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Sauvegarder les modifications
-  const handleSave = () => {
-    console.log('Sauvegarde du profil:', profileData);
-    setIsEditing(false);
-    // Plus tard: appel API pour sauvegarder
+  const handleSave = async () => {
+    if (!user?.id) return;
+    setSaving(true);
+    setError(''); setOk('');
+    try {
+      // ⚠️ Le backend ne met pas à jour l’email; on n’envoie pas `email`
+      const updated = await updateUserById(user.id, {
+        firstName: profileData.firstName,
+        lastName: profileData.lastName,
+        phoneNumber: profileData.phoneNumber,
+        role: profileData.role, // enlève ceci si tu ne souhaites pas exposer le changement de rôle
+      });
+
+      // Mettre à jour le contexte (utile pour l’en-tête / sidebar)
+      setUser(prev => prev ? { ...prev,
+        firstName: updated.firstName,
+        lastName: updated.lastName,
+        phoneNumber: updated.phoneNumber,
+        role: updated.role,
+      } : prev);
+
+      setOk('Profil mis à jour');
+      setIsEditing(false);
+    } catch (e) {
+      setError(e?.message || 'Échec de la sauvegarde');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Annuler les modifications
   const handleCancel = () => {
     setIsEditing(false);
-    // Plus tard: recharger les données depuis l'API
+    setError(''); setOk('');
+    // On rechargera au besoin; sinon garde l’état courant
   };
 
-  // Réinitialiser le mot de passe
   const handleResetPassword = () => {
-    console.log('Réinitialisation du mot de passe');
-    // Plus tard: ouvrir un modal ou naviguer vers une page dédiée
+    // Si tu ajoutes l’endpoint POST /api/users/{id}/password côté backend, tu peux décommenter ci-dessous
+    // const newPass = prompt('Nouveau mot de passe :');
+    // if (!newPass) return;
+    // updateUserPassword(user.id, newPass)
+    //   .then(() => setOk('Mot de passe mis à jour'))
+    //   .catch(e => setError(e?.message || 'Échec de la mise à jour du mot de passe'));
+    alert("Action à implémenter côté backend (POST /api/users/{id}/password)"); 
   };
 
   return (
     <Layout 
       sidebarItems={sidebarItems}
       pageTitle="Mon profil"
-      userName={`${profileData.firstName} ${profileData.lastName}`}
+      userName={`${profileData.firstName || ''} ${profileData.lastName || ''}`.trim()}
       userRole={profileData.role}
     >
       <div className="p-8">
         <div className="max-w-4xl mx-auto space-y-6">
-          
-          {/* En-tête avec nom et bouton modifier */}
+
+          {/* Bandeaux feedback */}
+          {error && (
+            <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded flex items-center">
+              <AlertCircle className="w-4 h-4 mr-2" /> {error}
+            </div>
+          )}
+          {ok && (
+            <div className="p-3 bg-green-50 text-green-700 border border-green-200 rounded flex items-center">
+              <CheckCircle2 className="w-4 h-4 mr-2" /> {ok}
+            </div>
+          )}
+
+          {/* Header */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-semibold text-gray-900">
-                  {profileData.firstName} {profileData.lastName}
+                  {loading ? 'Chargement…' : `${profileData.firstName} ${profileData.lastName}`}
                 </h2>
                 <p className="text-sm text-gray-600 mt-1">
-                  {profileData.role === 'MANAGER' ? 'Manager' : 
-                   profileData.role === 'CEO' ? 'CEO' : 'Employé'}
+                  {profileData.role === 'MANAGER' ? 'Manager' : profileData.role === 'CEO' ? 'CEO' : 'Employé'}
                 </p>
               </div>
-
-              {/* Bouton Modifier */}
               {!isEditing && (
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="px-4 py-2 bg-black text-white rounded-lg font-medium"
+                  disabled={loading}
+                  className="px-4 py-2 bg-black text-white rounded-lg font-medium disabled:opacity-60"
                 >
                   Modifier le profil
                 </button>
@@ -103,112 +148,104 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Carte Informations personnelles */}
+          {/* Infos perso */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">
-              Informations personnelles
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">Informations personnelles</h3>
 
-            <div className="space-y-4">
-              {/* Prénom */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <User className="w-4 h-4 inline mr-2" />
-                  Prénom
-                </label>
-                <input
-                  type="text"
-                  value={profileData.firstName}
-                  onChange={(e) => handleInputChange('firstName', e.target.value)}
-                  disabled={!isEditing}
-                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg ${
-                    isEditing ? 'bg-white' : 'bg-gray-50'
-                  }`}
-                />
+            {loading ? (
+              <div className="text-sm text-gray-500 flex items-center">
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Chargement…
               </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Prénom */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <User className="w-4 h-4 inline mr-2" /> Prénom
+                  </label>
+                  <input
+                    type="text"
+                    value={profileData.firstName}
+                    onChange={(e) => handleInputChange('firstName', e.target.value)}
+                    disabled={!isEditing}
+                    className={`w-full px-4 py-2 border rounded-lg ${isEditing ? 'bg-white border-gray-300' : 'bg-gray-50 border-gray-200'}`}
+                  />
+                </div>
 
-              {/* Nom */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <User className="w-4 h-4 inline mr-2" />
-                  Nom
-                </label>
-                <input
-                  type="text"
-                  value={profileData.lastName}
-                  onChange={(e) => handleInputChange('lastName', e.target.value)}
-                  disabled={!isEditing}
-                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg ${
-                    isEditing ? 'bg-white' : 'bg-gray-50'
-                  }`}
-                />
+                {/* Nom */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <User className="w-4 h-4 inline mr-2" /> Nom
+                  </label>
+                  <input
+                    type="text"
+                    value={profileData.lastName}
+                    onChange={(e) => handleInputChange('lastName', e.target.value)}
+                    disabled={!isEditing}
+                    className={`w-full px-4 py-2 border rounded-lg ${isEditing ? 'bg-white border-gray-300' : 'bg-gray-50 border-gray-200'}`}
+                  />
+                </div>
+
+                {/* Email (lecture seule – backend ne l’update pas via PUT) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Mail className="w-4 h-4 inline mr-2" /> Email
+                  </label>
+                  <input
+                    type="email"
+                    value={profileData.email}
+                    disabled
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">L’email n’est pas modifiable ici.</p>
+                </div>
+
+                {/* Téléphone */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Phone className="w-4 h-4 inline mr-2" /> Téléphone
+                  </label>
+                  <input
+                    type="tel"
+                    value={profileData.phoneNumber || ''}
+                    onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
+                    disabled={!isEditing}
+                    className={`w-full px-4 py-2 border rounded-lg ${isEditing ? 'bg-white border-gray-300' : 'bg-gray-50 border-gray-200'}`}
+                  />
+                </div>
+
+                {/* Rôle (non modifiable dans l’UI) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Briefcase className="w-4 h-4 inline mr-2" /> Rôle
+                  </label>
+                  <input
+                    type="text"
+                    value={profileData.role === 'MANAGER' ? 'Manager' : profileData.role === 'CEO' ? 'CEO' : 'Employé'}
+                    disabled
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Le rôle ne peut être modifié que par le CEO.
+                  </p>
+                </div>
               </div>
+            )}
 
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Mail className="w-4 h-4 inline mr-2" />
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={profileData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  disabled={!isEditing}
-                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg ${
-                    isEditing ? 'bg-white' : 'bg-gray-50'
-                  }`}
-                />
-              </div>
-
-              {/* Téléphone */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Phone className="w-4 h-4 inline mr-2" />
-                  Téléphone
-                </label>
-                <input
-                  type="tel"
-                  value={profileData.phoneNumber}
-                  onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                  disabled={!isEditing}
-                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg ${
-                    isEditing ? 'bg-white' : 'bg-gray-50'
-                  }`}
-                />
-              </div>
-
-              {/* Rôle (non modifiable) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Briefcase className="w-4 h-4 inline mr-2" />
-                  Rôle
-                </label>
-                <input
-                  type="text"
-                  value={profileData.role === 'MANAGER' ? 'Manager' : 
-                         profileData.role === 'CEO' ? 'CEO' : 'Employé'}
-                  disabled={true}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Le rôle ne peut être modifié que par le CEO
-                </p>
-              </div>
-            </div>
-
-            {/* Boutons d'action en mode édition */}
-            {isEditing && (
+            {/* Boutons d’action */}
+            {isEditing && !loading && (
               <div className="flex space-x-3 mt-6">
                 <button
                   onClick={handleSave}
-                  className="flex-1 flex items-center justify-center px-4 py-2 bg-black text-white rounded-lg font-medium"
+                  disabled={saving}
+                  className="flex-1 flex items-center justify-center px-4 py-2 bg-black text-white rounded-lg font-medium disabled:opacity-60"
                 >
-                  <Save className="w-4 h-4 mr-2" />
+                  {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                   Sauvegarder
                 </button>
                 <button
                   onClick={handleCancel}
+                  disabled={saving}
                   className="flex-1 px-4 py-2 bg-white text-gray-900 border-2 border-gray-900 rounded-lg font-medium"
                 >
                   Annuler
@@ -217,18 +254,13 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* Carte Sécurité */}
+          {/* Sécurité */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Sécurité
-            </h3>
-            
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Sécurité</h3>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-900">Mot de passe</p>
-                <p className="text-sm text-gray-500 mt-1">
-                  Modifié il y a 30 jours
-                </p>
+                <p className="text-sm text-gray-500 mt-1">Modifié il y a 30 jours</p>
               </div>
               <button
                 onClick={handleResetPassword}

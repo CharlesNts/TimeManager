@@ -1,53 +1,24 @@
-// src/components/ProtectedRoute.jsx
+// src/routes/ProtectedRoute.jsx
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
-/**
- * ProtectedRoute - Composant pour protéger les routes selon les rôles
- * 
- * Vérifie si l'utilisateur est authentifié et a le(s) bon(s) rôle(s)
- * Redirige vers /login si non authentifié
- * Redirige vers /dashboard si authentifié mais sans le bon rôle
- * 
- * Props:
- * - children: Le composant à afficher si l'accès est autorisé
- * - allowedRoles: Array des rôles autorisés (ex: ['MANAGER', 'CEO'])
- * - redirectTo: Chemin de redirection personnalisé (optionnel)
- * 
- * Usage:
- * <ProtectedRoute allowedRoles={['MANAGER', 'CEO']}>
- *   <TeamsList />
- * </ProtectedRoute>
- */
-const ProtectedRoute = ({ 
-  children, 
-  allowedRoles = [], 
-  redirectTo = '/dashboard' 
-}) => {
-  const { user, isAuthenticated } = useAuth();
+export default function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
 
-  // Si pas authentifié, rediriger vers login
-  if (!isAuthenticated) {
-    console.log('⚠️ ProtectedRoute: Non authentifié, redirection vers /login');
-    return <Navigate to="/login" replace />;
+  // tant que l'init d'auth n'est pas finie, ne pas rediriger
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-600">Chargement…</div>
+      </div>
+    );
   }
 
-  // Si pas de rôles spécifiés, autoriser tous les utilisateurs authentifiés
-  if (allowedRoles.length === 0) {
-    return children;
+  if (!user) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  // Vérifier si l'utilisateur a un des rôles autorisés
-  const hasAccess = allowedRoles.includes(user.role);
-
-  if (!hasAccess) {
-    console.log(`⚠️ ProtectedRoute: Rôle ${user.role} non autorisé. Rôles requis:`, allowedRoles);
-    return <Navigate to={redirectTo} replace />;
-  }
-
-  // Accès autorisé
   return children;
-};
-
-export default ProtectedRoute;
+}

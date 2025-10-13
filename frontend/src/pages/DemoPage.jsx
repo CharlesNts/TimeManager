@@ -1,7 +1,7 @@
 // src/pages/DemoPage.jsx
 import React from 'react';
 import Layout from '../components/layout/Layout';
-import KPICard from '../components/dashboard/KPIcard.jsx';
+import KPICard from '../components/dashboard/KPICard.jsx';
 import ClockActions from '../components/employee/ClockActions';
 import ClockHistory from '../components/employee/ClockHistory';
 import TeamCard from '../components/manager/TeamCard';
