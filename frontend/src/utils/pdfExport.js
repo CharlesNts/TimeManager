@@ -174,12 +174,12 @@ export const exportCEODashboardPDF = (user, stats, pendingUsers = [], recentTeam
   doc.text('VUE D\'ENSEMBLE ENTREPRISE', 14, 48);
 
   const statsData = [
-    ['Total utilisateurs', stats.totalUsers?.toString() || '0'],
-    ['Utilisateurs approuvés', stats.approvedUsers?.toString() || '0'],
+    ['Total employes', stats.totalUsers?.toString() || '0'],
+    ['Utilisateurs approuves', stats.approvedUsers?.toString() || '0'],
     ['En attente d\'approbation', stats.pendingUsers?.toString() || '0'],
-    ['Total équipes', stats.totalTeams?.toString() || '0'],
+    ['Total equipes', stats.totalTeams?.toString() || '0'],
     ['Managers', stats.totalManagers?.toString() || '0'],
-    ['Employés actifs', stats.activeEmployees?.toString() || '0'],
+    ['Employes actifs', 'Endpoint manquant'],
   ];
 
   autoTable(doc, {
