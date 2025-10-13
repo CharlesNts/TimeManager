@@ -65,12 +65,64 @@ export default function ManagerDashboard() {
         // Calculer les stats globales
         const totalMembers = teamsWithMembers.reduce((sum, t) => sum + t.memberCount, 0);
         
+        // Calculer les membres actifs (ceux qui ont une session ouverte)
+        const allMembers = teamsWithMembers.flatMap(t => t.members);
+        let activeMembersCount = 0;
+        let totalMinutesThisWeek = 0;
+        
+        // Pour chaque membre, vérifier son dernier clock
+        await Promise.all(
+          allMembers.map(async (member) => {
+            const userId = member.user?.id ?? member.userId;
+            if (!userId) return;
+            
+            try {
+              // Récupérer le dernier clock
+              const { data: clocks } = await api.get(`/api/users/${userId}/clocks`, {
+                params: { page: 0, size: 1, sort: 'clockIn,desc' }
+              });
+              const lastClock = clocks?.content?.[0];
+              
+              // Si le dernier clock n'a pas de clockOut, l'utilisateur est actif
+              if (lastClock && !lastClock.clockOut) {
+                activeMembersCount++;
+              }
+              
+              // Calculer les heures de cette semaine
+              const now = new Date();
+              const startOfWeek = new Date(now);
+              startOfWeek.setDate(now.getDate() - 6); // 7 derniers jours
+              startOfWeek.setHours(0, 0, 0, 0);
+              
+              const { data: weekClocks } = await api.get(`/api/users/${userId}/clocks/range`, {
+                params: {
+                  from: startOfWeek.toISOString(),
+                  to: now.toISOString()
+                }
+              });
+              
+              if (Array.isArray(weekClocks)) {
+                weekClocks.forEach(clock => {
+                  const clockIn = new Date(clock.clockIn);
+                  const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
+                  const minutes = Math.round((clockOut - clockIn) / 60000);
+                  totalMinutesThisWeek += Math.max(0, minutes);
+                });
+              }
+            } catch (err) {
+              console.warn(`[ManagerDashboard] Erreur pour membre ${userId}:`, err);
+            }
+          })
+        );
+        
+        const totalHours = Math.floor(totalMinutesThisWeek / 60);
+        
         setTeams(teamsWithMembers);
         setStats({
           totalTeams: teamsWithMembers.length,
           totalMembers,
-          activeMembers: 0, // TODO: calculer avec les clocks
-          totalHoursThisWeek: 0, // TODO: calculer avec les clocks
+          activeMembers: activeMembersCount,
+          totalHoursThisWeek: totalHours,
         });
 
       } catch (err) {
@@ -244,30 +296,30 @@ export default function ManagerDashboard() {
                 )}
               </div>
 
-              {/* Actions rapides */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions rapides</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Actions rapides - Compactes */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <h3 className="text-base font-semibold text-gray-900 mb-3">Actions rapides</h3>
+                <div className="flex flex-wrap gap-3">
                   <button
                     onClick={() => navigate('/teams')}
-                    className="flex items-center justify-center px-4 py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition"
+                    className="flex items-center px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition"
                   >
-                    <Building2 className="w-5 h-5 mr-2" />
+                    <Building2 className="w-4 h-4 mr-2" />
                     Gérer mes équipes
                   </button>
                   <button
                     onClick={() => navigate('/profile')}
-                    className="flex items-center justify-center px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition"
+                    className="flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition"
                   >
-                    <Users className="w-5 h-5 mr-2" />
+                    <Users className="w-4 h-4 mr-2" />
                     Mon profil
                   </button>
                   <button
-                    onClick={() => navigate('/dashboard')}
-                    className="flex items-center justify-center px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition"
+                    onClick={() => navigate('/my-clocks')}
+                    className="flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition"
                   >
-                    <Clock className="w-5 h-5 mr-2" />
-                    Mes horaires
+                    <Clock className="w-4 h-4 mr-2" />
+                    Mes pointages
                   </button>
                 </div>
               </div>
