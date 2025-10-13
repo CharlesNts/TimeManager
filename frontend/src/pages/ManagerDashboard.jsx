@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
-import ClockActions from '../components/employee/ClockActions';
 import {
   Users,
   Clock,
@@ -13,8 +12,12 @@ import {
   UserPlus,
   Plus,
   AlertCircle,
+  FileDown,
+  FileSpreadsheet,
 } from 'lucide-react';
 import api from '../api/client';
+import { exportManagerDashboardPDF } from '../utils/pdfExport';
+import { exportManagerDashboardCSV } from '../utils/csvExport';
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
@@ -80,6 +83,14 @@ export default function ManagerDashboard() {
     loadDashboard();
   }, [user]);
 
+  const handleExportPDF = () => {
+    exportManagerDashboardPDF(user, stats, teams);
+  };
+
+  const handleExportCSV = () => {
+    exportManagerDashboardCSV(user, stats, teams);
+  };
+
   return (
     <Layout
       sidebarItems={sidebarItems}
@@ -98,13 +109,29 @@ export default function ManagerDashboard() {
                 Gérez vos équipes et suivez les performances
               </p>
             </div>
-            <button
-              onClick={() => navigate('/teams')}
-              className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              Créer une équipe
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleExportPDF}
+                className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-lg font-medium hover:bg-gray-600"
+              >
+                <FileDown className="w-5 h-5 mr-2" />
+                PDF
+              </button>
+              <button
+                onClick={handleExportCSV}
+                className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-500"
+              >
+                <FileSpreadsheet className="w-5 h-5 mr-2" />
+                CSV
+              </button>
+              <button
+                onClick={() => navigate('/teams')}
+                className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Créer une équipe
+              </button>
+            </div>
           </div>
 
           {loading ? (

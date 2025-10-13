@@ -7,8 +7,10 @@ import KPICard from '../components/dashboard/KPICard.jsx';
 import ClockActions from '../components/employee/ClockActions';
 import ClockHistory from '../components/employee/ClockHistory';
 import PeriodSelector from '../components/manager/PeriodSelector';
-import { Clock, AlertTriangle, Briefcase, TrendingUp } from 'lucide-react';
+import { Clock, AlertTriangle, Briefcase, TrendingUp, FileDown, FileSpreadsheet } from 'lucide-react';
 import api from '../api/client';
+import { exportEmployeeDashboardPDF } from '../utils/pdfExport';
+import { exportEmployeeDashboardCSV } from '../utils/csvExport';
 
 // ---------- Constantes règle “flex” ----------
 const WORK_START_HOUR = 9;
@@ -155,6 +157,7 @@ export default function EmployeeDashboard() {
     avgWeek: '—',
     comparison: '—',
   });
+  const [recentClocks, setRecentClocks] = useState([]);
 
   // Charger KPIs (dépend de refreshKey)
   useEffect(() => {
@@ -177,6 +180,9 @@ export default function EmployeeDashboard() {
           fetchClocksRange(user.id, lastWeekStart, lastWeekEnd),
           fetchClocksRange(user.id, monthStart, monthEnd),
         ]);
+
+        // Stocker pour PDF
+        setRecentClocks(clocksThisMonth.slice(0, 20));
 
         // Heures cette semaine
         const minutesBetweenLocal = (a, b) => Math.max(0, Math.round((toParis(b) - toParis(a)) / 60000));
@@ -251,6 +257,14 @@ export default function EmployeeDashboard() {
     setRefreshKey((k) => k + 1);
   };
 
+  const handleExportPDF = () => {
+    exportEmployeeDashboardPDF(user, stats, recentClocks, selectedPeriod);
+  };
+
+  const handleExportCSV = () => {
+    exportEmployeeDashboardCSV(user, stats, recentClocks, selectedPeriod);
+  };
+
   return (
     <Layout 
       sidebarItems={sidebarItems}
@@ -289,8 +303,24 @@ export default function EmployeeDashboard() {
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-gray-800">Mes statistiques</h2>
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-                <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleExportPDF}
+                  className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+                >
+                  <FileDown className="w-4 h-4" />
+                  PDF
+                </button>
+                <button
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  CSV
+                </button>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
+                  <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+                </div>
               </div>
             </div>
             

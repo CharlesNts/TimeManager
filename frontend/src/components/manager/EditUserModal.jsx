@@ -139,9 +139,6 @@ export default function EditUserModal({ isOpen, onClose, onSave, userData = null
               <option value="EMPLOYEE">👤 Employé</option>
               <option value="MANAGER">👔 Manager</option>
             </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Note : Seul le rôle CEO actuel peut promouvoir un autre CEO
-            </p>
           </div>
 
           {/* Informations */}
