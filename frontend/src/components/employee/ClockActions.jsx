@@ -134,23 +134,16 @@ export default function ClockActions({ userId, onChanged }) {
       </div>
 
       <button
-        onClick={handleBreak}
-        disabled={!isClockedIn}
-        className={`w-full mt-3 flex items-center justify-center px-4 py-3 rounded-lg font-medium ${
-          !isClockedIn
-            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            : isOnBreak
-            ? 'bg-yellow-500 text-white'
-            : 'bg-white text-gray-900 border-2 border-gray-900'
-        }`}
+        disabled={true}
+        className="w-full p-4 rounded-lg font-semibold shadow transition bg-gray-100 text-gray-400 cursor-not-allowed"
       >
         <Coffee className="w-5 h-5 mr-2" />
-        {isOnBreak ? 'Terminer la pause' : 'Prendre une pause'}
+        Prendre une pause (À venir)
       </button>
 
-      <div className="mt-4 p-3 bg-gray-100 rounded-lg">
-        <p className="text-xs text-gray-700">
-          💡 La pause est locale pour l’instant. 
+      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-xs text-blue-700">
+          ℹ️ La fonctionnalité de pause n'est pas encore disponible (backend en cours de développement).
         </p>
       </div>
 

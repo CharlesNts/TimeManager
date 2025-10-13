@@ -47,16 +47,22 @@ export default function CEODashboard() {
         // Charger tous les utilisateurs et utilisateurs en attente
         const [usersRes, pendingRes] = await Promise.all([
           api.get('/api/users'),
-          api.get('/api/users/pending')
+          api.get('/api/users/users/pending')
         ]);
         
         const allUsers = Array.isArray(usersRes.data) ? usersRes.data : [];
         const pendingList = Array.isArray(pendingRes.data) ? pendingRes.data : [];
         
+        console.log('[CEODashboard] All users:', allUsers);
+        console.log('[CEODashboard] Pending users:', pendingList);
+        
         // Calculer les stats utilisateurs
         const managers = allUsers.filter(u => u.role === 'MANAGER');
         const employees = allUsers.filter(u => u.role === 'EMPLOYEE');
         const approvedCount = allUsers.length; // Les users dans /api/users sont déjà approuvés
+        
+        console.log('[CEODashboard] Managers:', managers);
+        console.log('[CEODashboard] Employees:', employees);
 
         // Charger toutes les équipes (via tous les managers + CEO)
         // On inclut aussi les CEO car ils peuvent être managers d'équipes
@@ -72,10 +78,16 @@ export default function CEODashboard() {
         const teamArrays = await Promise.all(teamPromises);
         const allTeams = teamArrays.flat();
         
+        console.log('[CEODashboard] Manager/CEO IDs:', managerAndCEOIds);
+        console.log('[CEODashboard] Team arrays:', teamArrays);
+        console.log('[CEODashboard] All teams (flat):', allTeams);
+        
         // Déduplication par id
         const uniqueTeams = Array.from(
           new Map(allTeams.map(t => [t.id, t])).values()
         );
+        
+        console.log('[CEODashboard] Unique teams:', uniqueTeams);
 
         setStats({
           totalUsers: approvedCount + pendingList.length, // Total = approuvés + en attente
@@ -101,7 +113,7 @@ export default function CEODashboard() {
 
   const handleApprove = async (userId) => {
     try {
-      await api.put(`/api/users/${userId}/approve`);
+      await api.put(`/api/users/users/${userId}/approve`);
       setPendingUsers(prev => prev.filter(u => u.id !== userId));
       setStats(prev => ({
         ...prev,
@@ -115,7 +127,7 @@ export default function CEODashboard() {
 
   const handleReject = async (userId) => {
     try {
-      await api.put(`/api/users/${userId}/reject`);
+      await api.put(`/api/users/users/${userId}/reject`);
       setPendingUsers(prev => prev.filter(u => u.id !== userId));
       setStats(prev => ({
         ...prev,

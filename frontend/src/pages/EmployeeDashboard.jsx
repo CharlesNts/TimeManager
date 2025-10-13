@@ -221,12 +221,9 @@ export default function EmployeeDashboard() {
         const hwM = totalPeriodMin % 60;
         const hoursPeriod = `${hwH}h ${String(hwM).padStart(2, '0')}m`;
 
-        // Jours en retard sur la période
+        // Jours en retard sur la période (désactivé - nécessite horaires de travail)
         const daysAggPeriod = aggregateByDay(clocksThisPeriod);
-        const delaysPeriodCount = daysAggPeriod.reduce((acc, d) => {
-          const comp = complianceForDay(d.firstIn, d.totalWorkedMin);
-          return acc + (comp.isLate ? 1 : 0);
-        }, 0);
+        const delaysPeriodCount = '—'; // Fonctionnalité à venir
 
         // Moyenne quotidienne sur la période
         const daysWorked = daysAggPeriod.length || 1;
@@ -251,7 +248,7 @@ export default function EmployeeDashboard() {
 
         setStats({ 
           hoursWeek: hoursPeriod, 
-          delaysMonth: String(delaysPeriodCount), 
+          delaysMonth: delaysPeriodCount, // Déjà en format '—'
           avgWeek: avgDaily, 
           comparison 
         });
@@ -387,8 +384,8 @@ export default function EmployeeDashboard() {
               >
                 <p className="text-xs text-gray-500 mt-1">Derniers {selectedPeriod} jours</p>
               </KPICard>
-              <KPICard title="Jours en retard" value={stats.delaysMonth} icon={AlertTriangle}>
-                <p className="text-xs text-orange-500 mt-1">Règle flex 09:30–17:30</p>
+              <KPICard title="Jours en retard" value="—" icon={AlertTriangle}>
+                <p className="text-xs text-blue-600 mt-1">⚙️ Fonctionnalité à venir (horaires de travail requis)</p>
               </KPICard>
               <KPICard title="Moyenne quotidienne" value={stats.avgWeek} icon={Briefcase}>
                 <p className="text-xs text-gray-500 mt-1">Sur la période</p>
