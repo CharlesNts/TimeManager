@@ -506,10 +506,10 @@ export default function TeamDetail() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">En pause</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.onBreak}</p>
-                    <p className="text-xs text-gray-500 mt-1">Actuellement</p>
+                    <p className="text-2xl font-bold text-gray-400 mt-1">N/A</p>
+                    <p className="text-xs text-gray-500 mt-1">Fonctionnalité à venir</p>
                   </div>
-                  <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gray-400 rounded-lg flex items-center justify-center">
                     <Clock className="w-6 h-6 text-white" />
                   </div>
                 </div>

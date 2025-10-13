@@ -134,7 +134,6 @@ export default function ClockHistory({ userId, period = 7, refreshKey = 0 }) {
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Arrivée</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Départ</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Durée</th>
-                <th className="text-left py-3 px-4 text-sm">Retard</th>
                 <th className="text-left py-3 px-4">Statut</th>
               </tr>
             </thead>
@@ -149,10 +148,7 @@ export default function ClockHistory({ userId, period = 7, refreshKey = 0 }) {
                       {inDate.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' })}
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-600">
-                      <div className="flex items-center">
-                        {toParis(inDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}
-                        {comp.isLate && <AlertTriangle className="w-4 h-4 ml-2 text-orange-500" />}
-                      </div>
+                      {toParis(inDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-600">
                       {outDate ? toParis(outDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }) : <span className="text-orange-500">En cours…</span>}
@@ -160,17 +156,8 @@ export default function ClockHistory({ userId, period = 7, refreshKey = 0 }) {
                     <td className="py-3 px-4 text-sm text-gray-700 font-medium">
                       {formatDuration(c)}
                     </td>
-                    <td className="py-3 px-4 text-sm">
-                      {comp.isLate ? (
-                        <span className="text-orange-600 font-medium">+{comp.deficitMin} min</span>
-                      ) : (
-                        <span className="text-green-600">À l'heure</span>
-                      )}
-                    </td>
                     <td className="py-3 px-4">
-                      {comp.isLate ? (
-                        <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full font-medium">⚠️ Retard</span>
-                      ) : outDate ? (
+                      {outDate ? (
                         <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">✓ Terminé</span>
                       ) : (
                         <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">En cours</span>
@@ -188,10 +175,9 @@ export default function ClockHistory({ userId, period = 7, refreshKey = 0 }) {
         <span className="text-gray-500">
           {items.length} pointage{items.length > 1 ? 's' : ''} sur {period} jour{period > 1 ? 's' : ''}.
         </span>
-        <div className="flex items-center space-x-4">
-          <span className="text-green-600">✓ {onTimeCount} à l'heure</span>
-          <span className="text-orange-600">⚠️ {lateCount} retards</span>
-        </div>
+        <span className="text-blue-600 text-xs">
+          ℹ️ Le calcul des retards nécessite la configuration des horaires de travail
+        </span>
       </div>
     </div>
   );
