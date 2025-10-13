@@ -22,7 +22,7 @@
 - ✅ `PUT /api/users/{id}/reject` - Rejet d'un utilisateur (CEO)
 
 ### 🏢 Gestion des Équipes
-- ✅ `POST /api/teams` - Création d'une équipe
+- ✅ `POST /api/teams` - Création d'une équipe (+ auto-ajout manager comme membre)
 - ✅ `GET /api/teams/{id}` - Détail d'une équipe
 - ✅ `GET /api/teams?managerId={id}` - Équipes d'un manager
 - ✅ `PUT /api/teams/{id}` - Modification d'une équipe
@@ -38,30 +38,39 @@
 - ✅ `GET /api/users/{userId}/clocks/range` - Pointages sur une période
 - ✅ `POST /api/users/{userId}/clocks` - Créer un pointage (clock in/out)
 
----
-
-## 🔶 Modules partiellement intégrés
-
-### 📈 Working Times (Horaires de travail)
-- ✅ Backend disponible mais **pas encore d'interface frontend**
-- Endpoints disponibles :
-  - `GET /api/users/{userId}/workingTimes` - Liste des horaires
-  - `POST /api/users/{userId}/workingTimes` - Créer un horaire
-  - `PUT /api/workingTimes/{id}` - Modifier un horaire
-  - `DELETE /api/workingTimes/{id}` - Supprimer un horaire
-
-**TODO** : Créer `WorkingTimesPage.jsx` pour gérer les horaires de travail.
+### � Dashboards
+- ✅ **CEODashboard.jsx** - Vue globale entreprise, stats, utilisateurs en attente
+- ✅ **ManagerDashboard.jsx** - Vue d'ensemble des équipes du manager
+- ✅ **EmployeeDashboard.jsx** - Dashboard employé avec pointages et stats
 
 ---
 
-## 🚧 Fonctionnalités en démo / Front-only
+## 🔶 Modules préparés pour futur backend
 
-### 📊 Dashboards spécifiques
-- 🔶 **ManagerDashboard.jsx** - Non créé (utilise EmployeeDashboard pour le moment)
-- 🔶 **CEODashboard.jsx** - Non créé (utilise EmployeeDashboard pour le moment)
-- ✅ **EmployeeDashboard.jsx** - Intégré avec les vraies données backend
+### 🔐 Réinitialisation mot de passe
+- 🔶 **ForgotPasswordPage.jsx** - Demande de réinitialisation (prêt pour `POST /auth/forgot-password`)
+- 🔶 **ResetPasswordPage.jsx** - Réinitialisation avec token (prêt pour `POST /auth/reset-password`)
+- 📝 Frontend complet, attend implémentation backend (envoi email + token)
 
-**TODO** : Créer des dashboards spécifiques pour MANAGER et CEO avec KPIs agrégés.
+---
+
+## 🚧 Fonctionnalités à implémenter
+
+### � Working Times (Horaires de travail)
+- ❌ Backend **non disponible** actuellement
+- � À créer : `WorkingTimesPage.jsx` quand le backend sera prêt
+- Fonctionnalités attendues :
+  - Définir horaires de travail (début, fin, jours)
+  - Calculer heures supplémentaires
+  - Gérer les horaires flexibles
+
+### 📊 Statistiques avancées
+- ❌ Pas de graphiques pour le moment
+- 📝 À ajouter : Chart.js ou Recharts
+- Cibles :
+  - Graphiques de performance dans les dashboards
+  - Courbes d'évolution des heures
+  - Comparaisons entre équipes
 
 ### 📤 Export de données
 - 🔶 **Export CSV** - Implémenté côté frontend uniquement (dans `TeamDetail.jsx`)

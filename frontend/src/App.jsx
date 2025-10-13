@@ -1,11 +1,15 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import DemoPage from './pages/DemoPage';
 import EmployeeDashboard from './pages/EmployeeDashboard';
+import ManagerDashboard from './pages/ManagerDashboard';
+import CEODashboard from './pages/CEODashboard';
 import TeamsList from './pages/TeamsList';
 import TeamDetail from './pages/TeamDetail';
 import ProfilePage from './pages/ProfilePage';
@@ -13,12 +17,29 @@ import UsersListPage from './pages/UsersListPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 /**
+ * Router pour le dashboard - redirige selon le rôle
+ */
+function DashboardRouter() {
+  const { user } = useAuth();
+  
+  if (user?.role === 'CEO') {
+    return <CEODashboard />;
+  } else if (user?.role === 'MANAGER') {
+    return <ManagerDashboard />;
+  } else {
+    return <EmployeeDashboard />;
+  }
+}
+
+/**
  * Composant App - Point d'entrée avec le système de routing
  * 
  * Routes disponibles:
  * - /login : Connexion
  * - /register : Inscription
- * - /dashboard : Dashboard employé (tous les utilisateurs authentifiés)
+ * - /forgot-password : Demande de réinitialisation mot de passe
+ * - /reset-password?token=xxx : Réinitialisation mot de passe avec token
+ * - /dashboard : Dashboard (redirige selon le rôle)
  * - /teams : Liste des équipes (Manager/CEO uniquement)
  * - /teams/:teamId : Détails d'une équipe (Manager/CEO uniquement)
  * - /profile : Profil utilisateur (tous les utilisateurs authentifiés)
@@ -28,7 +49,7 @@ import NotFoundPage from './pages/NotFoundPage';
  * - * : Page 404
  * 
  * Les routes protégées utilisent ProtectedRoute avec allowedRoles
- * L'authentification est gérée par AuthContext (actuellement avec données mockées)
+ * L'authentification est gérée par AuthContext
  */
 function App() {
   return (
@@ -38,13 +59,16 @@ function App() {
           {/* Authentification - Pages publiques */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           
-          {/* Dashboard employé - Tous les utilisateurs authentifiés */}
+          {/* Dashboards spécifiques par rôle */}
           <Route 
             path="/dashboard" 
             element={
               <ProtectedRoute>
-                <EmployeeDashboard />
+                <DashboardRouter />
               </ProtectedRoute>
             } 
           />
