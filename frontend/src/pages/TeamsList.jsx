@@ -7,6 +7,7 @@ import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import TeamCard from '../components/manager/TeamCard';
 import TeamFormModal from '../components/manager/TeamFormModal';
+import ExportMenu from '../components/ui/ExportMenu';
 import api from '../api/client';
 import {
   fetchTeamsForCurrentUser,
@@ -14,6 +15,9 @@ import {
   updateTeam,
   deleteTeam,
 } from '../api/teams';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
 
 export default function TeamsList() {
   const navigate = useNavigate();
@@ -154,24 +158,33 @@ export default function TeamsList() {
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900">Gestion des équipes</h2>
+              <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Gestion des équipes</h1>
               {!loading && (
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-gray-500 mt-1">
                   {visibleTeams.length} {visibleTeams.length > 1 ? 'équipes' : 'équipe'}
                 </p>
               )}
             </div>
 
-            {/* Bouton Créer (CEO et MANAGER peuvent créer, ajuste selon ta règle) */}
-            {(user?.role === 'CEO' || user?.role === 'MANAGER') && (
-              <button
-                onClick={handleCreateTeam}
-                className="flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium"
-              >
-                <Plus className="w-5 h-5 mr-2" />
-                Créer une équipe
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {/* Export Menu */}
+              <ExportMenu
+                onExportPDF={() => console.log('Export PDF')}
+                onExportCSV={() => console.log('Export CSV')}
+                variant="outline"
+              />
+
+              {/* Bouton Créer (CEO et MANAGER peuvent créer, ajuste selon ta règle) */}
+              {(user?.role === 'CEO' || user?.role === 'MANAGER') && (
+                <Button
+                  onClick={handleCreateTeam}
+                  variant="default"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Créer une équipe
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* States */}
@@ -200,26 +213,28 @@ export default function TeamsList() {
 
           {/* Empty */}
           {!loading && !visibleTeams.length && !err && (
-            <div className="text-center py-12">
-              <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Aucune équipe pour le moment
-              </h3>
-              <p className="text-sm text-gray-500 mb-4">
-                {user?.role === 'CEO' || user?.role === 'MANAGER'
-                  ? 'Commencez par créer votre première équipe'
-                  : "Vous n'êtes membre d'aucune équipe"}
-              </p>
-              {(user?.role === 'CEO' || user?.role === 'MANAGER') && (
-                <button
-                  onClick={handleCreateTeam}
-                  className="inline-flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium"
-                >
-                  <Plus className="w-5 h-5 mr-2" />
-                  Créer une équipe
-                </button>
-              )}
-            </div>
+            <Card className="text-center py-12">
+              <CardContent>
+                <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <CardTitle className="mb-2">
+                  Aucune équipe pour le moment
+                </CardTitle>
+                <CardDescription className="mb-4">
+                  {user?.role === 'CEO' || user?.role === 'MANAGER'
+                    ? 'Commencez par créer votre première équipe'
+                    : "Vous n'êtes membre d'aucune équipe"}
+                </CardDescription>
+                {(user?.role === 'CEO' || user?.role === 'MANAGER') && (
+                  <Button
+                    onClick={handleCreateTeam}
+                    variant="default"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Créer une équipe
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
           )}
         </div>
       </div>
