@@ -18,13 +18,14 @@ export default function ProfilePage() {
     role: 'EMPLOYEE',
   });
 
+  const [userTeams, setUserTeams] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState('');
   const [ok, setOk]             = useState('');
 
-  // Charger depuis l’API
+    // Charger depuis l'API
   useEffect(() => {
     let cancel = false;
     const load = async () => {
@@ -32,15 +33,20 @@ export default function ProfilePage() {
       setLoading(true);
       setError(''); setOk('');
       try {
-        const data = await getUserById(user.id);
+        const [userData, teamsData] = await Promise.all([
+          getUserById(user.id),
+          import('../api/teamApi').then(mod => mod.fetchUserMemberships(user.id)).catch(() => [])
+        ]);
+        
         if (!cancel) {
           setProfileData({
-            firstName: data.firstName || '',
-            lastName: data.lastName || '',
-            email: data.email || '',
-            phoneNumber: data.phoneNumber || '',
-            role: data.role || 'EMPLOYEE',
+            firstName: userData.firstName || '',
+            lastName: userData.lastName || '',
+            email: userData.email || '',
+            phoneNumber: userData.phoneNumber || '',
+            role: userData.role || 'EMPLOYEE',
           });
+          setUserTeams(teamsData);
         }
       } catch (e) {
         if (!cancel) setError(e?.message || 'Erreur de chargement du profil');
@@ -253,6 +259,31 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+
+          {/* Mes équipes */}
+          {userTeams.length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Mes équipes</h3>
+              <div className="space-y-3">
+                {userTeams.map((team) => (
+                  <div
+                    key={team.id}
+                    className="p-4 border border-gray-200 rounded-lg hover:border-gray-400 hover:shadow-md cursor-pointer transition"
+                    onClick={() => window.location.href = `/teams/${team.id}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{team.name}</h4>
+                        <p className="text-sm text-gray-500 mt-1">{team.description || 'Aucune description'}</p>
+                        <p className="text-xs text-gray-400 mt-1">Manager : {team.managerName}</p>
+                      </div>
+                      <Briefcase className="w-5 h-5 text-gray-400" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Sécurité */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
