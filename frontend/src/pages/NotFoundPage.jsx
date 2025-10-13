@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, ArrowLeft, Search } from 'lucide-react';
+import { Button } from '../components/ui/button';
 import Layout from '../components/layout/Layout';
 
 /**
@@ -31,20 +32,19 @@ const NotFoundPage = () => {
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
+            <Button
               onClick={() => navigate(-1)}
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+              variant="outline"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-5 w-5 mr-2" />
               Retour
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => navigate('/dashboard')}
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-black rounded-lg text-white font-medium hover:bg-gray-800 transition-colors"
             >
-              <Home className="h-5 w-5" />
+              <Home className="h-5 w-5 mr-2" />
               Accueil
-            </button>
+            </Button>
           </div>
 
           {/* Suggestions */}
