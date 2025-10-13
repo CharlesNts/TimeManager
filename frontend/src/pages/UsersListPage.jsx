@@ -1,5 +1,6 @@
 // src/pages/UsersListPage.jsx
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
@@ -10,6 +11,7 @@ import {
   Edit,
   Trash2,
   Filter,
+  Clock,
 } from 'lucide-react';
 
 import {
@@ -31,6 +33,7 @@ import {
  */
 export default function UsersListPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const sidebarItems = getSidebarItems(user?.role);
 
   // Filtres
@@ -286,6 +289,15 @@ export default function UsersListPage() {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center justify-end space-x-2">
+                            {/* Voir dashboard */}
+                            <button
+                              onClick={() => navigate(`/employee/${u.id}/dashboard`)}
+                              className="p-2 text-gray-600 hover:bg-gray-100 rounded"
+                              title="Voir le dashboard"
+                            >
+                              <Clock className="w-4 h-4" />
+                            </button>
+                            
                             {u.status === 'PENDING' && (
                               <>
                                 <button

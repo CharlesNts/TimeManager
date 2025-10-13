@@ -1,5 +1,6 @@
 // src/pages/EmployeeDashboard.jsx
 import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
@@ -7,7 +8,7 @@ import KPICard from '../components/dashboard/KPICard.jsx';
 import ClockActions from '../components/employee/ClockActions';
 import ClockHistory from '../components/employee/ClockHistory';
 import PeriodSelector from '../components/manager/PeriodSelector';
-import { Clock, AlertTriangle, Briefcase, TrendingUp, FileDown, FileSpreadsheet } from 'lucide-react';
+import { Clock, AlertTriangle, Briefcase, TrendingUp, FileDown, FileSpreadsheet, ArrowLeft } from 'lucide-react';
 import api from '../api/client';
 import { exportEmployeeDashboardPDF } from '../utils/pdfExport';
 import { exportEmployeeDashboardCSV } from '../utils/csvExport';
@@ -115,7 +116,16 @@ async function fetchClocksRange(userId, from, to) {
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
-  console.log('[DBG] current user:', user);
+  const { userId } = useParams(); // Pour afficher le dashboard d'un autre employé
+  const navigate = useNavigate();
+  
+  // Si userId dans l'URL, c'est un manager/CEO qui consulte. Sinon, c'est l'utilisateur lui-même
+  const [viewedEmployee, setViewedEmployee] = useState(null);
+  const isViewingOtherEmployee = !!userId;
+  const targetUserId = userId || user?.id;
+  const targetUser = isViewingOtherEmployee ? viewedEmployee : user;
+
+  console.log('[DBG] current user:', user, 'viewing userId:', userId);
   const sidebarItems = getSidebarItems(user?.role);
 
   const [hasClockedInToday, setHasClockedInToday] = useState(false);
@@ -123,6 +133,23 @@ export default function EmployeeDashboard() {
 
   // clé d'invalidation pour forcer refetch (KPIs + Historique)
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Charger les infos de l'employé consulté
+  useEffect(() => {
+    if (isViewingOtherEmployee && userId) {
+      const loadEmployee = async () => {
+        try {
+          const { data } = await api.get(`/api/users/${userId}`);
+          setViewedEmployee(data);
+        } catch (err) {
+          console.error('[EmployeeDashboard] Erreur chargement employé:', err);
+          // Rediriger si employé non trouvé ou pas d'accès
+          navigate('/dashboard');
+        }
+      };
+      loadEmployee();
+    }
+  }, [userId, isViewingOtherEmployee, navigate]);
 
   // Rafraîchir quand la période change
   useEffect(() => {
@@ -136,19 +163,19 @@ export default function EmployeeDashboard() {
     return () => window.removeEventListener('focus', onFocus);
   }, []);
 
-  // Vérifier si pointé aujourd’hui
+  // Vérifier si pointé aujourd'hui
   useEffect(() => {
     const loadToday = async () => {
       try {
         const today = new Date();
-        const data = await fetchClocksRange(user.id, startOfDay(today), endOfDay(today));
+        const data = await fetchClocksRange(targetUserId, startOfDay(today), endOfDay(today));
         setHasClockedInToday(Array.isArray(data) && data.length > 0);
       } catch {
         setHasClockedInToday(false);
       }
     };
-    if (user?.id) loadToday();
-  }, [user?.id, refreshKey]);
+    if (targetUserId) loadToday();
+  }, [targetUserId, refreshKey]);
 
   // KPIs
   const [stats, setStats] = useState({
@@ -161,7 +188,7 @@ export default function EmployeeDashboard() {
 
   // Charger KPIs (dépend de refreshKey et selectedPeriod)
   useEffect(() => {
-    if (!user?.id) return;
+    if (!targetUserId) return;
 
     const loadKpis = async () => {
       try {
@@ -176,8 +203,8 @@ export default function EmployeeDashboard() {
         const prevPeriodStart = addDays(prevPeriodEnd, -(selectedPeriod - 1));
 
         const [clocksThisPeriod, clocksPrevPeriod] = await Promise.all([
-          fetchClocksRange(user.id, periodStart, periodEnd),
-          fetchClocksRange(user.id, prevPeriodStart, prevPeriodEnd),
+          fetchClocksRange(targetUserId, periodStart, periodEnd),
+          fetchClocksRange(targetUserId, prevPeriodStart, prevPeriodEnd),
         ]);
 
         // Stocker pour PDF
@@ -235,13 +262,13 @@ export default function EmployeeDashboard() {
     };
 
     loadKpis();
-  }, [user?.id, refreshKey, selectedPeriod]);
+  }, [targetUserId, refreshKey, selectedPeriod]);
 
   const handleChanged = async () => {
-    if (!user?.id) return;
+    if (!targetUserId) return;
     try {
       const today = new Date();
-      const data = await fetchClocksRange(user.id, startOfDay(today), endOfDay(today));
+      const data = await fetchClocksRange(targetUserId, startOfDay(today), endOfDay(today));
       setHasClockedInToday(Array.isArray(data) && data.length > 0);
     } catch {
       setHasClockedInToday(false);
@@ -251,24 +278,55 @@ export default function EmployeeDashboard() {
   };
 
   const handleExportPDF = () => {
-    exportEmployeeDashboardPDF(user, stats, recentClocks, selectedPeriod);
+    exportEmployeeDashboardPDF(targetUser || user, stats, recentClocks, selectedPeriod);
   };
 
   const handleExportCSV = () => {
-    exportEmployeeDashboardCSV(user, stats, recentClocks, selectedPeriod);
+    exportEmployeeDashboardCSV(targetUser || user, stats, recentClocks, selectedPeriod);
   };
+
+  // Afficher un loader si on charge les infos de l'employé
+  if (isViewingOtherEmployee && !viewedEmployee) {
+    return (
+      <Layout 
+        sidebarItems={sidebarItems}
+        pageTitle="Dashboard Employé"
+        userName={`${user?.firstName} ${user?.lastName}`}
+        userRole={user?.role}
+      >
+        <div className="p-8">
+          <div className="text-gray-600">Chargement...</div>
+        </div>
+      </Layout>
+    );
+  }
+
+  const pageTitle = isViewingOtherEmployee 
+    ? `Dashboard de ${viewedEmployee?.firstName} ${viewedEmployee?.lastName}`
+    : "Mon dashboard";
 
   return (
     <Layout 
       sidebarItems={sidebarItems}
-      pageTitle="Mon dashboard"
+      pageTitle={pageTitle}
       userName={`${user?.firstName} ${user?.lastName}`}
       userRole={user?.role}
     >
       <div className="p-8 space-y-8">
         <div className="max-w-7xl mx-auto">
           
-          {!hasClockedInToday && (
+          {/* Bouton retour si consultation d'un autre employé */}
+          {isViewingOtherEmployee && (
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Retour
+            </button>
+          )}
+
+          {!hasClockedInToday && !isViewingOtherEmployee && (
             <div className="bg-orange-50 border-l-4 border-orange-400 p-4 mb-6 rounded-r-lg">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
@@ -286,16 +344,20 @@ export default function EmployeeDashboard() {
             </div>
           )}
 
-          {/* Actions de pointage */}
-          <section>
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Actions de pointage</h2>
-            <ClockActions userId={user?.id} onChanged={handleChanged} />
-          </section>
+          {/* Actions de pointage - Seulement si c'est son propre dashboard */}
+          {!isViewingOtherEmployee && (
+            <section>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Actions de pointage</h2>
+              <ClockActions userId={targetUserId} onChanged={handleChanged} />
+            </section>
+          )}
           
           {/* Statistiques */}
           <section>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-800">Mes statistiques</h2>
+              <h2 className="text-xl font-semibold text-gray-800">
+                {isViewingOtherEmployee ? 'Statistiques' : 'Mes statistiques'}
+              </h2>
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleExportPDF}
@@ -339,7 +401,7 @@ export default function EmployeeDashboard() {
 
           {/* Historique */}
           <section>
-            <ClockHistory userId={user?.id} period={selectedPeriod} refreshKey={refreshKey} />
+            <ClockHistory userId={targetUserId} period={selectedPeriod} refreshKey={refreshKey} />
           </section>
 
         </div>
