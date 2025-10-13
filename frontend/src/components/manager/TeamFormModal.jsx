@@ -1,6 +1,7 @@
 // src/components/manager/TeamFormModal.jsx
 import React, { useState, useEffect } from 'react';
 import { X, Save, Users } from 'lucide-react';
+import api from '../../api/client';
 
 /**
  * Composant TeamFormModal - Modal pour créer ou modifier une équipe
@@ -49,15 +50,30 @@ export default function TeamFormModal({
     managerId: ''
   });
 
-  // Liste des managers disponibles - Plus tard depuis l'API GET /api/users?role=MANAGER,CEO
-  // Pour l'instant données de démo
-  const availableManagers = [
-    { id: 1, firstName: 'Jean', lastName: 'Dupont', role: 'CEO' },
-    { id: 2, firstName: 'Marie', lastName: 'Martin', role: 'MANAGER' },
-    { id: 3, firstName: 'Pierre', lastName: 'Durand', role: 'MANAGER' },
-    { id: 4, firstName: 'Sophie', lastName: 'Bernard', role: 'MANAGER' },
-    { id: 5, firstName: 'Luc', lastName: 'Petit', role: 'MANAGER' },
-  ];
+  // Liste des managers disponibles - Chargée depuis l'API
+  const [availableManagers, setAvailableManagers] = useState([]);
+  const [loadingManagers, setLoadingManagers] = useState(false);
+
+  // Charger les managers depuis l'API (MANAGER et CEO uniquement)
+  useEffect(() => {
+    const fetchManagers = async () => {
+      if (!isOpen) return; // Ne charge que si le modal est ouvert
+      
+      setLoadingManagers(true);
+      try {
+        const { data } = await api.get('/api/users');
+        // Filtrer uniquement MANAGER et CEO
+        const managers = (data || []).filter(u => u.role === 'MANAGER' || u.role === 'CEO');
+        setAvailableManagers(managers);
+      } catch (err) {
+        console.error('[TeamFormModal] Erreur chargement managers:', err);
+        setAvailableManagers([]);
+      } finally {
+        setLoadingManagers(false);
+      }
+    };
+    fetchManagers();
+  }, [isOpen]);
 
   // Remplir le formulaire si mode édition
   useEffect(() => {
@@ -192,8 +208,9 @@ export default function TeamFormModal({
                     onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
                     required
+                    disabled={loadingManagers}
                   >
-                    <option value="">Sélectionner un manager</option>
+                    <option value="">{loadingManagers ? 'Chargement...' : 'Sélectionner un manager'}</option>
                     {availableManagers.map((manager) => (
                       <option key={manager.id} value={manager.id}>
                         {manager.firstName} {manager.lastName} ({manager.role})
@@ -209,8 +226,16 @@ export default function TeamFormModal({
                 <>
                   <input
                     type="text"
-                    value={availableManagers.find(m => m.id === currentUserId)?.firstName + ' ' + 
-                           availableManagers.find(m => m.id === currentUserId)?.lastName || 'Vous-même'}
+                    value={
+                      currentUserId && availableManagers.length > 0
+                        ? (() => {
+                            const currentManager = availableManagers.find(m => m.id === currentUserId);
+                            return currentManager 
+                              ? `${currentManager.firstName} ${currentManager.lastName}` 
+                              : 'Vous-même';
+                          })()
+                        : loadingManagers ? 'Chargement...' : 'Vous-même'
+                    }
                     disabled
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
                   />

@@ -615,9 +615,11 @@ export default function TeamDetail() {
       <TeamFormModal
         isOpen={isEditModalOpen}
         mode="edit"
-        team={team ? { id: team.id, name: team.name, description: team.description } : null}
+        team={team ? { id: team.id, name: team.name, description: team.description, managerId: team.managerId } : null}
         onClose={() => setIsEditModalOpen(false)}
         onSave={handleSaveTeam}
+        userRole={user?.role}
+        currentUserId={user?.id}
       />
 
       {/* Modal ADD MEMBER */}
