@@ -31,3 +31,9 @@ export async function deleteUser(id) {
   await api.delete(`/api/users/${id}`);
   return true;
 }
+
+export async function createUser(payload) {
+  // payload: { firstName, lastName, email, phoneNumber, password, role }
+  const { data } = await api.post('/auth/register', payload);
+  return data;
+}

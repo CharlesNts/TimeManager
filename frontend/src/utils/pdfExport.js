@@ -237,3 +237,78 @@ export const exportCEODashboardPDF = (user, stats, pendingUsers = [], recentTeam
   // Téléchargement
   doc.save(`dashboard_ceo_${today.replace(/\//g, '-')}.pdf`);
 };
+
+/**
+ * Génère un PDF pour la liste des utilisateurs
+ * @param {Array} users - Liste des utilisateurs
+ */
+export const exportUsersListPDF = (users = []) => {
+  const doc = new jsPDF();
+  const today = new Date().toLocaleDateString('fr-FR');
+
+  // En-tête
+  doc.setFontSize(20);
+  doc.text('TimeManager - Liste des Utilisateurs', 14, 20);
+  
+  doc.setFontSize(10);
+  doc.text(`Date: ${today}`, 14, 28);
+  doc.text(`Total: ${users.length} utilisateurs`, 14, 34);
+
+  // Ligne de séparation
+  doc.setLineWidth(0.5);
+  doc.line(14, 38, 196, 38);
+
+  // Statistiques rapides
+  const approved = users.filter(u => u.status === 'APPROVED').length;
+  const pending = users.filter(u => u.status === 'PENDING').length;
+  const rejected = users.filter(u => u.status === 'REJECTED').length;
+
+  doc.setFontSize(14);
+  doc.text('VUE D\'ENSEMBLE', 14, 48);
+
+  const statsData = [
+    ['Utilisateurs approuvés', approved.toString()],
+    ['En attente', pending.toString()],
+    ['Rejetés', rejected.toString()],
+  ];
+
+  autoTable(doc, {
+    startY: 52,
+    head: [['Statut', 'Nombre']],
+    body: statsData,
+    theme: 'grid',
+    headStyles: { fillColor: [0, 0, 0] },
+  });
+
+  // Liste des utilisateurs
+  doc.setFontSize(14);
+  doc.text('LISTE COMPLETE', 14, doc.lastAutoTable.finalY + 15);
+
+  const usersData = users.map(u => [
+    `${u.firstName} ${u.lastName}`,
+    u.email,
+    u.phoneNumber || '-',
+    u.role || 'EMPLOYEE',
+    u.status || 'PENDING',
+  ]);
+
+  autoTable(doc, {
+    startY: doc.lastAutoTable.finalY + 20,
+    head: [['Nom', 'Email', 'Téléphone', 'Rôle', 'Statut']],
+    body: usersData,
+    theme: 'striped',
+    headStyles: { fillColor: [0, 0, 0] },
+    styles: { fontSize: 8 },
+    columnStyles: {
+      1: { cellWidth: 50 }, // Email plus large
+    },
+  });
+
+  // Pied de page
+  doc.setFontSize(8);
+  doc.setTextColor(128);
+  doc.text('TimeManager © 2025 - Document confidentiel', 105, 285, { align: 'center' });
+
+  // Téléchargement
+  doc.save(`users_list_${today.replace(/\//g, '-')}.pdf`);
+};
