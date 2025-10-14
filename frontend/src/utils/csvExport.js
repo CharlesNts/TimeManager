@@ -168,3 +168,34 @@ export const exportCEODashboardCSV = (user, stats, pendingUsers = [], recentTeam
   const csv = arrayToCSV(data);
   downloadCSV(csv, `dashboard_ceo_${today.replace(/\//g, '-')}.csv`);
 };
+
+/**
+ * Exporte la liste des utilisateurs en CSV
+ * @param {Array} users - Liste des utilisateurs
+ */
+export const exportUsersListCSV = (users = []) => {
+  const today = new Date().toLocaleDateString('fr-FR');
+  
+  const data = [
+    ['TimeManager - Liste des Utilisateurs'],
+    [''],
+    ['Date génération', today],
+    ['Total utilisateurs', users.length.toString()],
+    [''],
+    ['Nom', 'Prénom', 'Email', 'Téléphone', 'Rôle', 'Statut'],
+  ];
+
+  users.forEach(u => {
+    data.push([
+      u.lastName || '',
+      u.firstName || '',
+      u.email || '',
+      u.phoneNumber || '',
+      u.role || 'EMPLOYEE',
+      u.status || 'PENDING',
+    ]);
+  });
+
+  const csv = arrayToCSV(data);
+  downloadCSV(csv, `users_list_${today.replace(/\//g, '-')}.csv`);
+};

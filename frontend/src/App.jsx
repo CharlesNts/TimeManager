@@ -14,6 +14,7 @@ import TeamsList from './pages/TeamsList';
 import TeamDetail from './pages/TeamDetail';
 import ProfilePage from './pages/ProfilePage';
 import UsersListPage from './pages/UsersListPage';
+import CreateUserPage from './pages/CreateUserPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 /**
@@ -129,6 +130,16 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['CEO']}>
                 <UsersListPage />
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* Création d'utilisateur - CEO uniquement */}
+          <Route 
+            path="/users/create" 
+            element={
+              <ProtectedRoute allowedRoles={['CEO']}>
+                <CreateUserPage />
               </ProtectedRoute>
             } 
           />
