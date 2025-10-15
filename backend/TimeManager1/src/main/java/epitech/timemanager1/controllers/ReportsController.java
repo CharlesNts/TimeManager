@@ -15,6 +15,19 @@ import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Controller that provides reporting and analytical endpoints.
+ * <p>
+ * Exposes APIs for:
+ * <ul>
+ *   <li>Generating global overview reports</li>
+ *   <li>Computing team average hours</li>
+ *   <li>Checking if a user was late on a specific date</li>
+ *   <li>Calculating lateness rate for a month</li>
+ *   <li>Summing worked hours between two timestamps</li>
+ * </ul>
+ * </p>
+ */
 @RestController
 @RequestMapping("/api/reports")
 @Validated
@@ -23,14 +36,23 @@ public class ReportsController {
     private final ReportsService reportsService;
     private final ClockService clockService;
 
+    /**
+     * Constructs a new {@link ReportsController} with required dependencies.
+     *
+     * @param reportsService service providing report aggregation logic
+     * @param clockService   service handling clock-in/out data retrieval
+     */
     public ReportsController(ReportsService reportsService, ClockService clockService) {
         this.reportsService = reportsService;
         this.clockService = clockService;
     }
 
-    // --------------------------------------------
-    // 1) Overview report (teams avg + lateness rate)
-    // --------------------------------------------
+    /**
+     * Generates an overview report containing team averages and lateness rates.
+     *
+     * @param zoneId optional time zone identifier (e.g., "Europe/Paris")
+     * @return {@link ReportsDTO} containing summarized metrics
+     */
     @GetMapping("/overview")
     public ResponseEntity<ReportsDTO> overview(
             @RequestParam(name = "zone", required = false) String zoneId
@@ -40,9 +62,12 @@ public class ReportsController {
         return ResponseEntity.ok(dto);
     }
 
-    // -------------------------------------------------------
-    // 2) Team weekly average hours only (convenience endpoint)
-    // -------------------------------------------------------
+    /**
+     * Returns team weekly average working hours.
+     *
+     * @param zoneId optional time zone identifier
+     * @return list of {@link TeamAvgHoursDTO} representing each team's average hours
+     */
     @GetMapping("/teams/avg-hours-week")
     public ResponseEntity<List<TeamAvgHoursDTO>> teamWeeklyAverages(
             @RequestParam(name = "zone", required = false) String zoneId
@@ -52,10 +77,19 @@ public class ReportsController {
         return ResponseEntity.ok(dto.getTeamAvgHoursWeek());
     }
 
-    // -------------------------------------------------------
-    // 3) Is a user late on a given day? (default: today)
-    //    Late = first clock-in after threshold (default 09:05)
-    // -------------------------------------------------------
+    /**
+     * Checks whether a user was late on a specific date.
+     * <p>
+     * Default threshold is 09:05; if the user's first clock-in is after this time,
+     * the user is considered late.
+     * </p>
+     *
+     * @param userId    ID of the user
+     * @param date      optional date (defaults to today)
+     * @param threshold lateness threshold time (HH:mm, default 09:05)
+     * @param zoneId    optional time zone
+     * @return {@link UserLateResponse} containing lateness result
+     */
     @GetMapping("/users/{userId}/is-late")
     public ResponseEntity<UserLateResponse> isLate(
             @PathVariable long userId,
@@ -82,10 +116,15 @@ public class ReportsController {
         return ResponseEntity.ok(new UserLateResponse(userId, theDay, thr, firstIn, late));
     }
 
-    // -----------------------------------------------------------------
-    // 4) User lateness rate for a month (e.g. yearMonth=2025-10),
-    //    Late = first clock-in of each day after threshold (default 09:05)
-    // -----------------------------------------------------------------
+    /**
+     * Calculates the lateness rate of a user over a specified month.
+     *
+     * @param userId     ID of the user
+     * @param yearMonth  month in format YYYY-MM
+     * @param threshold  lateness threshold time (HH:mm)
+     * @param zoneId     optional time zone
+     * @return {@link UserLatenessRateResponse} containing monthly lateness statistics
+     */
     @GetMapping("/users/{userId}/lateness-rate")
     public ResponseEntity<UserLatenessRateResponse> latenessRate(
             @PathVariable long userId,
@@ -104,7 +143,7 @@ public class ReportsController {
 
         List<Clock> clocks = clockService.listForUserBetween(userId, from, to);
 
-        // first clock per day
+        // Determine first clock-in per day
         Map<LocalDate, Clock> firstByDay = clocks.stream()
                 .collect(Collectors.toMap(
                         c -> c.getClockIn().toLocalDate(),
@@ -124,9 +163,15 @@ public class ReportsController {
         );
     }
 
-    // ---------------------------------------------------------
-    // 5) Sum user hours in a period [from, to) (open interval)
-    // ---------------------------------------------------------
+    /**
+     * Calculates the total worked hours for a user within a given time range.
+     *
+     * @param userId ID of the user
+     * @param from   start datetime (inclusive)
+     * @param to     end datetime (exclusive)
+     * @param zoneId optional time zone
+     * @return {@link UserHoursResponse} containing total hours worked
+     */
     @GetMapping("/users/{userId}/hours")
     public ResponseEntity<UserHoursResponse> hoursBetween(
             @PathVariable long userId,
@@ -152,19 +197,27 @@ public class ReportsController {
 
     // ------------ helpers / tiny response records -----------------
 
+    /**
+     * Resolves a valid {@link ZoneId} from a provided string or defaults to system zone.
+     */
     private static ZoneId resolveZone(String zoneId) {
         if (zoneId == null || zoneId.isBlank()) return ZoneId.systemDefault();
         return ZoneId.of(zoneId);
     }
 
+    /** Returns the later of two {@link LocalDateTime} values. */
     private static LocalDateTime max(LocalDateTime a, LocalDateTime b) {
         return a.isAfter(b) ? a : b;
     }
 
+    /** Returns the earlier of two {@link LocalDateTime} values. */
     private static LocalDateTime min(LocalDateTime a, LocalDateTime b) {
         return a.isBefore(b) ? a : b;
     }
 
+    /**
+     * Response record representing whether a user was late on a given date.
+     */
     public record UserLateResponse(
             long userId,
             LocalDate date,
@@ -173,6 +226,9 @@ public class ReportsController {
             boolean late
     ) {}
 
+    /**
+     * Response record representing a user's lateness rate for a specific month.
+     */
     public record UserLatenessRateResponse(
             long userId,
             YearMonth month,
@@ -182,6 +238,10 @@ public class ReportsController {
             double rate
     ) {}
 
+    /**
+     * Response record representing the total worked hours of a user
+     * within a specific date-time range.
+     */
     public record UserHoursResponse(
             long userId,
             LocalDateTime from,
