@@ -1,6 +1,5 @@
 package epitech.timemanager1.entities;
 
-import epitech.timemanager1.entities.User;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -18,6 +17,7 @@ import java.util.Set;
         indexes = { @Index(name = "ix_teams_name", columnList = "name", unique = true) })
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Team {
+
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
@@ -32,8 +32,8 @@ public class Team {
     @JoinColumn(name = "manager_id")
     private User manager;
 
-    // 🔹 NEW: Many-to-many membership via join table `team_members`
-    @ManyToMany
+    // Team membership via join table
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "team_members",
             joinColumns = @JoinColumn(name = "team_id"),
