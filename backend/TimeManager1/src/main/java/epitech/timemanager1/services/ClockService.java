@@ -8,10 +8,11 @@ import epitech.timemanager1.repositories.ClockRepository;
 import epitech.timemanager1.repositories.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import  org.springframework.stereotype.Service;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -55,7 +56,7 @@ public class ClockService {
         }
 
         last.setClockOut(when != null ? when : LocalDateTime.now());
-        return last; // managed entity; will flush
+        return last; // managed entity
     }
 
     @Transactional(readOnly = true)
@@ -66,7 +67,18 @@ public class ClockService {
     }
 
     @Transactional(readOnly = true)
-    public java.util.List<Clock> listForUserBetween(long userId, LocalDateTime from, LocalDateTime to) {
+    public List<Clock> listForUserBetween(long userId, LocalDateTime from, LocalDateTime to) {
         return clocks.findByUserIdAndClockInBetween(userId, from, to);
+    }
+
+    /** IMPORTANT: read-only tx so join-fetched pauses stay initialized while iterating in controller */
+    @Transactional(readOnly = true)
+    public List<Clock> listForUserBetweenWithPauses(long userId, LocalDateTime from, LocalDateTime to) {
+        return clocks.findAllForUserBetweenWithPauses(userId, from, to);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Clock> listAllOverlappingWeek(LocalDateTime from, LocalDateTime to) {
+        return clocks.findAllBetweenFetchUserWithPauses(from, to);
     }
 }

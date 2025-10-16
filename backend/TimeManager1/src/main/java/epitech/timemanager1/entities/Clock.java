@@ -2,8 +2,12 @@ package epitech.timemanager1.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "clocks",
@@ -31,4 +35,10 @@ public class Clock {
     private LocalDateTime clockIn;
 
     private LocalDateTime clockOut;
+
+    // Use List + SUBSELECT to make collection fetch-join reliable
+    @OneToMany(mappedBy = "clock", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("startAt ASC")
+    @Fetch(FetchMode.SUBSELECT)
+    private List<ClockPause> pauses = new ArrayList<>();
 }
