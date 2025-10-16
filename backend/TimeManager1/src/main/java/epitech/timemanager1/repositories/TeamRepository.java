@@ -3,6 +3,7 @@ package epitech.timemanager1.repositories;
 import epitech.timemanager1.entities.Team;
 import epitech.timemanager1.entities.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -14,4 +15,9 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
     List<Team> findByManager(User manager);
 
     List<Team> findByManagerId(Long managerId);
+
+    @Query("select distinct t from Team t left join fetch t.members")
+    List<Team> findAllWithMembers();
+
+
 }

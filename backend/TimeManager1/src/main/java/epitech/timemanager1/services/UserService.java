@@ -16,6 +16,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Service responsible for managing {@link User} entities and handling
+ * user-related operations such as creation, retrieval, updating, deletion,
+ * and approval workflows.
+ * <p>
+ * The service also encodes passwords, prevents duplicate email registration,
+ * and enforces CEO approval before activating new users.
+ * </p>
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -25,6 +34,18 @@ public class UserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
 
+    /**
+     * Creates a new user based on the provided DTO.
+     * <p>
+     * Validates that a password is provided and that the email is not already used.
+     * Passwords are stored as encoded hashes.
+     * Newly created users are inactive by default until CEO approval.
+     * </p>
+     *
+     * @param dto the {@link UserDTO} containing user information
+     * @return the created {@link UserDTO}
+     * @throws ConflictException if the password is missing or email is already in use
+     */
     public UserDTO create(UserDTO dto) {
         if (dto.getPassword() == null || dto.getPassword().isBlank()) {
             throw new ConflictException("Password is required for user creation");
@@ -42,6 +63,13 @@ public class UserService {
         return userMapper.toDTO(userRepository.save(user));
     }
 
+    /**
+     * Retrieves a user by ID.
+     *
+     * @param id the user's ID
+     * @return the corresponding {@link UserDTO}
+     * @throws NotFoundException if the user does not exist
+     */
     @Transactional(readOnly = true)
     public UserDTO get(Long id) {
         User user = userRepository.findById(id)
@@ -49,6 +77,13 @@ public class UserService {
         return userMapper.toDTO(user);
     }
 
+    /**
+     * Retrieves a user by email address.
+     *
+     * @param email the user's email
+     * @return the corresponding {@link UserDTO}
+     * @throws NotFoundException if no user exists with the given email
+     */
     @Transactional(readOnly = true)
     public UserDTO getByEmail(String email) {
         User user = userRepository.findByEmail(email)
@@ -56,6 +91,11 @@ public class UserService {
         return userMapper.toDTO(user);
     }
 
+    /**
+     * Retrieves all users in the system.
+     *
+     * @return a list of all {@link UserDTO} objects
+     */
     @Transactional(readOnly = true)
     public List<UserDTO> list() {
         return userRepository.findAll().stream()
@@ -63,6 +103,14 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Updates an existing user's basic details such as name, phone number, and role.
+     *
+     * @param id  the user's ID
+     * @param dto the {@link UserDTO} containing updated information
+     * @return the updated {@link UserDTO}
+     * @throws NotFoundException if the user does not exist
+     */
     public UserDTO update(Long id, UserDTO dto) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("User not found"));
@@ -75,6 +123,12 @@ public class UserService {
         return userMapper.toDTO(userRepository.save(user));
     }
 
+    /**
+     * Deletes a user by ID.
+     *
+     * @param id the user's ID
+     * @throws NotFoundException if the user does not exist
+     */
     public void delete(Long id) {
         if (!userRepository.existsById(id)) {
             throw new NotFoundException("User not found");
@@ -82,7 +136,12 @@ public class UserService {
         userRepository.deleteById(id);
     }
 
-
+    /**
+     * Approves a user (activates their account).
+     *
+     * @param id the user's ID
+     * @throws NotFoundException if the user does not exist
+     */
     public void approveUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("User not found"));
@@ -90,6 +149,12 @@ public class UserService {
         userRepository.save(user);
     }
 
+    /**
+     * Rejects a user (deactivates their account).
+     *
+     * @param id the user's ID
+     * @throws NotFoundException if the user does not exist
+     */
     public void rejectUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("User not found"));
@@ -97,6 +162,11 @@ public class UserService {
         userRepository.save(user);
     }
 
+    /**
+     * Retrieves all users who are pending approval (inactive accounts).
+     *
+     * @return a list of {@link UserDTO} representing inactive users
+     */
     @Transactional(readOnly = true)
     public List<UserDTO> findAllPending() {
         return userRepository.findAll().stream()

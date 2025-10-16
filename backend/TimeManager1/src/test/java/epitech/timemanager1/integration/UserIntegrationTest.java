@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -30,12 +31,17 @@ public class UserIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private UserRepository userRepository;
+    @Autowired private JdbcTemplate jdbc;
 
     private UserDTO testUser;
 
     @BeforeEach
+    void clean() {
+        jdbc.execute("TRUNCATE TABLE team_members, clocks, teams, users RESTART IDENTITY CASCADE");
+    }
+
+    @BeforeEach
     void setup() {
-        // keep DB clean between tests so emails don’t collide
         userRepository.deleteAll();
 
         testUser = UserDTO.builder()
@@ -53,9 +59,9 @@ public class UserIntegrationTest {
 
     /** Convert DTO -> JSON, then manually add "password" so WRITE_ONLY doesn’t strip it. */
     private String jsonWithPassword(UserDTO dto) throws Exception {
-        ObjectNode node = objectMapper.valueToTree(dto); // password omitted by annotation
+        ObjectNode node = objectMapper.valueToTree(dto);
         if (dto.getPassword() != null) {
-            node.put("password", dto.getPassword()); // add it back explicitly
+            node.put("password", dto.getPassword());
         }
         return objectMapper.writeValueAsString(node);
     }
@@ -64,7 +70,6 @@ public class UserIntegrationTest {
     @Order(1)
     @DisplayName("Create → Retrieve — happy path")
     void shouldCreateAndRetrieveUser() throws Exception {
-        // Create
         MvcResult result = mockMvc.perform(post("/api/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonWithPassword(testUser)))
