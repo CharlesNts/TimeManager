@@ -1,4 +1,3 @@
-// src/main/java/epitech/timemanager1/dto/LeaveRequestCreateDTO.java
 package epitech.timemanager1.dto;
 
 import epitech.timemanager1.entities.LeaveType;

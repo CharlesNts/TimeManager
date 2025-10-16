@@ -4,5 +4,6 @@ public enum LeaveType {
     PAID,
     SICK,
     TRAINING,
-    UNPAID
+    UNPAID,
+    OTHER
 }

@@ -1,56 +1,47 @@
 package epitech.timemanager1.entities;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "leave_requests",
         indexes = {
-                @Index(name = "ix_leave_req_employee", columnList = "employee_id"),
-                @Index(name = "ix_leave_req_window", columnList = "startAt,endAt")
+                @Index(name = "ix_leave_employee", columnList = "employee_id"),
+                @Index(name = "ix_leave_start", columnList = "startDate")
         })
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@EntityListeners(AuditingEntityListener.class)
 public class LeaveRequest {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotNull
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", nullable = false)
     private User employee;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "approver_id")
-    private User approver; // set when approved/rejected
-
-    @NotNull
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 24)
     private LeaveType type;
 
-    @NotNull
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 24)
     private LeaveStatus status;
 
-    @NotNull
-    @Column(nullable = false)
-    private LocalDateTime startAt;
-
-    @NotNull
-    @Column(nullable = false)
-    private LocalDateTime endAt;
-
-    @Size(max = 500)
+    @Column(length = 500)
     private String reason;
 
-    @CreationTimestamp
+    @Column(nullable = false)
+    private LocalDate startDate;
+
+    @Column(nullable = false)
+    private LocalDate endDate;
+
+    @CreatedDate
     @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private java.time.LocalDateTime createdAt;
 }
