@@ -21,7 +21,7 @@ import api from '../api/client';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import KPICard from '../components/dashboard/KPICard';
+import KPIChartCard from '../components/dashboard/KPIChartCard';
 import ExportMenu from '../components/ui/ExportMenu';
 import { exportCEODashboardPDF } from '../utils/pdfExport';
 import { exportCEODashboardCSV } from '../utils/csvExport';
@@ -190,35 +190,41 @@ export default function CEODashboard() {
             <div className="space-y-6">
               {/* KPIs Grid - 3 colonnes x 2 lignes */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <KPICard
+                <KPIChartCard
                   title="Total employés"
                   value={stats.totalUsers}
                   icon={Users}
+                  chartColor="var(--color-desktop)"
                 />
-                <KPICard
+                <KPIChartCard
                   title="En attente"
                   value={stats.pendingUsers}
                   icon={AlertCircle}
+                  chartColor="var(--color-mobile)"
                 />
-                <KPICard
+                <KPIChartCard
                   title="Approuvés"
                   value={stats.approvedUsers}
                   icon={UserCheck}
+                  chartColor="var(--color-desktop)"
                 />
-                <KPICard
+                <KPIChartCard
                   title="Total Équipes"
                   value={stats.totalTeams}
                   icon={Building2}
+                  chartColor="var(--color-mobile)"
                 />
-                <KPICard
+                <KPIChartCard
                   title="Managers"
                   value={stats.totalManagers}
                   icon={Users}
+                  chartColor="var(--color-desktop)"
                 />
-                <KPICard
-                  title="Employés"
+                <KPIChartCard
+                  title="Employés actifs"
                   value={stats.activeEmployees}
                   icon={UserCheck}
+                  chartColor="var(--color-mobile)"
                 />
               </div>
 

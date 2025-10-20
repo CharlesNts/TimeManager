@@ -324,44 +324,6 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Mes équipes */}
-          {userTeams.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Mes équipes</CardTitle>
-                <CardDescription>
-                  {userTeams.length} équipe{userTeams.length > 1 ? 's' : ''} dont vous faites partie
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {userTeams.map((team) => (
-                    <Card
-                      key={team.id}
-                      className="cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => window.location.href = `/teams/${team.id}`}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900">{team.name}</h4>
-                            <p className="text-sm text-muted-foreground mt-1">{team.description || 'Aucune description'}</p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <Badge variant="outline" className="text-xs">
-                                Manager : {team.managerName}
-                              </Badge>
-                            </div>
-                          </div>
-                          <Briefcase className="w-5 h-5 text-muted-foreground" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* Sécurité */}
           <Card>
             <CardHeader>

@@ -6,14 +6,11 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
-import api from '../api/client';
+import { resetPassword } from '../api/passwordApi';
 
 /**
  * Page pour réinitialiser le mot de passe avec un token
  * URL: /reset-password?token=xxx
- * 
- * Backend attendu: POST /auth/reset-password { token, newPassword }
- * Réponse: { message: "Mot de passe réinitialisé" }
  */
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -50,13 +47,7 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     try {
-      // TODO: Activer quand le backend sera prêt
-      // await api.post('/auth/reset-password', { token, newPassword: password });
-      
-      // Pour l'instant, simulation
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log('[ResetPassword] Mot de passe réinitialisé avec token:', token);
-      
+      await resetPassword(token, password);
       setSuccess(true);
       
       // Redirection après 3 secondes
@@ -188,13 +179,6 @@ export default function ResetPasswordPage() {
               </Link>
             </div>
           </form>
-
-          <div className="mt-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-xs text-yellow-800">
-              🚧 <strong>Backend pas encore implémenté</strong><br />
-              Cette page est prête pour l'endpoint <code>POST /auth/reset-password</code>
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>

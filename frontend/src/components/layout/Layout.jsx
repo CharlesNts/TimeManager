@@ -30,7 +30,9 @@ export default function Layout({
   pageTitle = "Dashboard",
   userName = "Utilisateur",
   userRole = null,
-  userAvatar = null
+  userAvatar = null,
+  notifications = [],
+  onMarkNotificationRead = null
 }) {
   return (
     <div className="flex h-screen bg-gray-50">
@@ -45,6 +47,8 @@ export default function Layout({
           userName={userName}
           userRole={userRole}
           userAvatar={userAvatar}
+          notifications={notifications}
+          onMarkNotificationRead={onMarkNotificationRead}
         />
 
         {/* Contenu scrollable */}

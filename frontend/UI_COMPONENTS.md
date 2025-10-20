@@ -258,7 +258,7 @@ Toutes les routes sont configurées dans `/src/App.jsx` :
 /teams/:teamId     → TeamDetail (avec gestion membres)
 /profile           → ProfilePage
 /users             → UsersListPage (CEO uniquement)
-/demo              → DemoPage
+
 /                  → Redirect vers /dashboard
 *                  → NotFoundPage (404)
 ```

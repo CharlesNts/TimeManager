@@ -20,6 +20,7 @@ import {
 import api from '../api/client';
 import TeamFormModal from '../components/manager/TeamFormModal';
 import WorkScheduleConfigurator from '../components/manager/WorkScheduleConfigurator';
+import PendingLeavesWidget from '../components/manager/PendingLeavesWidget';
 import { createTeam } from '../api/teamApi';
 import { exportManagerDashboardPDF } from '../utils/pdfExport';
 import { exportManagerDashboardCSV } from '../utils/csvExport';
@@ -688,11 +689,16 @@ export default function ManagerDashboard() {
                   </Card>
                 </div>
               </div>
+
+              {/* Pending Leaves Widget */}
+              <div>
+                <PendingLeavesWidget />
+              </div>
               </div>
             )}
           </div>
         </div>
-        
+
         {/* Team modal - rendered globally so it can open regardless of teams list */}
         <TeamFormModal
           isOpen={isTeamModalOpen}

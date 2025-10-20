@@ -1,6 +1,9 @@
 // src/api/client.js
 import axios from 'axios';
 
+// Configuration de l'URL de base de l'API
+// En dev: utilise localhost:8080 directement (CORS configuré côté backend)
+// En prod: utiliser VITE_API_URL dans .env pour pointer vers le domaine réel
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const api = axios.create({
@@ -11,7 +14,12 @@ const api = axios.create({
 // Anti-cache SAFE: on ajoute un paramètre _ts pour les GET
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+    console.log('🔐 [Interceptor] Token ajouté:', token.substring(0, 30) + '...', 'pour', config.url);
+  } else {
+    console.warn('⚠️ [Interceptor] Aucun token trouvé dans localStorage');
+  }
 
   const method = (config.method || 'get').toLowerCase();
   if (method === 'get') {

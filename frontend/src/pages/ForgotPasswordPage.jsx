@@ -6,14 +6,11 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
-import api from '../api/client';
+import { requestPasswordReset } from '../api/passwordApi';
 
 /**
  * Page pour demander la réinitialisation du mot de passe
  * L'utilisateur entre son email, le backend envoie un lien de reset
- * 
- * Backend attendu: POST /auth/forgot-password { email }
- * Réponse: { message: "Email envoyé" }
  */
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
@@ -28,13 +25,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      // TODO: Activer quand le backend sera prêt
-      // await api.post('/auth/forgot-password', { email });
-      
-      // Pour l'instant, simulation
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log('[ForgotPassword] Email envoyé à:', email);
-      
+      await requestPasswordReset(email);
       setSuccess(true);
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur lors de l\'envoi de l\'email');
@@ -131,13 +122,6 @@ export default function ForgotPasswordPage() {
               </Link>
             </div>
           </form>
-
-          <div className="mt-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-xs text-yellow-800">
-              🚧 <strong>Backend pas encore implémenté</strong><br />
-              Cette page est prête pour l'endpoint <code>POST /auth/forgot-password</code>
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>

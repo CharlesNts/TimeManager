@@ -26,7 +26,6 @@ export function AuthProvider({ children }) {
           return;
         }
         const { data } = await api.get('/auth/me');
-        console.log('[AuthContext] User chargé depuis /auth/me:', data);
         setUser(data);
       } catch (err) {
         // Token invalide/expiré → on nettoie et on repart propre

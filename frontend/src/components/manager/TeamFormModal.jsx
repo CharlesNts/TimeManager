@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Users } from 'lucide-react';
 import api from '../../api/client';
+import { createTeam, updateTeam } from '../../api/teamApi';
 
 /**
  * Composant TeamFormModal - Modal pour créer ou modifier une équipe
@@ -49,6 +50,9 @@ export default function TeamFormModal({
     description: '',
     managerId: ''
   });
+  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   // Liste des managers disponibles - Chargée depuis l'API
   const [availableManagers, setAvailableManagers] = useState([]);
@@ -103,27 +107,45 @@ export default function TeamFormModal({
   };
 
   // Soumettre le formulaire
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validation basique
     if (!formData.name.trim()) {
-      alert('Le nom de l\'équipe est obligatoire');
+      setError('Le nom de l\'équipe est obligatoire');
       return;
     }
+    
     if (!formData.managerId) {
-      alert('Veuillez sélectionner un manager');
+      setError('Un manager doit être sélectionné');
       return;
     }
-
-    // Appeler la fonction de sauvegarde
-    onSave({
-      ...formData,
-      managerId: parseInt(formData.managerId)
-    });
-
-    // Fermer le modal
-    onClose();
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      const payload = {
+        name: formData.name,
+        description: formData.description,
+        managerId: parseInt(formData.managerId),
+      };
+      
+      let savedTeam;
+      if (mode === 'create') {
+        savedTeam = await createTeam(payload);
+      } else {
+        savedTeam = await updateTeam(team.id, payload);
+      }
+      
+      if (onSave) onSave(savedTeam);
+      onClose();
+      
+    } catch (err) {
+      console.error('Erreur sauvegarde équipe:', err);
+      setError(err.message || 'Erreur lors de la sauvegarde');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Ne rien afficher si le modal n'est pas ouvert
@@ -162,6 +184,12 @@ export default function TeamFormModal({
           {/* Formulaire */}
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
             
+            {/* Message d'erreur */}
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
             {/* Nom de l'équipe */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -244,6 +272,18 @@ export default function TeamFormModal({
                   </p>
                 </>
               )}
+            </div>
+            
+            {/* Section Planning Obligatoire */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
+                Planning de travail <span className="text-red-500">*</span>
+              </label>
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 mb-3">
+                  Le planning de travail sera configuré après la création de l'équipe. Une boîte de dialogue vous permettra de le configurer immédiatement.
+                </p>
+              </div>
             </div>
 
             {/* Boutons d'action */}

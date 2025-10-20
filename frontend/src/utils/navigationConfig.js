@@ -1,9 +1,10 @@
 // src/utils/navigationConfig.js
-import { 
-  LayoutDashboard, 
-  Users, 
+import {
+  LayoutDashboard,
+  Users,
   UserCog,
-  Clock
+  Clock,
+  Calendar
 } from 'lucide-react';
 
 /**
@@ -23,28 +24,24 @@ const navigationByRole = {
       label: "Mon dashboard", 
       path: "/my-clocks"
     },
-    { 
-      icon: LayoutDashboard, 
-      label: "Vue d'ensemble", 
-      path: "/dashboard"
-    }
+    // 'Vue d'ensemble' deliberately omitted for EMPLOYEE to avoid duplication
   ],
   MANAGER: [
-    { 
-      icon: Clock, 
-      label: "Mon dashboard", 
+    {
+      icon: Clock,
+      label: "Mon dashboard",
       path: "/my-clocks"
     },
-    { 
-      icon: LayoutDashboard, 
-      label: "Vue d'ensemble", 
-      path: "/dashboard"
+    {
+      icon: LayoutDashboard,
+      label: "Vue d'ensemble",
+      path: "/dashboard-manager"
     },
-    { 
-      icon: Users, 
-      label: "Équipes", 
-      path: "/teams"
-    }
+    {
+      icon: Calendar,
+      label: "Plannings",
+      path: "/schedule-templates"
+    },
   ],
   CEO: [
     { 
@@ -55,7 +52,7 @@ const navigationByRole = {
     { 
       icon: LayoutDashboard, 
       label: "Vue d'ensemble", 
-      path: "/dashboard"
+      path: "/dashboard-ceo"
     },
     { 
       icon: Users, 
@@ -108,7 +105,7 @@ export const ROLES = {
  * Routes protégées et leurs rôles autorisés
  */
 export const PROTECTED_ROUTES = {
-  '/teams': ['MANAGER', 'CEO'],
+  '/teams': ['CEO'],
   '/users': ['CEO']
 };
 

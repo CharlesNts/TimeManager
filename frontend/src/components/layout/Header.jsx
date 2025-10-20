@@ -35,10 +35,15 @@ export default function Header({
   title = "Dashboard", 
   userName = "Utilisateur", 
   userRole = null,
-  userAvatar = null 
+  userAvatar = null,
+  notifications = [],
+  onMarkNotificationRead = null
 }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
+  
+  // Compter les notifications non lues
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   const handleLogout = () => {
     logout();
@@ -78,28 +83,98 @@ export default function Header({
       <div className="flex items-center justify-between">
         {/* Logo / Nom de l'application */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-slate-900 to-slate-700 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xl">P</span>
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">PrimeBank</h1>
-            <p className="text-xs text-gray-500">Time Manager</p>
+          <img 
+            src="/images/PrimeBank-Logo.png" 
+            alt="PrimeBank" 
+            className="h-10 object-contain"
+            onError={(e) => {
+              // Fallback si l'image n'est pas trouvée
+              e.target.style.display = 'none';
+              e.target.nextElementSibling.style.display = 'flex';
+            }}
+          />
+          <div className="flex items-center gap-3 hidden">
+            <div className="w-10 h-10 bg-gradient-to-br from-slate-900 to-slate-700 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-xl">P</span>
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 tracking-tight">PrimeBank</h1>
+              <p className="text-xs text-gray-500">Time Manager</p>
+            </div>
           </div>
         </div>
 
         {/* Partie droite: Notifications + Profil utilisateur */}
         <div className="flex items-center gap-3">
           
-          {/* Bouton de notification */}
-          <Button 
-            variant="outline" 
-            size="icon"
-            className="relative"
-          >
-            <Bell className="w-4 h-4" />
-            {/* Badge de notification (exemple) */}
-            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-          </Button>
+          {/* Dropdown de notifications */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="icon"
+                className="relative"
+              >
+                <Bell className="w-4 h-4" />
+                {/* Badge de notification */}
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-semibold rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80">
+              <DropdownMenuLabel className="flex items-center justify-between">
+                <span>Notifications</span>
+                {unreadCount > 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
+                  </Badge>
+                )}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              
+              {notifications.length === 0 ? (
+                <div className="p-4 text-center text-sm text-gray-500">
+                  🔔 Notifications temporairement indisponibles
+                  <p className="text-xs text-gray-400 mt-1">
+                    Le système de notifications nécessite une implémentation complète dans le backend.
+                  </p>
+                </div>
+              ) : (
+                <div className="max-h-[400px] overflow-y-auto">
+                  {notifications.map((notification) => (
+                    <DropdownMenuItem
+                      key={notification.id}
+                      className={`flex flex-col items-start gap-1 p-3 cursor-pointer ${
+                        !notification.read ? 'bg-blue-50' : ''
+                      }`}
+                      onClick={() => onMarkNotificationRead && onMarkNotificationRead(notification.id)}
+                    >
+                      <div className="flex items-start gap-2 w-full">
+                        <span className="text-lg">{notification.icon}</span>
+                        <div className="flex-1">
+                          <p className={`text-sm ${!notification.read ? 'font-semibold' : ''}`}>
+                            {notification.title}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {notification.message}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {notification.time}
+                          </p>
+                        </div>
+                        {!notification.read && (
+                          <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1" />
+                        )}
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Dropdown menu utilisateur avec shadcn */}
           <DropdownMenu>

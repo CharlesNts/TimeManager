@@ -1,12 +1,13 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { Toaster } from './components/ui/sonner';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import DemoPage from './pages/DemoPage';
+
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import ManagerDashboard from './pages/ManagerDashboard';
 import CEODashboard from './pages/CEODashboard';
@@ -15,6 +16,7 @@ import TeamDetail from './pages/TeamDetail';
 import ProfilePage from './pages/ProfilePage';
 import UsersListPage from './pages/UsersListPage';
 import CreateUserPage from './pages/CreateUserPage';
+import ScheduleTemplatesPage from './pages/ScheduleTemplatesPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 /**
@@ -40,13 +42,15 @@ function DashboardRouter() {
  * - /register : Inscription
  * - /forgot-password : Demande de réinitialisation mot de passe
  * - /reset-password?token=xxx : Réinitialisation mot de passe avec token
- * - /dashboard : Dashboard (redirige selon le rôle)
+ * - /my-clocks : Dashboard personnel / Mes pointages (page par défaut)
+ * - /dashboard-manager : Dashboard Manager (Manager uniquement)
+ * - /dashboard-ceo : Dashboard CEO (CEO uniquement)
  * - /teams : Liste des équipes (Manager/CEO uniquement)
  * - /teams/:teamId : Détails d'une équipe (Manager/CEO uniquement)
  * - /profile : Profil utilisateur (tous les utilisateurs authentifiés)
  * - /users : Gestion des utilisateurs (CEO uniquement)
- * - /demo : Page de démonstration des composants
- * - / : Redirige vers /dashboard par défaut
+ 
+ * - / : Redirige vers /my-clocks par défaut
  * - * : Page 404
  * 
  * Les routes protégées utilisent ProtectedRoute avec allowedRoles
@@ -56,6 +60,7 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <Toaster position="top-right" richColors closeButton />
         <Routes>
           {/* Authentification - Pages publiques */}
           <Route path="/login" element={<LoginPage />} />
@@ -64,22 +69,32 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           
-          {/* Dashboards spécifiques par rôle */}
-          <Route 
-            path="/dashboard" 
-            element={
-              <ProtectedRoute>
-                <DashboardRouter />
-              </ProtectedRoute>
-            } 
-          />
-          
-          {/* Dashboard personnel / Mes pointages - Accessible à tous */}
+          {/* Dashboard personnel / Mes pointages - Page par défaut - Accessible à tous */}
           <Route 
             path="/my-clocks" 
             element={
               <ProtectedRoute>
                 <EmployeeDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* Dashboard Manager - Manager uniquement */}
+          <Route 
+            path="/dashboard-manager" 
+            element={
+              <ProtectedRoute allowedRoles={['MANAGER']}>
+                <ManagerDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* Dashboard CEO - CEO uniquement */}
+          <Route 
+            path="/dashboard-ceo" 
+            element={
+              <ProtectedRoute allowedRoles={['CEO']}>
+                <CEODashboard />
               </ProtectedRoute>
             } 
           />
@@ -94,21 +109,21 @@ function App() {
             } 
           />
           
-          {/* Liste des équipes - Manager/CEO uniquement */}
+          {/* Liste des équipes - CEO uniquement */}
           <Route 
             path="/teams" 
             element={
-              <ProtectedRoute allowedRoles={['MANAGER', 'CEO']}>
+              <ProtectedRoute allowedRoles={['CEO']}>
                 <TeamsList />
               </ProtectedRoute>
             } 
           />
           
-          {/* Détails d'une équipe - Manager/CEO uniquement */}
+          {/* Détails d'une équipe - accessible aux utilisateurs authentifiés (membres/managers/CEO) */}
           <Route 
             path="/teams/:teamId" 
             element={
-              <ProtectedRoute allowedRoles={['MANAGER', 'CEO']}>
+              <ProtectedRoute>
                 <TeamDetail />
               </ProtectedRoute>
             } 
@@ -135,20 +150,27 @@ function App() {
           />
           
           {/* Création d'utilisateur - CEO uniquement */}
-          <Route 
-            path="/users/create" 
+          <Route
+            path="/users/create"
             element={
               <ProtectedRoute allowedRoles={['CEO']}>
                 <CreateUserPage />
               </ProtectedRoute>
-            } 
+            }
           />
-          
-          {/* Page de démo des composants - Public */}
-          <Route path="/demo" element={<DemoPage />} />
-          
-          {/* Redirection par défaut vers /dashboard */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+          {/* Gestion des plannings - Manager uniquement */}
+          <Route
+            path="/schedule-templates"
+            element={
+              <ProtectedRoute allowedRoles={['MANAGER']}>
+                <ScheduleTemplatesPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Redirection par défaut vers /my-clocks */}
+          <Route path="/" element={<Navigate to="/my-clocks" replace />} />
           
           {/* Route 404 - Page non trouvée */}
           <Route path="*" element={<NotFoundPage />} />
