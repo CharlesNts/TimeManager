@@ -12,6 +12,7 @@ export default function PendingLeavesWidget() {
   const [processingId, setProcessingId] = useState(null);
   const [showRejectNote, setShowRejectNote] = useState(null);
   const [rejectNote, setRejectNote] = useState('');
+  const [backendNotConfigured] = useState(true); // TODO: Remove when backend is fixed
 
   useEffect(() => {
     loadPendingLeaves();
@@ -82,6 +83,42 @@ export default function PendingLeavesWidget() {
         <CardContent>
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Backend note: The /api/leaves/pending endpoint needs to be configured to filter
+  // requests by manager. Currently it returns ALL pending leaves in the system.
+  // The proper query exists in the repository but isn't wired in the controller/service.
+  if (backendNotConfigured) {
+    return (
+      <Card className="border-yellow-200 bg-yellow-50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="w-5 h-5" />
+            Demandes de congés en attente
+          </CardTitle>
+          <CardDescription>
+            Fonctionnalité en configuration
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="p-4 bg-yellow-100 border border-yellow-300 rounded-lg">
+            <p className="text-sm text-yellow-800 font-semibold mb-2">⚠️ Fonctionnalité non disponible</p>
+            <p className="text-xs text-yellow-700 mb-3">
+              Le backend n'est pas encore configuré pour filtrer les demandes de congés par manager.
+            </p>
+            <details className="text-xs text-yellow-700">
+              <summary className="cursor-pointer font-semibold mb-2">Détails techniques (cliquer pour voir)</summary>
+              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-left font-mono text-xs space-y-1">
+                <p><strong>Problème:</strong> L'endpoint /api/leaves/pending retourne TOUTES les demandes du système.</p>
+                <p><strong>Solution:</strong> Le controller doit extraire le manager connecté et appeler findPendingForManager(managerId).</p>
+                <p><strong>Fichier:</strong> LeavesController.java (ligne 76-79)</p>
+                <p><strong>Status:</strong> En attente de correction backend</p>
+              </div>
+            </details>
           </div>
         </CardContent>
       </Card>
