@@ -7,17 +7,17 @@ export async function fetchUsers() {
 }
 
 export async function fetchPendingUsers() {
-  const { data } = await api.get('/api/users/users/pending');
+  const { data } = await api.get('/api/users/pending');
   return Array.isArray(data) ? data : [];
 }
 
 export async function approveUser(id) {
-  await api.put(`/api/users/users/${id}/approve`);
+  await api.put(`/api/users/${id}/approve`);
   return true;
 }
 
 export async function rejectUser(id) {
-  await api.put(`/api/users/users/${id}/reject`);
+  await api.put(`/api/users/${id}/reject`);
   return true;
 }
 

@@ -124,3 +124,13 @@ export async function updateTeam(teamId, payload) {
 export async function deleteTeam(teamId) {
   await api.delete(`/api/teams/${teamId}`);
 }
+
+/** Gestion des membres */
+export async function addMember(teamId, userId) {
+  const { data } = await api.post(`/api/teams/${teamId}/members/${userId}`);
+  return data;
+}
+
+export async function removeMember(teamId, userId) {
+  await api.delete(`/api/teams/${teamId}/members/${userId}`);
+}

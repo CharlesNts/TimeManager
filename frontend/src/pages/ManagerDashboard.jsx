@@ -15,15 +15,36 @@ import {
   AlertCircle,
   FileDown,
   FileSpreadsheet,
+  CalendarClock,
 } from 'lucide-react';
 import api from '../api/client';
+import TeamFormModal from '../components/manager/TeamFormModal';
+import WorkScheduleConfigurator from '../components/manager/WorkScheduleConfigurator';
+import { createTeam } from '../api/teamApi';
 import { exportManagerDashboardPDF } from '../utils/pdfExport';
 import { exportManagerDashboardCSV } from '../utils/csvExport';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import KPICard from '../components/dashboard/KPICard';
+import KPIChartCard from '../components/dashboard/KPIChartCard';
+import PeriodSelector from '../components/manager/PeriodSelector';
 import ExportMenu from '../components/ui/ExportMenu';
+import { generateMockDailyStats, buildChartSeries } from '../api/statsApi';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+
+// Custom Tooltip identique à EmployeeDashboard
+const CustomTooltip = ({ active, payload }) => {
+  if (active && payload && payload[0]) {
+    return (
+      <div className="bg-white p-2 border border-gray-200 rounded shadow-lg text-xs">
+        <p className="font-medium">{payload[0].payload.label}</p>
+        <p className="text-gray-600">{payload[0].value}</p>
+      </div>
+    )
+  }
+  return null
+};
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
@@ -38,13 +59,21 @@ export default function ManagerDashboard() {
     activeMembers: 0,
     totalHoursThisWeek: 0,
   });
+  
+  // KPI states avec charts
+  const [selectedPeriod, setSelectedPeriod] = useState(7);
+  const [hoursTotals, setHoursTotals] = useState({ current: 0, previous: 0 });
+  const [avgTotals, setAvgTotals] = useState({ current: 0, previous: 0 });
+  const [hoursChartSeries, setHoursChartSeries] = useState([]);
+  const [avgChartSeries, setAvgChartSeries] = useState([]);
+  const [latenessData, setLatenessData] = useState({ totalDays: 0, lateDays: 0, rate: 0, lateDaysChartSeries: [] });
 
-  useEffect(() => {
-    const loadDashboard = async () => {
-      if (!user || user.role !== 'MANAGER') return;
-      
-      setLoading(true);
-      try {
+  // extract loadDashboard so it can be called after team creation
+  const loadDashboard = async () => {
+    if (!user || user.role !== 'MANAGER') return;
+    
+    setLoading(true);
+    try {
         // Charger les équipes du manager
         const { data: myTeams } = await api.get('/api/teams', {
           params: { managerId: user.id }
@@ -131,15 +160,215 @@ export default function ManagerDashboard() {
           totalHoursThisWeek: totalHours,
         });
 
+    } catch (err) {
+      console.error('[ManagerDashboard] Erreur chargement:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadDashboard(); }, [user]);
+  
+  // Charger les vraies statistiques avec charts
+  useEffect(() => {
+    if (!stats.totalMembers || !user) return;
+    
+    const loadRealStats = async () => {
+      try {
+        const now = new Date();
+        const startOfCurrentPeriod = new Date(now);
+        startOfCurrentPeriod.setDate(now.getDate() - selectedPeriod + 1);
+        startOfCurrentPeriod.setHours(0, 0, 0, 0);
+        
+        const startOfPreviousPeriod = new Date(startOfCurrentPeriod);
+        startOfPreviousPeriod.setDate(startOfPreviousPeriod.getDate() - selectedPeriod);
+        
+        // Récupérer tous les membres de toutes les équipes
+        const allMemberIds = teams.flatMap(team => 
+          team.members.map(member => member.user?.id || member.userId)
+        ).filter(Boolean);
+        
+        let totalCurrentMinutes = 0;
+        let totalPreviousMinutes = 0;
+        let totalLateDays = 0;
+        let totalWorkedDays = 0;
+        const dailyHoursMap = {};
+        const dailyLateMap = {}; // Ajouter un map pour les retards par jour
+        
+        // Pour chaque membre, récupérer les heures travaillées
+        await Promise.all(
+          allMemberIds.map(async (userId) => {
+            try {
+              // Période actuelle
+              const { data: currentClocks } = await api.get(`/api/users/${userId}/clocks/range`, {
+                params: {
+                  from: startOfCurrentPeriod.toISOString(),
+                  to: now.toISOString()
+                }
+              });
+              
+              // Période précédente
+              const { data: previousClocks } = await api.get(`/api/users/${userId}/clocks/range`, {
+                params: {
+                  from: startOfPreviousPeriod.toISOString(),
+                  to: startOfCurrentPeriod.toISOString()
+                }
+              });
+              
+              // Calculer les minutes pour la période actuelle
+              if (Array.isArray(currentClocks)) {
+                currentClocks.forEach(clock => {
+                  const clockIn = new Date(clock.clockIn);
+                  const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
+                  const minutes = Math.round((clockOut - clockIn) / 60000);
+                  totalCurrentMinutes += Math.max(0, minutes);
+                  
+                  // Regrouper par jour pour le graphique
+                  const dayKey = clockIn.toISOString().split('T')[0];
+                  dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
+                  
+                  // Vérifier si c'est un retard (après 9h30)
+                  if (clockIn.getHours() > 9 || (clockIn.getHours() === 9 && clockIn.getMinutes() > 30)) {
+                    totalLateDays++;
+                    dailyLateMap[dayKey] = (dailyLateMap[dayKey] || 0) + 1;
+                  }
+                });
+                totalWorkedDays += currentClocks.length;
+              }
+              
+              // Calculer les minutes pour la période précédente
+              if (Array.isArray(previousClocks)) {
+                previousClocks.forEach(clock => {
+                  const clockIn = new Date(clock.clockIn);
+                  const clockOut = clock.clockOut ? new Date(clock.clockOut) : startOfCurrentPeriod;
+                  const minutes = Math.round((clockOut - clockIn) / 60000);
+                  totalPreviousMinutes += Math.max(0, minutes);
+                });
+              }
+            } catch (err) {
+              console.warn(`[ManagerDashboard] Erreur stats pour utilisateur ${userId}:`, err);
+            }
+          })
+        );
+        
+        // Calculer les moyennes
+        const avgCurrentMinutes = allMemberIds.length > 0 ? totalCurrentMinutes / allMemberIds.length : 0;
+        const avgPreviousMinutes = allMemberIds.length > 0 ? totalPreviousMinutes / allMemberIds.length : 0;
+        
+        // Générer les séries pour les graphiques
+        const dailyStats = [];
+        for (let i = selectedPeriod - 1; i >= 0; i--) {
+          const date = new Date(now);
+          date.setDate(date.getDate() - i);
+          const dayKey = date.toISOString().split('T')[0];
+          dailyStats.push({
+            date: dayKey,
+            minutesWorked: dailyHoursMap[dayKey] || 0
+          });
+        }
+        
+        const hoursData = buildChartSeries(dailyStats, 12, selectedPeriod);
+        const avgData = buildChartSeries(dailyStats.map(stat => ({ 
+          ...stat, 
+          minutesWorked: allMemberIds.length > 0 ? (stat.minutesWorked / allMemberIds.length) : 0 
+        })), 12, selectedPeriod);
+        
+        // Calculer le taux de retard
+        const latenessRate = totalWorkedDays > 0 ? (totalLateDays / totalWorkedDays) * 100 : 0;
+        
+        // Série pour le chart des retards - utiliser les vraies données quotidiennes
+        const dailyLateStats = [];
+        for (let i = selectedPeriod - 1; i >= 0; i--) {
+          const date = new Date(now);
+          date.setDate(date.getDate() - i);
+          const dayKey = date.toISOString().split('T')[0];
+          // Pour chaque jour, afficher le nombre de retards ce jour-là (en minutes pour compatibilité)
+          dailyLateStats.push({
+            date: dayKey,
+            minutesWorked: (dailyLateMap[dayKey] || 0) * 60 // Convertir en minutes pour la cohérence
+          });
+        }
+        const latenessSeries = buildChartSeries(dailyLateStats, 12, selectedPeriod);
+        
+        // Convertir les minutes en heures pour l'affichage
+        const hoursCurrentDisplay = Math.round(totalCurrentMinutes / 60 * 100) / 100; // 2 décimales
+        const hoursPreviousDisplay = Math.round(totalPreviousMinutes / 60 * 100) / 100;
+        const avgCurrentDisplay = Math.round(avgCurrentMinutes / 60 * 100) / 100;
+        const avgPreviousDisplay = Math.round(avgPreviousMinutes / 60 * 100) / 100;
+        
+        setHoursTotals({
+          current: hoursCurrentDisplay,
+          previous: hoursPreviousDisplay,
+          currentMinutes: totalCurrentMinutes,
+          previousMinutes: totalPreviousMinutes
+        });
+        
+        setAvgTotals({
+          current: avgCurrentDisplay,
+          previous: avgPreviousDisplay,
+          currentMinutes: avgCurrentMinutes,
+          previousMinutes: avgPreviousMinutes
+        });
+        
+        setHoursChartSeries(hoursData);
+        setAvgChartSeries(avgData);
+        
+        setLatenessData({
+          totalDays: totalWorkedDays,
+          lateDays: totalLateDays,
+          rate: latenessRate,
+          lateDaysChartSeries: latenessSeries
+        });
+        
       } catch (err) {
-        console.error('[ManagerDashboard] Erreur chargement:', err);
-      } finally {
-        setLoading(false);
+        console.error('[ManagerDashboard] Erreur chargement statistiques:', err);
       }
     };
+    
+    loadRealStats();
+  }, [stats.totalMembers, selectedPeriod, teams, user]);
 
-    loadDashboard();
-  }, [user]);
+  // --- Team creation modal state ---
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const [teamModalMode, setTeamModalMode] = useState('create');
+  
+  // --- Work schedule configurator state ---
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [selectedTeamForSchedule, setSelectedTeamForSchedule] = useState(null);
+
+  const handleOpenCreateTeam = () => {
+    setTeamModalMode('create');
+    setIsTeamModalOpen(true);
+  };
+  
+  const handleOpenScheduleConfig = (team) => {
+    setSelectedTeamForSchedule(team);
+    setIsScheduleModalOpen(true);
+  };
+
+  const handleSaveTeam = async (teamData) => {
+    try {
+      const payload = {
+        name: teamData.name,
+        description: teamData.description,
+        managerId: teamData.managerId || user?.id,
+      };
+      const createdTeam = await createTeam(payload);
+      setIsTeamModalOpen(false);
+      await loadDashboard();
+      
+      // Proposer de configurer les horaires après création
+      const shouldConfig = window.confirm(
+        `Équipe "${payload.name}" créée avec succès !\n\nVoulez-vous configurer les horaires de travail maintenant ?`
+      );
+      if (shouldConfig && createdTeam) {
+        setSelectedTeamForSchedule(createdTeam);
+        setIsScheduleModalOpen(true);
+      }
+    } catch (e) {
+      alert(e.message || 'Enregistrement impossible');
+    }
+  };
 
   const handleExportPDF = () => {
     exportManagerDashboardPDF(user, stats, teams);
@@ -174,14 +403,16 @@ export default function ManagerDashboard() {
                   onExportCSV={handleExportCSV}
                   variant="outline"
                 />
+                {/* Manager can create teams locally via modal */}
                 <Button
-                  onClick={() => navigate('/teams')}
+                  onClick={handleOpenCreateTeam}
                   variant="default"
                   size="sm"
                 >
                   <Plus className="w-4 h-4" />
                   Créer une équipe
-              </Button>
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -191,137 +422,299 @@ export default function ManagerDashboard() {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* KPIs Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <KPICard
-                  title="Mes Équipes"
-                  value={stats.totalTeams}
-                  icon={Building2}
-                />
-                <KPICard
-                  title="Total Membres"
-                  value={stats.totalMembers}
-                  icon={Users}
-                />
-                <KPICard
-                  title="Actifs maintenant"
-                  value={stats.activeMembers}
-                  icon={TrendingUp}
-                />
-                <KPICard
-                  title="Heures cette semaine"
-                  value={`${stats.totalHoursThisWeek}h`}
-                  icon={Clock}
-                />
-              </div>
-
-              {/* Layout en 2 colonnes */}
+              {/* Layout en 2 colonnes : Équipes à gauche (33%), Statistiques à droite (67%) */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* Colonne gauche : Actions rapides (33%) */}
+                {/* Colonne gauche : Vos équipes (33%) */}
                 <div className="lg:col-span-1">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Building2 className="w-5 h-5" />
-                        Actions rapides
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <Button
-                          onClick={() => navigate('/teams')}
-                          variant="default"
-                          className="w-full justify-start"
-                          size="lg"
-                        >
-                          <Building2 className="w-4 h-4 mr-2" />
-                          Gérer mes équipes
-                        </Button>
-                        <Button
-                          onClick={() => navigate('/profile')}
-                          variant="outline"
-                          className="w-full justify-start"
-                          size="lg"
-                        >
-                          <User className="w-4 h-4 mr-2" />
-                          Mon profil
-                        </Button>
-                        <Button
-                          onClick={() => navigate('/my-clocks')}
-                          variant="outline"
-                          className="w-full justify-start"
-                          size="lg"
-                        >
-                          <Clock className="w-4 h-4 mr-2" />
-                          Mes pointages
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <div className="sticky top-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Building2 className="w-5 h-5" />
+                          Vos équipes
+                        </CardTitle>
+                        <CardDescription>
+                          {teams.length} équipe{teams.length > 1 ? 's' : ''} gérée{teams.length > 1 ? 's' : ''}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {teams.length === 0 ? (
+                          <div className="text-center py-8">
+                            <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                            <h3 className="text-sm font-medium text-gray-900 mb-2">
+                              Aucune équipe
+                            </h3>
+                            <p className="text-xs text-gray-500 mb-3">
+                              Créez votre première équipe
+                            </p>
+                            <Button
+                              onClick={handleOpenCreateTeam}
+                              size="sm"
+                              className="w-full"
+                            >
+                              <Plus className="w-4 h-4 mr-2" />
+                              Créer
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {teams.map(team => (
+                              <div
+                                key={team.id}
+                                className="p-3 border border-gray-200 rounded-lg hover:border-gray-400 hover:shadow-md transition cursor-pointer"
+                                onClick={() => navigate(`/teams/${team.id}`)}
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <h4 className="font-semibold text-sm text-gray-900">{team.name}</h4>
+                                    <p className="text-xs text-gray-500 mt-1 truncate">{team.description || 'Aucune description'}</p>
+                                    <div className="flex items-center mt-2 text-xs text-gray-600">
+                                      <Users className="w-3 h-3 mr-1" />
+                                      {team.memberCount} {team.memberCount > 1 ? 'membres' : 'membre'}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenScheduleConfig(team);
+                                    }}
+                                    title="Configurer les horaires"
+                                  >
+                                    <CalendarClock className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                            <Button
+                              onClick={handleOpenCreateTeam}
+                              variant="outline"
+                              size="sm"
+                              className="w-full mt-3"
+                            >
+                              <Plus className="w-4 h-4 mr-2" />
+                              Créer une équipe
+                            </Button>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
                 </div>
 
-                {/* Colonne droite : Liste des équipes (67%) */}
+                {/* Colonne droite : Statistiques globales (67%) */}
                 <div className="lg:col-span-2">
+                  {/* Info rapide sur les équipes - KPIs simples */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <KPICard
+                      title="Mes Équipes"
+                      value={stats.totalTeams}
+                      icon={Building2}
+                    />
+                    <KPICard
+                      title="Total Membres"
+                      value={stats.totalMembers}
+                      icon={Users}
+                    />
+                    <KPICard
+                      title="Actifs maintenant"
+                      value={stats.activeMembers}
+                      icon={TrendingUp}
+                    />
+                    <KPICard
+                      title="Cette semaine"
+                      value={`${stats.totalHoursThisWeek}h`}
+                      icon={Clock}
+                    />
+                  </div>
+
+                  {/* Statistiques détaillées */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Building2 className="w-5 h-5" />
-                        Vos équipes
-                      </CardTitle>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-xl">Mes statistiques</CardTitle>
+                          <CardDescription>
+                            Aperçu des performances de vos équipes sur {selectedPeriod} jours
+                          </CardDescription>
+                        </div>
+                        <ExportMenu 
+                          onExportPDF={handleExportPDF}
+                          onExportCSV={handleExportCSV}
+                          variant="default"
+                        />
+                      </div>
+                      <div className="pt-4">
+                        <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+                      </div>
                     </CardHeader>
                     <CardContent>
-
-                {teams.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
-                      Aucune équipe pour le moment
-                    </h3>
-                    <p className="text-sm text-gray-500 mb-4">
-                      Commencez par créer votre première équipe
-                    </p>
-                    <button
-                      onClick={() => navigate('/teams')}
-                      className="inline-flex items-center px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800"
-                    >
-                      <Plus className="w-5 h-5 mr-2" />
-                      Créer une équipe
-                    </button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {teams.map(team => (
-                      <div
-                        key={team.id}
-                        onClick={() => navigate(`/teams/${team.id}`)}
-                        className="p-4 border border-gray-200 rounded-lg hover:border-gray-400 hover:shadow-md cursor-pointer transition"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900">{team.name}</h4>
-                            <p className="text-sm text-gray-500 mt-1">{team.description || 'Aucune description'}</p>
-                            <div className="flex items-center space-x-4 mt-3 text-sm text-gray-600">
-                              <span className="flex items-center">
-                                <Users className="w-4 h-4 mr-1" />
-                                {team.memberCount} {team.memberCount > 1 ? 'membres' : 'membre'}
-                              </span>
+                      <div className="space-y-6">
+                        {/* Heures totales */}
+                        <Card>
+                          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-gray-500">
+                              Heures totales équipes
+                            </CardTitle>
+                            <Clock className="h-4 w-4 text-gray-400" />
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold">
+                              {Math.floor(hoursTotals.current)}h {Math.round((hoursTotals.current % 1) * 60)}m
                             </div>
-                          </div>
-                        </div>
+                            <p className="text-xs text-gray-500 mt-2">Sur les {selectedPeriod} derniers jours</p>
+                            <div className="h-[120px] mt-4">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={hoursChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
+                                  <defs>
+                                    <linearGradient id="hoursFill" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="6%" stopColor="var(--color-desktop)" stopOpacity={0.16} />
+                                      <stop offset="95%" stopColor="var(--color-desktop)" stopOpacity={0.03} />
+                                    </linearGradient>
+                                  </defs>
+                                  <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
+                                  <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
+                                  <YAxis hide />
+                                  <RechartsTooltip content={<CustomTooltip />} cursor={false} />
+                                  <Area type="monotone" dataKey="value" stroke="var(--color-desktop)" fill="url(#hoursFill)" strokeWidth={2} dot={false} />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Taux de retard */}
+                        <Card>
+                          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-gray-500">
+                              Taux de retard
+                            </CardTitle>
+                            <AlertCircle className="h-4 w-4 text-gray-400" />
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold">{latenessData.rate.toFixed(1)}%</div>
+                            <p className="text-xs text-gray-500 mt-2">{latenessData.lateDays} jours en retard sur {latenessData.totalDays} jours travaillés</p>
+                            <div className="h-[120px] mt-4">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={latenessData.lateDaysChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
+                                  <defs>
+                                    <linearGradient id="lateFill" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="6%" stopColor="var(--color-mobile)" stopOpacity={0.16} />
+                                      <stop offset="95%" stopColor="var(--color-mobile)" stopOpacity={0.03} />
+                                    </linearGradient>
+                                  </defs>
+                                  <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
+                                  <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
+                                  <YAxis hide />
+                                  <RechartsTooltip content={<CustomTooltip />} cursor={false} />
+                                  <Area type="monotone" dataKey="value" stroke="var(--color-mobile)" fill="url(#lateFill)" strokeWidth={2} dot={false} />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Moyenne par membre */}
+                        <Card>
+                          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-gray-500">
+                              Moyenne par membre
+                            </CardTitle>
+                            <User className="h-4 w-4 text-gray-400" />
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold">
+                              {Math.floor(avgTotals.current)}h {Math.round((avgTotals.current % 1) * 60)}m
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2">Moyenne par jour sur {selectedPeriod} jours</p>
+                            <div className="h-[120px] mt-4">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={avgChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
+                                  <defs>
+                                    <linearGradient id="avgFill" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="6%" stopColor="var(--color-mobile)" stopOpacity={0.16} />
+                                      <stop offset="95%" stopColor="var(--color-mobile)" stopOpacity={0.03} />
+                                    </linearGradient>
+                                  </defs>
+                                  <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
+                                  <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
+                                  <YAxis hide />
+                                  <RechartsTooltip content={<CustomTooltip />} cursor={false} />
+                                  <Area type="monotone" dataKey="value" stroke="var(--color-mobile)" fill="url(#avgFill)" strokeWidth={2} dot={false} />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Comparaison */}
+                        <Card>
+                          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-gray-500">
+                              Comparaison
+                            </CardTitle>
+                            <TrendingUp className="h-4 w-4 text-gray-400" />
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold">
+                              {hoursTotals.currentMinutes >= hoursTotals.previousMinutes ? "↗" : "↘"} 
+                              {" "}
+                              {hoursTotals.previousMinutes > 0 ? Math.abs(((hoursTotals.currentMinutes - hoursTotals.previousMinutes) / hoursTotals.previousMinutes * 100).toFixed(1)) : '0'}%
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2">vs période précédente</p>
+                            <div className="h-[120px] mt-4">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={hoursChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
+                                  <defs>
+                                    <linearGradient id="compFill" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="6%" stopColor="var(--color-desktop)" stopOpacity={0.16} />
+                                      <stop offset="95%" stopColor="var(--color-desktop)" stopOpacity={0.03} />
+                                    </linearGradient>
+                                  </defs>
+                                  <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
+                                  <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
+                                  <YAxis hide />
+                                  <RechartsTooltip content={<CustomTooltip />} cursor={false} />
+                                  <Area type="monotone" dataKey="value" stroke="var(--color-desktop)" fill="url(#compFill)" strokeWidth={2} dot={false} />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </CardContent>
+                        </Card>
                       </div>
-                    ))}
-                  </div>
-                )}
                     </CardContent>
                   </Card>
                 </div>
               </div>
-            </div>
-          )}
+              </div>
+            )}
           </div>
         </div>
-      </div>
+        
+        {/* Team modal - rendered globally so it can open regardless of teams list */}
+        <TeamFormModal
+          isOpen={isTeamModalOpen}
+          mode={teamModalMode}
+          team={null}
+          onClose={() => setIsTeamModalOpen(false)}
+          onSave={handleSaveTeam}
+          userRole={user?.role}
+          currentUserId={user?.id}
+        />
+        
+        {/* Work schedule configurator modal */}
+        <WorkScheduleConfigurator
+          open={isScheduleModalOpen}
+          onClose={() => setIsScheduleModalOpen(false)}
+          teamId={selectedTeamForSchedule?.id}
+          teamName={selectedTeamForSchedule?.name}
+          onSave={() => {
+            setIsScheduleModalOpen(false);
+            loadDashboard(); // Recharger les données après sauvegarde
+          }}
+        />
     </Layout>
   );
 }
