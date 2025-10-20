@@ -8,13 +8,14 @@ import api from './client';
 
 /**
  * Types de congés disponibles
+ * Doit matcher les valeurs du backend enum LeaveType
  */
 export const LEAVE_TYPES = {
-  PAID_LEAVE: 'PAID_LEAVE',           // Congé payé
-  SICK_LEAVE: 'SICK_LEAVE',           // Arrêt maladie
-  UNPAID_LEAVE: 'UNPAID_LEAVE',       // Congé sans solde
-  PARENTAL_LEAVE: 'PARENTAL_LEAVE',   // Congé parental
-  OTHER: 'OTHER',                      // Autre
+  PAID: 'PAID',                   // Congé payé
+  SICK: 'SICK',                   // Arrêt maladie
+  UNPAID: 'UNPAID',               // Congé sans solde
+  TRAINING: 'TRAINING',           // Formation
+  OTHER: 'OTHER',                 // Autre
 };
 
 /**
@@ -138,10 +139,10 @@ export const getPendingLeaves = async () => {
 // Traduire le type de congé en français
 export const getLeaveTypeLabel = (type) => {
   const labels = {
-    [LEAVE_TYPES.PAID_LEAVE]: 'Congé payé',
-    [LEAVE_TYPES.SICK_LEAVE]: 'Arrêt maladie',
-    [LEAVE_TYPES.UNPAID_LEAVE]: 'Congé sans solde',
-    [LEAVE_TYPES.PARENTAL_LEAVE]: 'Congé parental',
+    [LEAVE_TYPES.PAID]: 'Congé payé',
+    [LEAVE_TYPES.SICK]: 'Arrêt maladie',
+    [LEAVE_TYPES.UNPAID]: 'Congé sans solde',
+    [LEAVE_TYPES.TRAINING]: 'Formation',
     [LEAVE_TYPES.OTHER]: 'Autre',
   };
   return labels[type] || type;

@@ -8,15 +8,15 @@ import { AlertCircle, Calendar, Loader2 } from 'lucide-react';
 import { requestLeave, LEAVE_TYPES, getLeaveTypeLabel } from '../../api/leavesApi';
 
 const LEAVE_TYPE_OPTIONS = [
-  { value: LEAVE_TYPES.PAID_LEAVE, label: getLeaveTypeLabel(LEAVE_TYPES.PAID_LEAVE) },
-  { value: LEAVE_TYPES.SICK_LEAVE, label: getLeaveTypeLabel(LEAVE_TYPES.SICK_LEAVE) },
-  { value: LEAVE_TYPES.UNPAID_LEAVE, label: getLeaveTypeLabel(LEAVE_TYPES.UNPAID_LEAVE) },
-  { value: LEAVE_TYPES.PARENTAL_LEAVE, label: getLeaveTypeLabel(LEAVE_TYPES.PARENTAL_LEAVE) },
+  { value: LEAVE_TYPES.PAID, label: getLeaveTypeLabel(LEAVE_TYPES.PAID) },
+  { value: LEAVE_TYPES.SICK, label: getLeaveTypeLabel(LEAVE_TYPES.SICK) },
+  { value: LEAVE_TYPES.UNPAID, label: getLeaveTypeLabel(LEAVE_TYPES.UNPAID) },
+  { value: LEAVE_TYPES.TRAINING, label: getLeaveTypeLabel(LEAVE_TYPES.TRAINING) },
   { value: LEAVE_TYPES.OTHER, label: getLeaveTypeLabel(LEAVE_TYPES.OTHER) },
 ];
 
 export default function RequestLeaveModal({ open, onClose, userId, onSuccess }) {
-  const [leaveType, setLeaveType] = useState(LEAVE_TYPES.PAID_LEAVE);
+  const [leaveType, setLeaveType] = useState(LEAVE_TYPES.PAID);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
@@ -24,7 +24,7 @@ export default function RequestLeaveModal({ open, onClose, userId, onSuccess }) 
   const [error, setError] = useState('');
 
   const handleReset = () => {
-    setLeaveType(LEAVE_TYPES.PAID_LEAVE);
+    setLeaveType(LEAVE_TYPES.PAID);
     setStartDate('');
     setEndDate('');
     setReason('');
