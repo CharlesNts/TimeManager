@@ -31,8 +31,9 @@ import KPICard from '../components/dashboard/KPICard';
 import KPIChartCard from '../components/dashboard/KPIChartCard';
 import PeriodSelector from '../components/manager/PeriodSelector';
 import ExportMenu from '../components/ui/ExportMenu';
-import { generateMockDailyStats, buildChartSeries } from '../api/statsApi';
+import { buildChartSeries } from '../api/statsApi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { getPeriodInfo, getDisplayPeriodBoundaries, getDisplayPeriodBoundariesShifted } from '../utils/granularityUtils';
 
 // Custom Tooltip identique à EmployeeDashboard
 const CustomTooltip = ({ active, payload }) => {
@@ -62,7 +63,8 @@ export default function ManagerDashboard() {
   });
   
   // KPI states avec charts
-  const [selectedPeriod, setSelectedPeriod] = useState(7);
+  const [selectedGranularity, setSelectedGranularity] = useState('week');
+  const selectedPeriod = getPeriodInfo(selectedGranularity).periodCount; // For backward compatibility
   const [hoursTotals, setHoursTotals] = useState({ current: 0, previous: 0 });
   const [avgTotals, setAvgTotals] = useState({ current: 0, previous: 0 });
   const [hoursChartSeries, setHoursChartSeries] = useState([]);
@@ -256,40 +258,46 @@ export default function ManagerDashboard() {
         const avgCurrentMinutes = allMemberIds.length > 0 ? totalCurrentMinutes / allMemberIds.length : 0;
         const avgPreviousMinutes = allMemberIds.length > 0 ? totalPreviousMinutes / allMemberIds.length : 0;
         
-        // Générer les séries pour les graphiques
-        const dailyStats = [];
-        for (let i = selectedPeriod - 1; i >= 0; i--) {
-          const date = new Date(now);
-          date.setDate(date.getDate() - i);
-          const dayKey = date.toISOString().split('T')[0];
-          dailyStats.push({
-            date: dayKey,
-            minutesWorked: dailyHoursMap[dayKey] || 0
+        // Générer les séries pour les graphiques avec labels corrects par granularité
+        const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
+
+        // Aggreger les heures par période
+        const hoursPerPeriod = periodBoundaries.map(period => {
+          let totalMin = 0;
+          Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
+            const dayDate = new Date(dayKey + 'T00:00:00');
+            if (dayDate >= period.startDate && dayDate <= period.endDate) {
+              totalMin += minutes;
+            }
           });
-        }
-        
-        const hoursData = buildChartSeries(dailyStats, 12, selectedPeriod);
-        const avgData = buildChartSeries(dailyStats.map(stat => ({ 
-          ...stat, 
-          minutesWorked: allMemberIds.length > 0 ? (stat.minutesWorked / allMemberIds.length) : 0 
-        })), 12, selectedPeriod);
-        
+          return { date: period.label, minutesWorked: totalMin };
+        });
+
+        // Aggreger les retards par période
+        const latePerPeriod = periodBoundaries.map(period => {
+          let lateCount = 0;
+          Object.entries(dailyLateMap).forEach(([dayKey, count]) => {
+            const dayDate = new Date(dayKey + 'T00:00:00');
+            if (dayDate >= period.startDate && dayDate <= period.endDate) {
+              lateCount += count;
+            }
+          });
+          return { date: period.label, minutesWorked: lateCount > 0 ? 1 : 0 };
+        });
+
+        // Moyenne par période
+        const periodsWithWork = periodBoundaries.filter(p =>
+          hoursPerPeriod.find(h => h.date === p.label && h.minutesWorked > 0)
+        ).length || 1;
+        const avgPeriodicMin = Math.round(totalCurrentMinutes / periodsWithWork);
+        const avgData = hoursPerPeriod.map(hp => ({ date: hp.date, minutesWorked: avgPeriodicMin }));
+
         // Calculer le taux de retard
         const latenessRate = totalWorkedDays > 0 ? (totalLateDays / totalWorkedDays) * 100 : 0;
-        
-        // Série pour le chart des retards - utiliser les vraies données quotidiennes
-        const dailyLateStats = [];
-        for (let i = selectedPeriod - 1; i >= 0; i--) {
-          const date = new Date(now);
-          date.setDate(date.getDate() - i);
-          const dayKey = date.toISOString().split('T')[0];
-          // Pour chaque jour, afficher le nombre de retards ce jour-là (en minutes pour compatibilité)
-          dailyLateStats.push({
-            date: dayKey,
-            minutesWorked: (dailyLateMap[dayKey] || 0) * 60 // Convertir en minutes pour la cohérence
-          });
-        }
-        const latenessSeries = buildChartSeries(dailyLateStats, 12, selectedPeriod);
+
+        const hoursData = buildChartSeries(hoursPerPeriod, 12, selectedPeriod);
+        const avgChartData = buildChartSeries(avgData, 12, selectedPeriod);
+        const latenessSeries = buildChartSeries(latePerPeriod, 12, selectedPeriod);
         
         // Convertir les minutes en heures pour l'affichage
         const hoursCurrentDisplay = Math.round(totalCurrentMinutes / 60 * 100) / 100; // 2 décimales
@@ -312,7 +320,7 @@ export default function ManagerDashboard() {
         });
         
         setHoursChartSeries(hoursData);
-        setAvgChartSeries(avgData);
+        setAvgChartSeries(avgChartData);
         
         setLatenessData({
           totalDays: totalWorkedDays,
@@ -327,7 +335,7 @@ export default function ManagerDashboard() {
     };
     
     loadRealStats();
-  }, [stats.totalMembers, selectedPeriod, teams, user]);
+  }, [stats.totalMembers, selectedGranularity, teams, user]);
 
   // --- Team creation modal state ---
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
@@ -538,7 +546,7 @@ export default function ManagerDashboard() {
                         <div>
                           <CardTitle className="text-xl">Mes statistiques</CardTitle>
                           <CardDescription>
-                            Aperçu des performances de vos équipes sur {selectedPeriod} jours
+                            Aperçu des performances de vos équipes - {getPeriodInfo(selectedGranularity).label}
                           </CardDescription>
                         </div>
                         <ExportMenu 
@@ -548,7 +556,7 @@ export default function ManagerDashboard() {
                         />
                       </div>
                       <div className="pt-4">
-                        <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+                        <PeriodSelector selectedGranularity={selectedGranularity} onGranularityChange={setSelectedGranularity} />
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -565,7 +573,7 @@ export default function ManagerDashboard() {
                             <div className="text-2xl font-bold">
                               {Math.floor(hoursTotals.current)}h {Math.round((hoursTotals.current % 1) * 60)}m
                             </div>
-                            <p className="text-xs text-gray-500 mt-2">Sur les {selectedPeriod} derniers jours</p>
+                            <p className="text-xs text-gray-500 mt-2">{getPeriodInfo(selectedGranularity).label}</p>
                             <div className="h-[120px] mt-4">
                               <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={hoursChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
@@ -629,7 +637,7 @@ export default function ManagerDashboard() {
                             <div className="text-2xl font-bold">
                               {Math.floor(avgTotals.current)}h {Math.round((avgTotals.current % 1) * 60)}m
                             </div>
-                            <p className="text-xs text-gray-500 mt-2">Moyenne par jour sur {selectedPeriod} jours</p>
+                            <p className="text-xs text-gray-500 mt-2">Moyenne par {selectedGranularity === 'day' ? 'jour' : selectedGranularity === 'week' ? 'semaine' : selectedGranularity === 'month' ? 'mois' : 'année'}</p>
                             <div className="h-[120px] mt-4">
                               <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={avgChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>

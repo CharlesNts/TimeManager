@@ -12,6 +12,7 @@ import WorkScheduleConfigurator from '../components/manager/WorkScheduleConfigur
 import ConfirmModal from '../components/ui/ConfirmModal';
 import PeriodSelector from '../components/manager/PeriodSelector';
 import ExportMenu from '../components/ui/ExportMenu';
+import { getPeriodInfo } from '../utils/granularityUtils';
 
 import {
   ArrowLeft,
@@ -146,7 +147,8 @@ export default function TeamDetail() {
   const sidebarItems = getSidebarItems(user?.role);
 
   // --------- UI state
-  const [selectedPeriod, setSelectedPeriod] = useState(7); // 7 / 30 / 365
+  const [selectedGranularity, setSelectedGranularity] = useState('week'); // 'day' / 'week' / 'month' / 'year'
+  const selectedPeriod = getPeriodInfo(selectedGranularity).periodCount; // For backward compatibility
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
 
@@ -507,7 +509,7 @@ export default function TeamDetail() {
             <div className="space-y-6">
               <Card>
                 <CardContent className="p-4">
-                  <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+                  <PeriodSelector selectedGranularity={selectedGranularity} onGranularityChange={setSelectedGranularity} />
                 </CardContent>
               </Card>
 
