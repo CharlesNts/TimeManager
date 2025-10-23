@@ -7,7 +7,6 @@ import {
   Calendar,
   Plus,
   Edit2,
-  Trash2,
   ChevronDown,
   AlertCircle,
   Check,
@@ -16,11 +15,10 @@ import {
 import {
   listScheduleTemplatesForTeam,
   activateScheduleTemplate,
-  deleteScheduleTemplate,
 } from '../api/scheduleTemplatesApi';
 import { fetchTeamsByManager } from '../api/teamApi';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import WorkScheduleConfigurator from '../components/manager/WorkScheduleConfigurator';
 
@@ -37,7 +35,6 @@ export default function ScheduleTemplatesPage() {
   const [error, setError] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(null);
-  const [deletingSchedule, setDeletingSchedule] = useState(null);
   const [activatingScheduleId, setActivatingScheduleId] = useState(null);
 
   // Load teams on mount
@@ -116,19 +113,6 @@ export default function ScheduleTemplatesPage() {
       setError('Erreur lors de l\'activation du planning');
     } finally {
       setActivatingScheduleId(null);
-    }
-  };
-
-  const handleDeleteSchedule = async () => {
-    if (!deletingSchedule) return;
-
-    try {
-      await deleteScheduleTemplate(deletingSchedule.id);
-      setSchedules((prev) => prev.filter((s) => s.id !== deletingSchedule.id));
-      setDeletingSchedule(null);
-    } catch (err) {
-      console.error('Error deleting schedule:', err);
-      setError('Erreur lors de la suppression du planning');
     }
   };
 
@@ -229,13 +213,23 @@ export default function ScheduleTemplatesPage() {
         {/* Action Buttons */}
         {!loading && (
           <div className="flex gap-3">
-            <Button
-              onClick={() => setIsCreating(true)}
-              className="gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Nouveau Planning
-            </Button>
+            {schedules.length === 0 ? (
+              <Button
+                onClick={() => setIsCreating(true)}
+                className="gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Créer un planning
+              </Button>
+            ) : (
+              <div className="flex gap-2 items-center text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3 flex-1">
+                <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <p>
+                  Un planning existe déjà pour {selectedTeamName}.
+                  <strong className="ml-1">Modifiez-le directement</strong> depuis la carte ci-dessous.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -335,22 +329,14 @@ export default function ScheduleTemplatesPage() {
                         </Button>
                       )}
 
-                      {/* Edit Button - Pour futur */}
-                      {/* <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleEditSchedule(schedule)}
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </Button> */}
-
                       <Button
                         size="sm"
-                        variant="ghost"
-                        onClick={() => setDeletingSchedule(schedule)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        variant="outline"
+                        onClick={() => handleEditSchedule(schedule)}
+                        className="flex-1 gap-1"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Edit2 className="w-4 h-4" />
+                        Éditer
                       </Button>
                     </div>
                   </CardContent>
@@ -371,45 +357,23 @@ export default function ScheduleTemplatesPage() {
           />
         )}
 
-        {/* Delete Confirmation Modal */}
-        {deletingSchedule && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <Card className="w-full max-w-sm mx-4">
-              <CardHeader>
-                <CardTitle className="text-lg">Supprimer le planning</CardTitle>
-                <CardDescription>
-                  Êtes-vous sûr de vouloir supprimer "{deletingSchedule.name}" ?
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex gap-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-yellow-800">
-                    Cette action ne peut pas être annulée. Les shifts existants ne seront pas affectés.
-                  </p>
-                </div>
-
-                <div className="flex gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => setDeletingSchedule(null)}
-                    className="flex-1"
-                  >
-                    Annuler
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={handleDeleteSchedule}
-                    className="flex-1"
-                  >
-                    Supprimer
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        {/* Edit Schedule Modal */}
+        {editingSchedule && (
+          <WorkScheduleConfigurator
+            open={!!editingSchedule}
+            onClose={() => setEditingSchedule(null)}
+            teamId={selectedTeamId}
+            teamName={selectedTeamName}
+            schedule={editingSchedule}
+            onSave={(updated) => {
+              setSchedules((prev) =>
+                prev.map((s) => (s.id === updated.id ? updated : s))
+              );
+              setEditingSchedule(null);
+            }}
+          />
         )}
+
       </div>
     </Layout>
   );

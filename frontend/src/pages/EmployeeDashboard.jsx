@@ -6,15 +6,12 @@ import { useClockNotification } from '../hooks/useClockNotification';
 import { useNotifications } from '../hooks/useNotifications';
 import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
-import KPICard from '../components/dashboard/KPICard.jsx';
-import KPIChartCard from '../components/dashboard/KPIChartCard.jsx';
 import ClockActions from '../components/employee/ClockActions';
 import ClockCalendarView from '../components/employee/ClockCalendarView';
 import RequestLeaveModal from '../components/employee/RequestLeaveModal';
 import PeriodSelector from '../components/manager/PeriodSelector';
 import { Clock, AlertTriangle, Briefcase, TrendingUp, ArrowLeft, Calendar } from 'lucide-react';
 import api from '../api/client';
-import ChartComparison from '../components/dashboard/ChartComparison';
 import { buildChartSeries } from '../api/statsApi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { exportEmployeeDashboardPDF } from '../utils/pdfExport';
@@ -24,73 +21,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Badge } from '../components/ui/badge';
 import ExportMenu from '../components/ui/ExportMenu';
 
-// ---------- Constantes règle “flex” ----------
-const WORK_START_HOUR = 9;
-const WORK_START_MINUTE = 30;
-const REQUIRED_DAY_MIN = 8 * 60; // 8h
-const EARLY_CREDIT_CAP_MIN = 60; // max 60 min d’avance créditée
+import {
+  toParis,
+  toISO,
+  pad,
+  minutesBetween,
+  addDays,
+  startOfWeekMon
+} from '../utils/dateUtils';
 
-// ---------- Utils dates (Europe/Paris) ----------
-const toParis = (date) => new Date(date.toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
-const minutesBetween = (a, b) => Math.max(0, Math.round((b - a) / 60000));
-
-const minutesSinceMidnightParis = (d) => {
-  const p = toParis(d);
-  return p.getHours() * 60 + p.getMinutes();
-};
-
-const pad = (n) => String(n).padStart(2, '0');
-const toISO = (d) => {
-  const p = toParis(d);
-  return `${p.getFullYear()}-${pad(p.getMonth() + 1)}-${pad(p.getDate())}T${pad(p.getHours())}:${pad(p.getMinutes())}:${pad(p.getSeconds())}`;
-};
-
-const startOfDay = (d) => { const x = toParis(d); x.setHours(0,0,0,0); return x; };
-const endOfDay   = (d) => { const x = toParis(d); x.setHours(23,59,59,999); return x; };
-
-const startOfWeekMon = (d) => {
-  const x = startOfDay(d);
-  const day = x.getDay(); // 0=dim,1=lun,...6=sam
-  const diff = (day === 0 ? -6 : 1 - day);
-  x.setDate(x.getDate() + diff);
-  return startOfDay(x);
-};
-const endOfWeekSun = (d) => {
-  const start = startOfWeekMon(d);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  return endOfDay(end);
-};
-
-const firstDayOfMonth = (d) => {
-  const x = toParis(d);
-  x.setDate(1);
-  return startOfDay(x);
-};
-const lastDayOfMonth = (d) => {
-  const x = toParis(d);
-  x.setMonth(x.getMonth() + 1, 0);
-  return endOfDay(x);
-};
-
-const addDays = (d, n) => {
-  const x = new Date(toParis(d));
-  x.setDate(x.getDate() + n);
-  return x;
-};
-
-// ---------- Règle flex pour une journée agrégée ----------
-function complianceForDay(firstIn, totalWorkedMin) {
-  const expectedStartMin = WORK_START_HOUR * 60 + WORK_START_MINUTE;
-  const inMin = minutesSinceMidnightParis(firstIn);
-  const earlyRaw = Math.max(0, expectedStartMin - inMin);
-  const earlyArrivalMin = Math.min(EARLY_CREDIT_CAP_MIN, earlyRaw);
-  const lateArrivalMin = Math.max(0, inMin - expectedStartMin);
-
-  const requiredMin = Math.max(0, REQUIRED_DAY_MIN - earlyArrivalMin + lateArrivalMin);
-  const deficitMin = Math.max(0, requiredMin - totalWorkedMin);
-  return { earlyArrivalMin, lateArrivalMin, requiredMin, deficitMin, isLate: deficitMin > 0 };
-}
+import {
+  getPeriodInfo,
+  calculatePeriodDates,
+  getDisplayPeriodBoundaries,
+  getDisplayPeriodBoundariesShifted
+} from '../utils/granularityUtils';
 
 // ---------- Agrégation par jour ----------
 function aggregateByDay(clocks) {
@@ -210,7 +155,7 @@ export default function EmployeeDashboard() {
 
   const [hasClockedInToday, setHasClockedInToday] = useState(false);
   const [currentStatus, setCurrentStatus] = useState({ status: 'not-clocked', label: 'Non pointé', icon: '⏰', color: 'secondary' });
-  const [selectedPeriod, setSelectedPeriod] = useState(7);
+  const [selectedGranularity, setSelectedGranularity] = useState('week');
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
 
   // clé d'invalidation pour forcer refetch (KPIs + Historique)
@@ -233,10 +178,10 @@ export default function EmployeeDashboard() {
     }
   }, [userId, isViewingOtherEmployee, navigate]);
 
-  // Rafraîchir quand la période change
+  // Rafraîchir quand la granularité change
   useEffect(() => {
     setRefreshKey((k) => k + 1);
-  }, [selectedPeriod]);
+  }, [selectedGranularity]);
 
   // Rafraîchir quand l’onglet redevient actif (utile quand tu touches la BDD à la main)
   useEffect(() => {
@@ -254,9 +199,17 @@ export default function EmployeeDashboard() {
           params: { page: 0, size: 1, sort: 'clockIn,desc' },
         });
         const lastSession = data?.content?.[0] || null;
+
+        // Check if user has clocked in TODAY (regardless of clockOut)
+        const today = toParis(new Date());
+        today.setHours(0, 0, 0, 0);
+        const hasClockedToday = lastSession && lastSession.clockIn
+          ? toParis(new Date(lastSession.clockIn)) >= today
+          : false;
+
         const isClockedIn = !!(lastSession && !lastSession.clockOut);
-        
-        setHasClockedInToday(isClockedIn);
+
+        setHasClockedInToday(hasClockedToday);
         
         if (!isClockedIn) {
           setCurrentStatus({ status: 'not-clocked', label: 'Non pointé', icon: '⏰', color: 'secondary' });
@@ -302,7 +255,7 @@ export default function EmployeeDashboard() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // Clock notification hook - Toast auto-dismiss après 5 secondes
-  useClockNotification(!isViewingOtherEmployee && !hasClockedInToday, user?.role);
+  useClockNotification(hasClockedInToday, user?.role, isViewingOtherEmployee);
 
   // Notifications hook - Gère les notifications dans le header
   const { notifications, markAsRead } = useNotifications(hasClockedInToday, user?.role);
@@ -347,21 +300,18 @@ export default function EmployeeDashboard() {
     return () => { cancel = true; };
   }, [targetUserId]);
 
-  // Charger KPIs (dépend de refreshKey et selectedPeriod)
+  // Charger KPIs (dépend de refreshKey et selectedGranularity)
   useEffect(() => {
     if (!targetUserId) return;
 
     const loadKpis = async () => {
       try {
-        const now = new Date();
-
-        // Calculer les dates selon la période sélectionnée
-        const periodEnd = endOfDay(now);
-        const periodStart = startOfDay(addDays(now, -(selectedPeriod - 1)));
-        
-        // Période précédente (pour comparaison)
-        const prevPeriodEnd = addDays(periodStart, -1);
-        const prevPeriodStart = addDays(prevPeriodEnd, -(selectedPeriod - 1));
+        // Calculer les dates selon la granularité sélectionnée
+        const { currentStart, currentEnd, previousStart, previousEnd, periodCount } = calculatePeriodDates(selectedGranularity);
+        const periodStart = currentStart;
+        const periodEnd = currentEnd;
+        const prevPeriodStart = previousStart;
+        const prevPeriodEnd = previousEnd;
 
         const [clocksThisPeriod, clocksPrevPeriod] = await Promise.all([
           fetchClocksRange(targetUserId, periodStart, periodEnd),
@@ -396,70 +346,78 @@ export default function EmployeeDashboard() {
         const hwM = totalPeriodMin % 60;
         const hoursPeriod = `${hwH}h ${String(hwM).padStart(2, '0')}m`;
 
-        // Calculer les données de retard à partir des données réelles
-        const startOfPeriod = new Date(now);
-        startOfPeriod.setDate(now.getDate() - selectedPeriod + 1);
-        startOfPeriod.setHours(0, 0, 0, 0);
-        
-        const totalDaysWorked = daysAggPeriod.length || 1;
-        
-        // Simuler un taux de retard réaliste (5-20%)
-        const latenessRatePercent = 10 + Math.random() * 10; // 10-20%
+        // Générer les données du graphique par granularité
+        const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
+
+        // Aggreger les clocks par période (jour/semaine/mois/année)
+        const hoursPerPeriod = periodBoundaries.map(period => {
+          const periodClocks = clocksThisPeriod.filter(c => {
+            const clockDate = toParis(new Date(c.clockIn));
+            return clockDate >= period.startDate && clockDate <= period.endDate;
+          });
+
+          const totalMin = periodClocks.reduce((sum, c) => {
+            if (!c.clockOut) return sum;
+            const inD = toParis(new Date(c.clockIn));
+            const outD = toParis(new Date(c.clockOut));
+            if (outD <= inD) return sum;
+            const workedMin = minutesBetween(inD, outD);
+            if (workedMin > 12 * 60) return sum;
+            return sum + workedMin;
+          }, 0);
+
+          return { date: period.label, minutesWorked: totalMin };
+        });
+
+        const totalDaysWorked = periodBoundaries.filter(p =>
+          hoursPerPeriod.find(h => h.date === p.label && h.minutesWorked > 0)
+        ).length || 1;
+
+        // Retards (simulé pour chaque période)
+        const latenessRatePercent = 10 + Math.random() * 10;
         const lateDaysCount = Math.max(0, Math.round(totalDaysWorked * (latenessRatePercent / 100)));
         const delaysPeriodCount = `${lateDaysCount}`;
-        
-        // Générer les données du graphique de retard basé sur les jours réels
-        const lateDaysStats = daysAggPeriod.map((dayData) => {
-          // Vérifier si ce jour a des heures de travail suffisantes (> 4h)
-          const hasWorked = dayData.totalWorkedMin > 4 * 60;
-          const isLate = hasWorked && Math.random() < (latenessRatePercent / 100);
-          return {
-            date: dayData.dateKey,
-            minutesWorked: isLate ? 1 : 0
-          };
-        });
-        
-        // Compléter avec des jours vides si nécessaire
-        const finalLateDaysStats = [];
-        for (let i = 0; i < selectedPeriod; i++) {
-          const date = new Date(startOfPeriod);
-          date.setDate(startOfPeriod.getDate() + i);
-          const dateStr = date.toISOString().split('T')[0];
-          
-          const dayData = lateDaysStats.find(h => h.date === dateStr);
-          finalLateDaysStats.push({
-            date: dateStr,
-            minutesWorked: dayData ? dayData.minutesWorked : 0
-          });
-        }
-        
-        const lateDaysChart = buildChartSeries(finalLateDaysStats, 12, selectedPeriod);
+
+        const lateDaysStats = hoursPerPeriod.map(hp => ({
+          date: hp.date,
+          minutesWorked: hp.minutesWorked > 0 && Math.random() < (latenessRatePercent / 100) ? 1 : 0
+        }));
+
+        const lateDaysChart = buildChartSeries(lateDaysStats, 12, periodCount);
         setLatenessData({ totalDays: totalDaysWorked, lateDays: lateDaysCount, rate: latenessRatePercent, lateDaysChartSeries: lateDaysChart });
 
-        // Moyenne quotidienne sur la période
-        const daysWorked = daysAggPeriod.length || 1;
-        const avgDailyMin = Math.round(totalPeriodMin / daysWorked);
-        const adH = Math.floor(avgDailyMin / 60);
-        const adM = avgDailyMin % 60;
-        const avgDaily = `${adH}h ${String(adM).padStart(2, '0')}m`;
+        // Moyenne sur la période
+        const periodsWithWork = periodBoundaries.filter(p =>
+          hoursPerPeriod.find(h => h.date === p.label && h.minutesWorked > 0)
+        ).length || 1;
+        const avgPeriodicMin = Math.round(totalPeriodMin / periodsWithWork);
+        const apH = Math.floor(avgPeriodicMin / 60);
+        const apM = avgPeriodicMin % 60;
+        const avgDaily = `${apH}h ${String(apM).padStart(2, '0')}m`;
 
-        // Comparaison vs période précédente (ignorer les sessions ouvertes et irréalistes)
-        const totalPrevPeriodMin = clocksPrevPeriod.reduce((sum, c) => {
-          // Ignorer les sessions ouvertes
-          if (!c.clockOut) return sum;
-          
-          const inD = new Date(c.clockIn);
-          const outD = new Date(c.clockOut);
-          
-          // Vérifier que le pointage est valide
-          if (outD <= inD) return sum;
-          
-          // Vérifier que la durée est réaliste (max 12h par session)
-          const workedMin = minutesBetweenLocal(inD, outD);
-          if (workedMin > 12 * 60) return sum;
-          
-          return sum + workedMin;
-        }, 0);
+        // Comparaison vs période précédente
+        const prevPeriodBoundaries = getDisplayPeriodBoundariesShifted(selectedGranularity, 1);
+        const hoursPerPrevPeriod = prevPeriodBoundaries.map(period => {
+          const periodClocks = clocksPrevPeriod.filter(c => {
+            const clockDate = toParis(new Date(c.clockIn));
+            return clockDate >= period.startDate && clockDate <= period.endDate;
+          });
+
+          const totalMin = periodClocks.reduce((sum, c) => {
+            if (!c.clockOut) return sum;
+            const inD = toParis(new Date(c.clockIn));
+            const outD = toParis(new Date(c.clockOut));
+            if (outD <= inD) return sum;
+            const workedMin = minutesBetween(inD, outD);
+            if (workedMin > 12 * 60) return sum;
+            return sum + workedMin;
+          }, 0);
+
+          return { date: period.label, minutesWorked: totalMin };
+        });
+
+        const totalPrevPeriodMin = hoursPerPrevPeriod.reduce((sum, h) => sum + h.minutesWorked, 0);
+
         let comparison = '0%';
         if (totalPrevPeriodMin > 0) {
           const diffPct = ((totalPeriodMin - totalPrevPeriodMin) / totalPrevPeriodMin) * 100;
@@ -470,63 +428,12 @@ export default function EmployeeDashboard() {
 
         setPeriodTotals({ current: totalPeriodMin, previous: totalPrevPeriodMin });
         setHoursTotals({ current: totalPeriodMin, previous: totalPrevPeriodMin });
-        setAvgTotals({ current: avgDailyMin, previous: Math.round(totalPrevPeriodMin / (aggregateByDay(clocksPrevPeriod).length || 1)) });
-        
-        // Récupérer les heures réelles via API
-        let userHoursData = null;
-        if (targetUserId) {
-          try {
-            userHoursData = await fetchUserHours(targetUserId, startOfPeriod, now);
-          } catch (error) {
-            console.warn('[EmployeeDashboard] Erreur récupération heures utilisateur:', error);
-          }
-        }
-        
-        // Générer les données pour les graphiques à partir des données réelles agrégées par jour
-        const hoursStats = daysAggPeriod.map((dayData, index) => ({
-          date: dayData.dateKey,
-          minutesWorked: dayData.totalWorkedMin
-        }));
-        
-        // Compléter avec des jours vides si nécessaire
-        const startDate = new Date(startOfPeriod);
-        const endDate = new Date(now);
-        const allDates = [];
-        
-        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-          allDates.push(d.toISOString().split('T')[0]);
-        }
-        
-        // S'assurer d'avoir selectedPeriod jours
-        const finalHoursStats = [];
-        for (let i = 0; i < selectedPeriod; i++) {
-          const date = new Date(startDate);
-          date.setDate(startDate.getDate() + i);
-          const dateStr = date.toISOString().split('T')[0];
-          
-          const dayData = hoursStats.find(h => h.date === dateStr);
-          finalHoursStats.push({
-            date: dateStr,
-            minutesWorked: dayData ? dayData.minutesWorked : 0
-          });
-        }
-        
-        // Générer les stats de moyenne (même valeur pour tous les jours)
-        const avgDailyValue = daysAggPeriod.length > 0 ? 
-          Math.round(totalPeriodMin / daysAggPeriod.length) : 0;
-        
-        const avgStats = Array.from({ length: selectedPeriod }, (_, i) => {
-          const date = new Date(startOfPeriod);
-          date.setDate(startOfPeriod.getDate() + i);
-          return {
-            date: date.toISOString().split('T')[0],
-            minutesWorked: avgDailyValue
-          };
-        });
-        
-        // Build chart series from daily stats
-        const hoursChart = buildChartSeries(finalHoursStats, 12, selectedPeriod);
-        const avgChart = buildChartSeries(avgStats, 12, selectedPeriod);
+        setAvgTotals({ current: avgPeriodicMin, previous: Math.round(totalPrevPeriodMin / Math.max(1, hoursPerPrevPeriod.filter(h => h.minutesWorked > 0).length)) });
+
+        // Build chart series from period-based stats
+        const hoursChart = buildChartSeries(hoursPerPeriod, 12, periodCount);
+        const avgStats = hoursPerPeriod.map(hp => ({ date: hp.date, minutesWorked: avgPeriodicMin }));
+        const avgChart = buildChartSeries(avgStats, 12, periodCount);
         
         setHoursChartSeries(hoursChart);
         setAvgChartSeries(avgChart);
@@ -544,7 +451,7 @@ export default function EmployeeDashboard() {
     };
 
     loadKpis();
-  }, [targetUserId, refreshKey, selectedPeriod]);
+  }, [targetUserId, refreshKey, selectedGranularity]);
 
   const handleChanged = async () => {
     // Juste incrémenter refreshKey, le useEffect se chargera de recharger le statut
@@ -552,11 +459,11 @@ export default function EmployeeDashboard() {
   };
 
   const handleExportPDF = () => {
-    exportEmployeeDashboardPDF(targetUser || user, stats, recentClocks, selectedPeriod);
+    exportEmployeeDashboardPDF(targetUser || user, stats, recentClocks, getPeriodInfo(selectedGranularity).periodCount);
   };
 
   const handleExportCSV = () => {
-    exportEmployeeDashboardCSV(targetUser || user, stats, recentClocks, selectedPeriod);
+    exportEmployeeDashboardCSV(targetUser || user, stats, recentClocks, getPeriodInfo(selectedGranularity).periodCount);
   };
 
   // Afficher un loader si on charge les infos de l'employé
@@ -675,20 +582,26 @@ export default function EmployeeDashboard() {
 
                   {/* Demander un congé */}
                   {!isViewingOtherEmployee && (
-                    <Card className="mt-6">
+                    <Card className="mt-6 border-yellow-200 bg-yellow-50">
                       <CardHeader>
                         <CardTitle className="text-lg flex items-center gap-2">
                           <Calendar className="w-5 h-5" />
                           Congés
                         </CardTitle>
                         <CardDescription>
-                          Demander un congé à votre manager
+                          Fonctionnalité en configuration
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
+                        <div className="p-3 bg-yellow-100 border border-yellow-300 rounded-lg mb-3">
+                          <p className="text-xs text-yellow-800 font-semibold mb-1">⚠️ Non disponible</p>
+                          <p className="text-xs text-yellow-700">
+                            Le backend doit être configuré pour filtrer les demandes de congés par manager avant que cette fonctionnalité soit activée.
+                          </p>
+                        </div>
                         <Button
-                          onClick={() => setIsLeaveModalOpen(true)}
-                          className="w-full"
+                          disabled
+                          className="w-full opacity-50 cursor-not-allowed"
                         >
                           <Calendar className="w-4 h-4 mr-2" />
                           Demander un congé
@@ -801,18 +714,18 @@ export default function EmployeeDashboard() {
                         {isViewingOtherEmployee ? 'Statistiques' : 'Mes statistiques'}
                       </CardTitle>
                       <CardDescription>
-                        Aperçu de vos performances sur {selectedPeriod} jours
+                        Aperçu de vos performances - {getPeriodInfo(selectedGranularity).label}
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         size="sm"
                         onClick={() => setIsCalendarOpen(true)}
                         className="flex items-center gap-2"
                       >
                         <Calendar className="w-4 h-4" />
-                        Calendrier
+                        Planning
                       </Button>
                       <ExportMenu 
                         onExportPDF={handleExportPDF}
@@ -822,7 +735,7 @@ export default function EmployeeDashboard() {
                     </div>
                   </div>
                   <div className="pt-4">
-                    <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+                    <PeriodSelector selectedGranularity={selectedGranularity} onGranularityChange={setSelectedGranularity} />
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -837,7 +750,7 @@ export default function EmployeeDashboard() {
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold">{stats.hoursWeek}</div>
-                        <p className="text-xs text-gray-500 mt-2">Sur les {selectedPeriod} derniers jours</p>
+                        <p className="text-xs text-gray-500 mt-2">Période actuelle ({getPeriodInfo(selectedGranularity).label})</p>
                         <div className="h-[120px] mt-4">
                           <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={hoursChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
@@ -899,7 +812,7 @@ export default function EmployeeDashboard() {
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold">{stats.avgWeek}</div>
-                        <p className="text-xs text-gray-500 mt-2">Moyenne par jour sur {selectedPeriod} jours</p>
+                        <p className="text-xs text-gray-500 mt-2">Moyenne par {selectedGranularity === 'day' ? 'jour' : selectedGranularity === 'week' ? 'semaine' : selectedGranularity === 'month' ? 'mois' : 'année'}</p>
                         <div className="h-[120px] mt-4">
                           <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={avgChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
@@ -933,7 +846,7 @@ export default function EmployeeDashboard() {
                         <p className="text-xs text-gray-500 mt-2">vs période précédente</p>
                         <div className="h-[120px] mt-4">
                           <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={makeSeries(periodTotals.previous, periodTotals.current, 12, selectedPeriod)} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
+                            <AreaChart data={makeSeries(periodTotals.previous, periodTotals.current, 12, getPeriodInfo(selectedGranularity).periodCount)} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
                               <defs>
                                 <linearGradient id="compFill" x1="0" y1="0" x2="0" y2="1">
                                   <stop offset="6%" stopColor="var(--color-desktop)" stopOpacity={0.16} />
@@ -954,56 +867,20 @@ export default function EmployeeDashboard() {
                 </CardContent>
               </Card>
 
-              {/* Mock Planning & Completion Info */}
-              <Card className="bg-gradient-to-br from-green-50 to-blue-50 border-green-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center text-green-900">
-                    <Clock className="w-5 h-5 mr-2" />
-                    Mon planning (Mock)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium text-gray-700">Attendu :</span>
-                        <span className="text-gray-900">7h 30m/jour (09:00-17:30)</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium text-gray-700">Réalisé aujourd'hui :</span>
-                        <span className="text-gray-900 font-semibold">5h 38m</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium text-gray-700">Statut :</span>
-                        <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-                          ✅ En règle
-                        </Badge>
-                      </div>
-                    </div>
-                    
-                    <div className="w-full bg-gray-200 rounded-full h-2.5 mt-3">
-                      <div className="bg-green-600 h-2.5 rounded-full" style={{ width: '75%' }}></div>
-                    </div>
-                    <p className="text-xs text-gray-600 text-center">75% des heures attendues réalisées</p>
-                    
-                    <div className="text-xs text-blue-600 mt-3 border-t border-blue-200 pt-2">
-                      💡 Données simulées - Planning basé sur les horaires configurés par votre manager
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           </div>
 
         </div>
       </div>
 
-      {/* Calendar Modal */}
+      {/* Planning Modal */}
       <ClockCalendarView
         open={isCalendarOpen}
         onClose={() => setIsCalendarOpen(false)}
-        clocks={[]}
-        userName={targetUser?.username || 'Employé'}
+        clocks={recentClocks}
+        userName={`${targetUser?.firstName || ''} ${targetUser?.lastName || ''}`.trim() || 'Employé'}
+        schedule={teamsForUser.length > 0 ? schedulesByTeam[teamsForUser[0].id] : null}
+        userId={targetUserId}
       />
 
       {/* Leave Request Modal */}

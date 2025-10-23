@@ -36,21 +36,3 @@ export const resetPassword = async (token, newPassword) => {
   }
 };
 
-/**
- * Changement de mot de passe (utilisateur connecté)
- * POST /api/auth/password/change
- * @param {string} oldPassword - Ancien mot de passe
- * @param {string} newPassword - Nouveau mot de passe
- */
-export const changePassword = async (oldPassword, newPassword) => {
-  try {
-    await api.post('/api/auth/password/change', {
-      oldPassword,
-      newPassword,
-    });
-    return { success: true, message: 'Mot de passe changé avec succès' };
-  } catch (err) {
-    console.error('[passwordApi] changePassword failed:', err?.message || err);
-    throw err;
-  }
-};

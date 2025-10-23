@@ -17,11 +17,27 @@ const DAYS_FR = [
   { value: 0, label: 'Dimanche' },
 ];
 
-export default function WorkScheduleConfigurator({ open, onClose, teamId, teamName, onSave }) {
-  const [scheduleName, setScheduleName] = useState(`Planning ${teamName || 'équipe'}`);
-  const [workDays, setWorkDays] = useState([1, 2, 3, 4, 5]); // Lun-Ven par défaut
-  const [startTime, setStartTime] = useState('09:00');
-  const [endTime, setEndTime] = useState('17:30');
+export default function WorkScheduleConfigurator({ open, onClose, teamId, teamName, schedule, onSave }) {
+  const isEditing = !!schedule;
+
+  // Initialize from schedule if editing, otherwise default values
+  const [scheduleName, setScheduleName] = useState(schedule?.name || `Planning ${teamName || 'équipe'}`);
+
+  const parsePattern = () => {
+    if (!schedule?.weeklyPatternJson) {
+      return { workDays: [1, 2, 3, 4, 5], startTime: '09:00', endTime: '17:30' };
+    }
+    try {
+      return JSON.parse(schedule.weeklyPatternJson);
+    } catch {
+      return { workDays: [1, 2, 3, 4, 5], startTime: '09:00', endTime: '17:30' };
+    }
+  };
+
+  const initialPattern = parsePattern();
+  const [workDays, setWorkDays] = useState(initialPattern.workDays);
+  const [startTime, setStartTime] = useState(initialPattern.startTime);
+  const [endTime, setEndTime] = useState(initialPattern.endTime);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -35,19 +51,19 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
 
   const handleSave = async () => {
     setError('');
-    
+
     if (!scheduleName.trim()) {
       setError('Le nom du planning est obligatoire');
       return;
     }
-    
-    if (!teamId) {
+
+    if (!teamId && !isEditing) {
       setError('ID équipe manquant');
       return;
     }
-    
+
     if (workDays.length === 0) {
-      setError('Sélectionnez au moins un jour de travail');
+      setError('Sélectionnez au least un jour de travail');
       return;
     }
 
@@ -59,20 +75,30 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
         startTime: startTime,
         endTime: endTime,
       };
-      
-      // Appeler l'API pour créer le template
-      const template = await scheduleTemplatesApi.create({
-        teamId,
-        name: scheduleName,
-        active: true,
-        weeklyPatternJson: JSON.stringify(weeklyPattern)
-      });
-      
+
+      let template;
+
+      if (isEditing) {
+        // Mode édition: appeler UPDATE
+        template = await scheduleTemplatesApi.update(schedule.id, {
+          name: scheduleName,
+          weeklyPatternJson: JSON.stringify(weeklyPattern),
+        });
+      } else {
+        // Mode création: appeler CREATE
+        template = await scheduleTemplatesApi.create({
+          teamId,
+          name: scheduleName,
+          active: true,
+          weeklyPatternJson: JSON.stringify(weeklyPattern)
+        });
+      }
+
       // Appeler le callback onSave si fourni
       if (onSave) {
         onSave(template);
       }
-      
+
       onClose();
     } catch (err) {
       console.error('[WorkScheduleConfigurator] Erreur sauvegarde:', err);
@@ -88,10 +114,12 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Clock className="w-5 h-5" />
-            Configuration des horaires de travail
+            {isEditing ? 'Modifier le planning' : 'Configuration des horaires de travail'}
           </DialogTitle>
           <DialogDescription>
-            Définissez le planning hebdomadaire et les horaires pour {teamName || 'l\'équipe'}
+            {isEditing
+              ? `Modifiez le planning pour ${teamName || 'l\'équipe'}`
+              : `Définissez le planning hebdomadaire et les horaires pour ${teamName || 'l\'équipe'}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -210,17 +238,17 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
             >
               Annuler
             </Button>
-            <Button 
+            <Button
               onClick={handleSave}
               disabled={isSaving}
             >
               {isSaving ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Enregistrement...
+                  {isEditing ? 'Modification...' : 'Enregistrement...'}
                 </>
               ) : (
-                'Enregistrer'
+                isEditing ? 'Modifier' : 'Enregistrer'
               )}
             </Button>
           </div>

@@ -4,19 +4,23 @@ import { toast } from 'sonner';
 
 /**
  * Hook pour afficher une notification si l'utilisateur n'a pas pointé aujourd'hui
- * 
+ *
  * @param {boolean} hasClockedInToday - Indique si l'utilisateur a déjà pointé aujourd'hui
  * @param {string} userRole - Rôle de l'utilisateur (pour ne notifier que les employés)
+ * @param {boolean} isViewingOtherEmployee - Indique si on consulte le dashboard d'un autre employé
  * @returns {object} - { showNotification, dismissNotification }
  */
-export function useClockNotification(hasClockedInToday, userRole = 'employee') {
+export function useClockNotification(hasClockedInToday, userRole = 'employee', isViewingOtherEmployee = false) {
   const [notificationShown, setNotificationShown] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
     // Ne notifier que les employés/managers qui doivent pointer
     if (userRole === 'ceo') return;
-    
+
+    // Ne pas notifier si on consulte le dashboard d'un autre employé
+    if (isViewingOtherEmployee) return;
+
     // Vérifier si déjà pointé aujourd'hui
     if (hasClockedInToday) return;
     
@@ -41,7 +45,7 @@ export function useClockNotification(hasClockedInToday, userRole = 'employee') {
 
       return () => clearTimeout(timer);
     }
-  }, [hasClockedInToday, userRole, notificationShown, isDismissed]);
+  }, [hasClockedInToday, userRole, isViewingOtherEmployee, notificationShown, isDismissed]);
 
   const handleDismiss = () => {
     const today = new Date().toDateString();

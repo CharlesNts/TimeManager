@@ -100,10 +100,11 @@ export function generateMockDailyStats(period, totalMinutes) {
 
 /**
  * Build series data for a chart from daily stats
- * 
- * @param {Array<{date, minutesWorked}>} dailyStats - Daily statistics
+ * Handles both ISO dates and pre-computed labels
+ *
+ * @param {Array<{date, minutesWorked}>} dailyStats - Daily statistics with date (ISO or label) and minutesWorked
  * @param {number} maxPoints - Maximum number of points to display
- * @param {number} period - Period in days
+ * @param {number} period - Period count (not in days, but in periods)
  * @returns {Array<{value, label}>}
  */
 export function buildChartSeries(dailyStats, maxPoints = 12, period = 7) {
@@ -121,15 +122,25 @@ export function buildChartSeries(dailyStats, maxPoints = 12, period = 7) {
   for (let i = 0; i < points; i++) {
     const idx = Math.min(i * step, dailyStats.length - 1);
     const stat = dailyStats[idx];
-    const date = new Date(stat.date);
 
     let label = '';
-    if (period <= 7) {
-      label = daysFr[date.getDay()];
-    } else if (period <= 31) {
-      label = date.getDate().toString();
+    // If date is already a label (not ISO format), use it directly
+    // Labels look like: "S43", "janv.-25", "2025", "lun. 23 oct.", "20 - 26 jan"
+    const isLabel = stat.date && (stat.date.includes('S') || stat.date.includes('-') || stat.date.includes('.') || /^\d{4}$/.test(stat.date) || stat.date.match(/\d{2}\s\w/) || stat.date.match(/\d{2}\s\d{2}\s\w/));
+    if (isLabel) {
+      label = stat.date;
+    } else if (stat.date) {
+      // Parse as ISO date and generate label based on period
+      const date = new Date(stat.date);
+      if (period <= 7) {
+        label = daysFr[date.getDay()];
+      } else if (period <= 31) {
+        label = date.getDate().toString();
+      } else {
+        label = monthsFr[date.getMonth()];
+      }
     } else {
-      label = monthsFr[date.getMonth()];
+      label = '';
     }
 
     series.push({

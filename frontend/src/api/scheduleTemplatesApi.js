@@ -7,8 +7,6 @@ import api from './client';
  * - POST /api/schedule-templates (create)
  * - GET /api/schedule-templates/team/{teamId} (list/get active)
  * - POST /api/schedule-templates/{id}/activate (activate)
- * - PUT /api/schedule-templates/{id} (update) ⚠️ À vérifier avec backend
- * - DELETE /api/schedule-templates/{id} (delete) ⚠️ À vérifier avec backend
  */
 
 /**
@@ -70,34 +68,6 @@ export const getActiveScheduleTemplate = async (teamId) => {
   }
 };
 
-/**
- * Mettre à jour un modèle d'horaire
- * PUT /api/schedule-templates/{id}
- * ⚠️ À vérifier: le backend supporte-t-il vraiment PUT?
- */
-export const updateScheduleTemplate = async (id, templateData) => {
-  try {
-    const { data } = await api.put(`/api/schedule-templates/${id}`, templateData);
-    return data;
-  } catch (error) {
-    console.error('[scheduleTemplatesApi] updateScheduleTemplate error:', error?.message || error);
-    throw error;
-  }
-};
-
-/**
- * Supprimer un modèle d'horaire
- * DELETE /api/schedule-templates/{id}
- * ⚠️ À vérifier: le backend supporte-t-il vraiment DELETE?
- */
-export const deleteScheduleTemplate = async (id) => {
-  try {
-    await api.delete(`/api/schedule-templates/${id}`);
-  } catch (error) {
-    console.error('[scheduleTemplatesApi] deleteScheduleTemplate error:', error?.message || error);
-    throw error;
-  }
-};
 
 // Export objet pour compatibilité avec ancien code si nécessaire
 export const scheduleTemplatesApi = {
@@ -105,8 +75,6 @@ export const scheduleTemplatesApi = {
   activate: activateScheduleTemplate,
   listForTeam: listScheduleTemplatesForTeam,
   getActiveForTeam: getActiveScheduleTemplate,
-  update: updateScheduleTemplate,
-  delete: deleteScheduleTemplate,
 };
 
 export default scheduleTemplatesApi;
