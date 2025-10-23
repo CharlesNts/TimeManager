@@ -10,7 +10,7 @@ import ClockActions from '../components/employee/ClockActions';
 import ClockCalendarView from '../components/employee/ClockCalendarView';
 import RequestLeaveModal from '../components/employee/RequestLeaveModal';
 import PeriodSelector from '../components/manager/PeriodSelector';
-import { Clock, AlertTriangle, Briefcase, TrendingUp, ArrowLeft, Calendar } from 'lucide-react';
+import { Clock, AlertTriangle, Briefcase, ArrowLeft, Calendar } from 'lucide-react';
 import api from '../api/client';
 import { buildChartSeries } from '../api/statsApi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
@@ -32,7 +32,6 @@ import {
 
 import {
   getPeriodInfo,
-  calculatePeriodDates,
   getDisplayPeriodBoundaries,
   getDisplayPeriodBoundariesShifted
 } from '../utils/granularityUtils';
@@ -89,48 +88,30 @@ function fmtMinutes(v) {
   return `${h}h ${String(m).padStart(2, '0')}m`
 }
 
-function makeSeries(previous, current, maxPoints = 12, period = 7) {
-  const points = Math.max(2, Math.min(maxPoints, period))
-  const series = []
-  const endDate = new Date()
-  const startDate = new Date(endDate)
-  startDate.setDate(endDate.getDate() - (period - 1))
-
-  for (let i = 0; i < points; i++) {
-    const ratio = points === 1 ? 0 : i / (points - 1)
-    const ease = 0.5 - 0.5 * Math.cos(Math.PI * ratio)
-    const value = Math.round(previous * (1 - ease) + current * ease)
-
-    // Compute the label date position
-    const labelDate = new Date(startDate)
-    labelDate.setDate(startDate.getDate() + Math.round(ratio * (period - 1)))
-
-    let label = ''
-    if (period <= 7) {
-      const daysFr = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam']
-      label = daysFr[labelDate.getDay()]
-    } else if (period <= 31) {
-      label = labelDate.getDate().toString()
-    } else {
-      const monthsFr = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'juil', 'aoû', 'sep', 'oct', 'nov', 'déc']
-      label = monthsFr[labelDate.getMonth()]
-    }
-
-    series.push({ idx: i, value, label })
-  }
-
-  return series
-}
-
-// Deprecated: use hoursChartSeries and avgChartSeries states from generateMockDailyStats instead
-
-function CustomTooltip({ active, payload }) {
+function CustomTooltip({ active, payload, type = 'hours' }) {
   if (!active || !payload || payload.length === 0) return null
   const value = payload[0].value
+  const label = payload[0].payload?.label || 'N/A'
+
+  let title = 'Heures travaillées'
+  let formattedValue = fmtMinutes(Math.round(value))
+
+  if (type === 'lateness') {
+    title = 'Jours en retard'
+    formattedValue = `${Math.round(value)} jour${Math.round(value) > 1 ? 's' : ''}`
+  } else if (type === 'avg') {
+    title = 'Moyenne'
+    formattedValue = fmtMinutes(Math.round(value))
+  } else if (type === 'comparison') {
+    title = 'Comparaison'
+    formattedValue = `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
+  }
+
   return (
     <div className="bg-white border border-gray-200 rounded-md shadow-md p-2">
-      <p className="text-xs font-medium text-gray-900">Heures travaillées</p>
-      <p className="text-sm font-semibold text-gray-700">{fmtMinutes(value)}</p>
+      <p className="text-xs font-medium text-gray-900">{title}</p>
+      <p className="text-xs text-gray-600 mb-1">{label}</p>
+      <p className="text-sm font-semibold text-gray-700">{formattedValue}</p>
     </div>
   )
 }
@@ -244,7 +225,6 @@ export default function EmployeeDashboard() {
     comparison: '—',
   });
   const [recentClocks, setRecentClocks] = useState([]);
-  const [periodTotals, setPeriodTotals] = useState({ current: 0, previous: 0 });
   const [hoursTotals, setHoursTotals] = useState({ current: 0, previous: 0 });
   const [avgTotals, setAvgTotals] = useState({ current: 0, previous: 0 });
   const [hoursChartSeries, setHoursChartSeries] = useState([]);
@@ -306,12 +286,18 @@ export default function EmployeeDashboard() {
 
     const loadKpis = async () => {
       try {
-        // Calculer les dates selon la granularité sélectionnée
-        const { currentStart, currentEnd, previousStart, previousEnd, periodCount } = calculatePeriodDates(selectedGranularity);
-        const periodStart = currentStart;
-        const periodEnd = currentEnd;
-        const prevPeriodStart = previousStart;
-        const prevPeriodEnd = previousEnd;
+
+        // Utiliser les vraies périodes d'affichage (qui incluent jusqu'à 23:59:59 du dernier jour)
+        const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
+        const previousBoundaries = getDisplayPeriodBoundariesShifted(selectedGranularity, 1);
+
+        // Récupérer les dates de la première et dernière période
+        const periodStart = periodBoundaries[0].startDate;
+        const periodEnd = periodBoundaries[periodBoundaries.length - 1].endDate;
+        const prevPeriodStart = previousBoundaries[0].startDate;
+        const prevPeriodEnd = previousBoundaries[previousBoundaries.length - 1].endDate;
+
+        const { periodCount } = getPeriodInfo(selectedGranularity);
 
         const [clocksThisPeriod, clocksPrevPeriod] = await Promise.all([
           fetchClocksRange(targetUserId, periodStart, periodEnd),
@@ -342,12 +328,6 @@ export default function EmployeeDashboard() {
           
           return sum + workedMin;
         }, 0);
-        const hwH = Math.floor(totalPeriodMin / 60);
-        const hwM = totalPeriodMin % 60;
-        const hoursPeriod = `${hwH}h ${String(hwM).padStart(2, '0')}m`;
-
-        // Générer les données du graphique par granularité
-        const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
 
         // Aggreger les clocks par période (jour/semaine/mois/année)
         const hoursPerPeriod = periodBoundaries.map(period => {
@@ -369,31 +349,90 @@ export default function EmployeeDashboard() {
           return { date: period.label, minutesWorked: totalMin };
         });
 
-        const totalDaysWorked = periodBoundaries.filter(p =>
-          hoursPerPeriod.find(h => h.date === p.label && h.minutesWorked > 0)
-        ).length || 1;
+        // Heures de la PÉRIODE ACTUELLE SEULEMENT (dernière période d'affichage)
+        const currentPeriodBoundary = periodBoundaries[periodBoundaries.length - 1];
+        const currentPeriodHours = hoursPerPeriod.find(h => h.date === currentPeriodBoundary.label);
+        const currentPeriodMin = currentPeriodHours ? currentPeriodHours.minutesWorked : 0;
+        const cpH = Math.floor(currentPeriodMin / 60);
+        const cpM = currentPeriodMin % 60;
+        const hoursPeriodDisplay = `${cpH}h ${String(cpM).padStart(2, '0')}m`;
 
-        // Retards (simulé pour chaque période)
-        const latenessRatePercent = 10 + Math.random() * 10;
-        const lateDaysCount = Math.max(0, Math.round(totalDaysWorked * (latenessRatePercent / 100)));
-        const delaysPeriodCount = `${lateDaysCount}`;
+        // Retards (données réelles basées sur les pointages après 9h30)
+        const LATE_THRESHOLD_HOUR = 9;
+        const LATE_THRESHOLD_MINUTE = 30;
 
-        const lateDaysStats = hoursPerPeriod.map(hp => ({
-          date: hp.date,
-          minutesWorked: hp.minutesWorked > 0 && Math.random() < (latenessRatePercent / 100) ? 1 : 0
-        }));
+        // Compter les vrais jours calendaires avec retard dans la PÉRIODE ACTUELLE SEULEMENT
+        const currentPeriod = periodBoundaries[periodBoundaries.length - 1];
+        const currentPeriodClocks = clocksThisPeriod.filter(c => {
+          const clockDate = toParis(new Date(c.clockIn));
+          return clockDate >= currentPeriod.startDate && clockDate <= currentPeriod.endDate;
+        });
+
+        const daysWithLateInCurrentPeriod = new Set();
+        currentPeriodClocks.forEach(c => {
+          const clockInTime = toParis(new Date(c.clockIn));
+          if (clockInTime.getHours() > LATE_THRESHOLD_HOUR ||
+              (clockInTime.getHours() === LATE_THRESHOLD_HOUR && clockInTime.getMinutes() >= LATE_THRESHOLD_MINUTE)) {
+            const dayKey = clockInTime.toISOString().split('T')[0]; // YYYY-MM-DD
+            daysWithLateInCurrentPeriod.add(dayKey);
+          }
+        });
+
+        const lateDaysCount = daysWithLateInCurrentPeriod.size;
+        // Compter aussi les jours travaillés dans la période actuelle seulement
+        const daysWorkedInCurrentPeriod = new Set();
+        currentPeriodClocks.forEach(c => {
+          const dayKey = toParis(new Date(c.clockIn)).toISOString().split('T')[0];
+          daysWorkedInCurrentPeriod.add(dayKey);
+        });
+        const currentPeriodDaysWorked = daysWorkedInCurrentPeriod.size || 1;
+        const latenessRatePercent = currentPeriodDaysWorked > 0 ? (lateDaysCount / currentPeriodDaysWorked) * 100 : 0;
+        const delaysPeriodCount = `${lateDaysCount}`; // Format pour affichage
+
+        // Pour le graphique, créer un point de données par jour/semaine/mois/année avec nombre de jours en retard dans cette période
+        const lateDaysStats = periodBoundaries.map(period => {
+          const periodDaysWithLate = clocksThisPeriod.filter(c => {
+            const clockInTime = toParis(new Date(c.clockIn));
+            return (clockInTime.getHours() > LATE_THRESHOLD_HOUR ||
+                   (clockInTime.getHours() === LATE_THRESHOLD_HOUR && clockInTime.getMinutes() >= LATE_THRESHOLD_MINUTE)) &&
+                   clockInTime >= period.startDate && clockInTime <= period.endDate;
+          }).map(c => toParis(new Date(c.clockIn)).toISOString().split('T')[0])
+            .filter((v, i, a) => a.indexOf(v) === i) // Unique days
+            .length;
+
+          return {
+            date: period.label,
+            minutesWorked: periodDaysWithLate // Nombre de jours en retard pour cette période
+          };
+        });
 
         const lateDaysChart = buildChartSeries(lateDaysStats, 12, periodCount);
-        setLatenessData({ totalDays: totalDaysWorked, lateDays: lateDaysCount, rate: latenessRatePercent, lateDaysChartSeries: lateDaysChart });
+        setLatenessData({ totalDays: currentPeriodDaysWorked, lateDays: lateDaysCount, rate: latenessRatePercent, lateDaysChartSeries: lateDaysChart });
 
-        // Moyenne sur la période
+        // Calculer la vraie moyenne pour chaque période
+        // La "moyenne" = heures de la période / nombre de jours dans la période
+        const daysPerPeriod = {
+          'day': 1,
+          'week': 7,
+          'month': 30.4, // Moyenne sur l'année
+          'year': 365
+        };
+        const divisor = daysPerPeriod[selectedGranularity] || 1;
+
+        // Moyenne de la PÉRIODE ACTUELLE SEULEMENT
+        const currentPeriodForAvg = periodBoundaries[periodBoundaries.length - 1];
+        const currentPeriodHoursForAvg = hoursPerPeriod.find(h => h.date === currentPeriodForAvg.label);
+        const currentPeriodMinForAvg = currentPeriodHoursForAvg ? currentPeriodHoursForAvg.minutesWorked : 0;
+        const avgForCurrentPeriod = Math.round(currentPeriodMinForAvg / divisor);
+        const apH = Math.floor(avgForCurrentPeriod / 60);
+        const apM = avgForCurrentPeriod % 60;
+        const avgDaily = `${apH}h ${String(apM).padStart(2, '0')}m`;
+
+        // Moyenne globale pour l'affichage des stats globales
         const periodsWithWork = periodBoundaries.filter(p =>
           hoursPerPeriod.find(h => h.date === p.label && h.minutesWorked > 0)
         ).length || 1;
         const avgPeriodicMin = Math.round(totalPeriodMin / periodsWithWork);
-        const apH = Math.floor(avgPeriodicMin / 60);
-        const apM = avgPeriodicMin % 60;
-        const avgDaily = `${apH}h ${String(apM).padStart(2, '0')}m`;
 
         // Comparaison vs période précédente
         const prevPeriodBoundaries = getDisplayPeriodBoundariesShifted(selectedGranularity, 1);
@@ -426,23 +465,27 @@ export default function EmployeeDashboard() {
           comparison = '+100%';
         }
 
-        setPeriodTotals({ current: totalPeriodMin, previous: totalPrevPeriodMin });
         setHoursTotals({ current: totalPeriodMin, previous: totalPrevPeriodMin });
         setAvgTotals({ current: avgPeriodicMin, previous: Math.round(totalPrevPeriodMin / Math.max(1, hoursPerPrevPeriod.filter(h => h.minutesWorked > 0).length)) });
 
         // Build chart series from period-based stats
         const hoursChart = buildChartSeries(hoursPerPeriod, 12, periodCount);
-        const avgStats = hoursPerPeriod.map(hp => ({ date: hp.date, minutesWorked: avgPeriodicMin }));
+
+        // Utiliser le divisor déjà calculé pour les stats du graphique
+        const avgStats = hoursPerPeriod.map(hp => ({
+          date: hp.date,
+          minutesWorked: hp.minutesWorked / divisor
+        }));
         const avgChart = buildChartSeries(avgStats, 12, periodCount);
-        
+
         setHoursChartSeries(hoursChart);
         setAvgChartSeries(avgChart);
-        
-        setStats({ 
-          hoursWeek: hoursPeriod, 
+
+        setStats({
+          hoursWeek: hoursPeriodDisplay,  // Heures de la période actuelle seulement
           delaysMonth: delaysPeriodCount, // Déjà en format '—'
-          avgWeek: avgDaily, 
-          comparison 
+          avgWeek: avgDaily,
+          comparison
         });
       } catch (e) {
         console.warn('[Dashboard KPIs] error:', e?.message || e);
@@ -763,7 +806,7 @@ export default function EmployeeDashboard() {
                               <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
                               <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
                               <YAxis hide />
-                              <RechartsTooltip content={<CustomTooltip />} cursor={false} />
+                              <RechartsTooltip content={<CustomTooltip type="hours" />} cursor={false} />
                               <Area type="monotone" dataKey="value" stroke="var(--color-desktop)" fill="url(#hoursFill)" strokeWidth={2} dot={false} />
                             </AreaChart>
                           </ResponsiveContainer>
@@ -774,9 +817,12 @@ export default function EmployeeDashboard() {
                     {/* Jours en retard */}
                     <Card>
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-500">
-                          Jours en retard
-                        </CardTitle>
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-sm font-medium text-gray-500">
+                            Jours en retard
+                          </CardTitle>
+                          <Badge variant="secondary" className="text-xs">À corriger en backend</Badge>
+                        </div>
                         <AlertTriangle className="h-4 w-4 text-gray-400" />
                       </CardHeader>
                       <CardContent>
@@ -794,7 +840,7 @@ export default function EmployeeDashboard() {
                               <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
                               <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
                               <YAxis hide />
-                              <RechartsTooltip content={<CustomTooltip />} cursor={false} />
+                              <RechartsTooltip content={<CustomTooltip type="lateness" />} cursor={false} />
                               <Area type="monotone" dataKey="value" stroke="var(--color-mobile)" fill="url(#lateFill)" strokeWidth={2} dot={false} />
                             </AreaChart>
                           </ResponsiveContainer>
@@ -825,39 +871,8 @@ export default function EmployeeDashboard() {
                               <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
                               <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
                               <YAxis hide />
-                              <RechartsTooltip content={<CustomTooltip />} cursor={false} />
+                              <RechartsTooltip content={<CustomTooltip type="avg" />} cursor={false} />
                               <Area type="monotone" dataKey="value" stroke="var(--color-mobile)" fill="url(#avgFill)" strokeWidth={2} dot={false} />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    {/* Comparaison */}
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-500">
-                          Comparaison
-                        </CardTitle>
-                        <TrendingUp className="h-4 w-4 text-gray-400" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">{stats.comparison}</div>
-                        <p className="text-xs text-gray-500 mt-2">vs période précédente</p>
-                        <div className="h-[120px] mt-4">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={makeSeries(periodTotals.previous, periodTotals.current, 12, getPeriodInfo(selectedGranularity).periodCount)} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
-                              <defs>
-                                <linearGradient id="compFill" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="6%" stopColor="var(--color-desktop)" stopOpacity={0.16} />
-                                  <stop offset="95%" stopColor="var(--color-desktop)" stopOpacity={0.03} />
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
-                              <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
-                              <YAxis hide />
-                              <RechartsTooltip content={<CustomTooltip />} cursor={false} />
-                              <Area type="monotone" dataKey="value" stroke="var(--color-desktop)" fill="url(#compFill)" strokeWidth={2} dot={false} />
                             </AreaChart>
                           </ResponsiveContainer>
                         </div>

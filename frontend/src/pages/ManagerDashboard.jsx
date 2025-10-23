@@ -34,18 +34,43 @@ import ExportMenu from '../components/ui/ExportMenu';
 import { buildChartSeries } from '../api/statsApi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { getPeriodInfo, getDisplayPeriodBoundaries, getDisplayPeriodBoundariesShifted } from '../utils/granularityUtils';
+import { toParis } from '../utils/dateUtils';
 
-// Custom Tooltip identique à EmployeeDashboard
-const CustomTooltip = ({ active, payload }) => {
-  if (active && payload && payload[0]) {
-    return (
-      <div className="bg-white p-2 border border-gray-200 rounded shadow-lg text-xs">
-        <p className="font-medium">{payload[0].payload.label}</p>
-        <p className="text-gray-600">{payload[0].value}</p>
-      </div>
-    )
+// Helper function to format minutes
+function fmtMinutes(v) {
+  if (typeof v !== 'number') return '—'
+  const h = Math.floor(v / 60)
+  const m = v % 60
+  return `${h}h ${String(m).padStart(2, '0')}m`
+}
+
+// Custom Tooltip context-aware for different chart types
+const CustomTooltip = ({ active, payload, type = 'hours' }) => {
+  if (!active || !payload || payload.length === 0) return null
+  const value = payload[0].value
+  const label = payload[0].payload?.label || 'N/A'
+
+  let title = 'Heures travaillées'
+  let formattedValue = fmtMinutes(value)
+
+  if (type === 'lateness') {
+    title = 'Jours en retard'
+    formattedValue = value > 0 ? '✓ Retard' : 'À l\'heure'
+  } else if (type === 'avg') {
+    title = 'Moyenne'
+    formattedValue = fmtMinutes(value)
+  } else if (type === 'comparison') {
+    title = 'Comparaison'
+    formattedValue = `${value >= 0 ? '+' : ''}${value}%`
   }
-  return null
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-md shadow-md p-2">
+      <p className="text-xs font-medium text-gray-900">{title}</p>
+      <p className="text-xs text-gray-600 mb-1">{label}</p>
+      <p className="text-sm font-semibold text-gray-700">{formattedValue}</p>
+    </div>
+  )
 };
 
 export default function ManagerDashboard() {
@@ -179,13 +204,19 @@ export default function ManagerDashboard() {
     const loadRealStats = async () => {
       try {
         const now = new Date();
-        const startOfCurrentPeriod = new Date(now);
-        startOfCurrentPeriod.setDate(now.getDate() - selectedPeriod + 1);
-        startOfCurrentPeriod.setHours(0, 0, 0, 0);
-        
-        const startOfPreviousPeriod = new Date(startOfCurrentPeriod);
-        startOfPreviousPeriod.setDate(startOfPreviousPeriod.getDate() - selectedPeriod);
-        
+
+        // Utiliser les vraies périodes d'affichage pour la granularité sélectionnée
+        const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
+        const previousBoundaries = getDisplayPeriodBoundariesShifted(selectedGranularity, 1);
+
+        // La période actuelle commence au début de la première période d'affichage
+        const startOfCurrentPeriod = periodBoundaries[0].startDate;
+        const endOfCurrentPeriod = now;
+
+        // La période précédente
+        const startOfPreviousPeriod = previousBoundaries[0].startDate;
+        const endOfPreviousPeriod = startOfCurrentPeriod;
+
         // Récupérer tous les membres de toutes les équipes
         const allMemberIds = teams.flatMap(team => 
           team.members.map(member => member.user?.id || member.userId)
@@ -206,15 +237,15 @@ export default function ManagerDashboard() {
               const { data: currentClocks } = await api.get(`/api/users/${userId}/clocks/range`, {
                 params: {
                   from: startOfCurrentPeriod.toISOString(),
-                  to: now.toISOString()
+                  to: endOfCurrentPeriod.toISOString()
                 }
               });
-              
+
               // Période précédente
               const { data: previousClocks } = await api.get(`/api/users/${userId}/clocks/range`, {
                 params: {
                   from: startOfPreviousPeriod.toISOString(),
-                  to: startOfCurrentPeriod.toISOString()
+                  to: endOfPreviousPeriod.toISOString()
                 }
               });
               
@@ -225,13 +256,17 @@ export default function ManagerDashboard() {
                   const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
                   const minutes = Math.round((clockOut - clockIn) / 60000);
                   totalCurrentMinutes += Math.max(0, minutes);
-                  
-                  // Regrouper par jour pour le graphique
-                  const dayKey = clockIn.toISOString().split('T')[0];
+
+                  // Regrouper par jour pour le graphique (utiliser l'heure de Paris pour la clé du jour)
+                  const clockInParis = toParis(clockIn);
+                  const yearStr = clockInParis.getFullYear();
+                  const monthStr = String(clockInParis.getMonth() + 1).padStart(2, '0');
+                  const dayStr = String(clockInParis.getDate()).padStart(2, '0');
+                  const dayKey = `${yearStr}-${monthStr}-${dayStr}`;
                   dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
-                  
-                  // Vérifier si c'est un retard (après 9h30)
-                  if (clockIn.getHours() > 9 || (clockIn.getHours() === 9 && clockIn.getMinutes() > 30)) {
+
+                  // Vérifier si c'est un retard (après 9h30 heure de Paris)
+                  if (clockInParis.getHours() > 9 || (clockInParis.getHours() === 9 && clockInParis.getMinutes() >= 30)) {
                     totalLateDays++;
                     dailyLateMap[dayKey] = (dailyLateMap[dayKey] || 0) + 1;
                   }
@@ -257,9 +292,6 @@ export default function ManagerDashboard() {
         // Calculer les moyennes
         const avgCurrentMinutes = allMemberIds.length > 0 ? totalCurrentMinutes / allMemberIds.length : 0;
         const avgPreviousMinutes = allMemberIds.length > 0 ? totalPreviousMinutes / allMemberIds.length : 0;
-        
-        // Générer les séries pour les graphiques avec labels corrects par granularité
-        const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
 
         // Aggreger les heures par période
         const hoursPerPeriod = periodBoundaries.map(period => {
@@ -298,7 +330,7 @@ export default function ManagerDashboard() {
         const hoursData = buildChartSeries(hoursPerPeriod, 12, selectedPeriod);
         const avgChartData = buildChartSeries(avgData, 12, selectedPeriod);
         const latenessSeries = buildChartSeries(latePerPeriod, 12, selectedPeriod);
-        
+
         // Convertir les minutes en heures pour l'affichage
         const hoursCurrentDisplay = Math.round(totalCurrentMinutes / 60 * 100) / 100; // 2 décimales
         const hoursPreviousDisplay = Math.round(totalPreviousMinutes / 60 * 100) / 100;
@@ -586,7 +618,7 @@ export default function ManagerDashboard() {
                                   <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
                                   <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
                                   <YAxis hide />
-                                  <RechartsTooltip content={<CustomTooltip />} cursor={false} />
+                                  <RechartsTooltip content={<CustomTooltip type="hours" />} cursor={false} />
                                   <Area type="monotone" dataKey="value" stroke="var(--color-desktop)" fill="url(#hoursFill)" strokeWidth={2} dot={false} />
                                 </AreaChart>
                               </ResponsiveContainer>
@@ -617,7 +649,7 @@ export default function ManagerDashboard() {
                                   <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
                                   <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
                                   <YAxis hide />
-                                  <RechartsTooltip content={<CustomTooltip />} cursor={false} />
+                                  <RechartsTooltip content={<CustomTooltip type="lateness" />} cursor={false} />
                                   <Area type="monotone" dataKey="value" stroke="var(--color-mobile)" fill="url(#lateFill)" strokeWidth={2} dot={false} />
                                 </AreaChart>
                               </ResponsiveContainer>
@@ -650,7 +682,7 @@ export default function ManagerDashboard() {
                                   <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
                                   <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
                                   <YAxis hide />
-                                  <RechartsTooltip content={<CustomTooltip />} cursor={false} />
+                                  <RechartsTooltip content={<CustomTooltip type="avg" />} cursor={false} />
                                   <Area type="monotone" dataKey="value" stroke="var(--color-mobile)" fill="url(#avgFill)" strokeWidth={2} dot={false} />
                                 </AreaChart>
                               </ResponsiveContainer>
@@ -685,7 +717,7 @@ export default function ManagerDashboard() {
                                   <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
                                   <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
                                   <YAxis hide />
-                                  <RechartsTooltip content={<CustomTooltip />} cursor={false} />
+                                  <RechartsTooltip content={<CustomTooltip type="comparison" />} cursor={false} />
                                   <Area type="monotone" dataKey="value" stroke="var(--color-desktop)" fill="url(#compFill)" strokeWidth={2} dot={false} />
                                 </AreaChart>
                               </ResponsiveContainer>
