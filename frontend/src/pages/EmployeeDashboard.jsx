@@ -18,7 +18,7 @@ import { exportEmployeeDashboardPDF } from '../utils/pdfExport';
 import { exportEmployeeDashboardCSV } from '../utils/csvExport';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
+import { Badge } from '../components/ui/Badge';
 import ExportMenu from '../components/ui/ExportMenu';
 
 import {

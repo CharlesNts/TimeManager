@@ -17,7 +17,7 @@ import {
 import { fetchTeamsByManager } from '../api/teamApi';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
+import { Badge } from '../components/ui/Badge';
 import WorkScheduleConfigurator from '../components/manager/WorkScheduleConfigurator';
 
 export default function ScheduleTemplatesPage() {
