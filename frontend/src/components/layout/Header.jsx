@@ -31,9 +31,8 @@ import {
  *   userRole="Manager"
  * />
  */
-export default function Header({ 
-  title = "Dashboard", 
-  userName = "Utilisateur", 
+export default function Header({
+  userName = "Utilisateur",
   userRole = null,
   userAvatar = null,
   notifications = [],

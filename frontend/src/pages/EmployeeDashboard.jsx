@@ -24,10 +24,7 @@ import ExportMenu from '../components/ui/ExportMenu';
 import {
   toParis,
   toISO,
-  pad,
-  minutesBetween,
-  addDays,
-  startOfWeekMon
+  minutesBetween
 } from '../utils/dateUtils';
 
 import {
@@ -37,40 +34,41 @@ import {
 } from '../utils/granularityUtils';
 
 // ---------- Agrégation par jour ----------
-function aggregateByDay(clocks) {
-  const map = new Map(); // 'YYYY-MM-DD' -> { firstIn: Date, totalWorkedMin: number }
-
-  for (const c of clocks) {
-    const inD = toParis(new Date(c.clockIn));
-    
-    // Ignorer les pointages invalides (clockOut avant clockIn ou même temps)
-    if (!c.clockOut) continue; // Ignorer les sessions ouvertes
-    
-    const outD = toParis(new Date(c.clockOut));
-    
-    // Vérifier que le pointage est valide (clockOut après clockIn)
-    if (outD <= inD) continue;
-    
-    // Vérifier que la durée est réaliste (max 12h par session)
-    const workedMin = minutesBetween(inD, outD);
-    if (workedMin > 12 * 60) continue; // Ignorer les sessions > 12h
-    
-    const key = `${inD.getFullYear()}-${pad(inD.getMonth() + 1)}-${pad(inD.getDate())}`;
-
-    const current = map.get(key);
-    if (!current) {
-      map.set(key, { firstIn: inD, totalWorkedMin: workedMin });
-    } else {
-      if (inD < current.firstIn) current.firstIn = inD; // conserver le premier clock-in
-      current.totalWorkedMin += workedMin;
-      map.set(key, current);
-    }
-  }
-
-  return Array.from(map.entries())
-    .map(([dateKey, v]) => ({ dateKey, ...v }))
-    .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
-}
+// Unused function - kept for reference
+// function aggregateByDay(clocks) {
+//   const map = new Map(); // 'YYYY-MM-DD' -> { firstIn: Date, totalWorkedMin: number }
+//
+//   for (const c of clocks) {
+//     const inD = toParis(new Date(c.clockIn));
+//
+//     // Ignorer les pointages invalides (clockOut avant clockIn ou même temps)
+//     if (!c.clockOut) continue; // Ignorer les sessions ouvertes
+//
+//     const outD = toParis(new Date(c.clockOut));
+//
+//     // Vérifier que le pointage est valide (clockOut après clockIn)
+//     if (outD <= inD) continue;
+//
+//     // Vérifier que la durée est réaliste (max 12h par session)
+//     const workedMin = minutesBetween(inD, outD);
+//     if (workedMin > 12 * 60) continue; // Ignorer les sessions > 12h
+//
+//     const key = `${inD.getFullYear()}-${pad(inD.getMonth() + 1)}-${pad(inD.getDate())}`;
+//
+//     const current = map.get(key);
+//     if (!current) {
+//       map.set(key, { firstIn: inD, totalWorkedMin: workedMin });
+//     } else {
+//       if (inD < current.firstIn) current.firstIn = inD; // conserver le premier clock-in
+//       current.totalWorkedMin += workedMin;
+//       map.set(key, current);
+//     }
+//   }
+//
+//   return Array.from(map.entries())
+//     .map(([dateKey, v]) => ({ dateKey, ...v }))
+//     .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+// }
 
 // ---------- Fetch helper ----------
 async function fetchClocksRange(userId, from, to) {
@@ -225,8 +223,6 @@ export default function EmployeeDashboard() {
     comparison: '—',
   });
   const [recentClocks, setRecentClocks] = useState([]);
-  const [hoursTotals, setHoursTotals] = useState({ current: 0, previous: 0 });
-  const [avgTotals, setAvgTotals] = useState({ current: 0, previous: 0 });
   const [hoursChartSeries, setHoursChartSeries] = useState([]);
   const [avgChartSeries, setAvgChartSeries] = useState([]);
   const [latenessData, setLatenessData] = useState({ totalDays: 0, lateDays: 0, rate: 0, lateDaysChartSeries: [] });
@@ -306,9 +302,6 @@ export default function EmployeeDashboard() {
 
         // Stocker pour PDF
         setRecentClocks(clocksThisPeriod.slice(0, 20));
-
-        // Calculer les agrégations par jour
-        const daysAggPeriod = aggregateByDay(clocksThisPeriod);
 
         // Heures sur la période (ignorer les sessions ouvertes et irréalistes)
         const minutesBetweenLocal = (a, b) => Math.max(0, Math.round((toParis(b) - toParis(a)) / 60000));
@@ -429,10 +422,10 @@ export default function EmployeeDashboard() {
         const avgDaily = `${apH}h ${String(apM).padStart(2, '0')}m`;
 
         // Moyenne globale pour l'affichage des stats globales
-        const periodsWithWork = periodBoundaries.filter(p =>
-          hoursPerPeriod.find(h => h.date === p.label && h.minutesWorked > 0)
-        ).length || 1;
-        const avgPeriodicMin = Math.round(totalPeriodMin / periodsWithWork);
+        // const periodsWithWork = periodBoundaries.filter(p =>
+        //   hoursPerPeriod.find(h => h.date === p.label && h.minutesWorked > 0)
+        // ).length || 1;
+        // const avgPeriodicMin = Math.round(totalPeriodMin / periodsWithWork);
 
         // Comparaison vs période précédente
         const prevPeriodBoundaries = getDisplayPeriodBoundariesShifted(selectedGranularity, 1);
@@ -464,9 +457,6 @@ export default function EmployeeDashboard() {
         } else if (totalPeriodMin > 0) {
           comparison = '+100%';
         }
-
-        setHoursTotals({ current: totalPeriodMin, previous: totalPrevPeriodMin });
-        setAvgTotals({ current: avgPeriodicMin, previous: Math.round(totalPrevPeriodMin / Math.max(1, hoursPerPrevPeriod.filter(h => h.minutesWorked > 0).length)) });
 
         // Build chart series from period-based stats
         const hoursChart = buildChartSeries(hoursPerPeriod, 12, periodCount);
@@ -590,10 +580,10 @@ export default function EmployeeDashboard() {
                   <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5" />
                   <div className="flex-1">
                     <p className="text-sm font-semibold text-orange-900">
-                      ⏰ Vous n'avez pas encore pointé aujourd'hui
+                      ⏰ Vous n&apos;avez pas encore pointé aujourd&apos;hui
                     </p>
                     <p className="text-xs text-orange-800 mt-1">
-                      N'oubliez pas de pointer votre arrivée pour que vos heures soient comptabilisées.
+                      N&apos;oubliez pas de pointer votre arrivée pour que vos heures soient comptabilisées.
                     </p>
                   </div>
                 </div>
@@ -665,7 +655,7 @@ export default function EmployeeDashboard() {
                         </CardHeader>
                         <CardContent>
                           {teamsForUser.length === 0 ? (
-                            <div className="text-sm text-gray-500">Vous ne faites partie d'aucune équipe pour le moment.</div>
+                            <div className="text-sm text-gray-500">Vous ne faites partie d&apos;aucune équipe pour le moment.</div>
                           ) : (
                             <div className="space-y-3">
                               {teamsForUser.map((team) => {
@@ -688,7 +678,7 @@ export default function EmployeeDashboard() {
                                     };
                                     const workDays = Object.entries(daysMap)
                                       .filter(([key]) => pattern[key] && pattern[key].length > 0)
-                                      .map(([_, val]) => val);
+                                      .map(([, val]) => val);
                                     workDaysDisplay = workDays.join(', ');
                                     
                                     const firstWorkDay = Object.entries(pattern).find(([key, val]) => 

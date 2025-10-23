@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { Line, LineChart, CartesianGrid, XAxis, ResponsiveContainer, Tooltip as ReTooltip } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
-import { ChartConfig, ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from '../ui/chart'
+import { ChartContainer, ChartTooltipContent } from '../ui/chart'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 
 const chartData = [

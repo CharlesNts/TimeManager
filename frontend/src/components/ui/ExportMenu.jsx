@@ -46,7 +46,7 @@ export default function ExportMenu({
       </DropdownMenuTrigger>
       
       <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuLabel>Format d'export</DropdownMenuLabel>
+        <DropdownMenuLabel>Format d&apos;export</DropdownMenuLabel>
         <DropdownMenuSeparator />
         
         <DropdownMenuItem 

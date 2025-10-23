@@ -1,8 +1,8 @@
 // src/components/employee/ClockActions.jsx
-import React, { useEffect, useState } from 'react';
-import { Clock as ClockIcon, LogIn, LogOut, Coffee, Loader2 } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { LogIn, LogOut, Coffee, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
-import { clockIn, clockOut, getCurrentClock, getClockHistory, getClockPauses, createPause, endPause } from '../../api/clocks.api';
+import { clockIn, clockOut, getCurrentClock, getClockHistory, getClockPauses } from '../../api/clocks.api';
 
 export default function ClockActions({ userId, onChanged }) {
   const [loading, setLoading] = useState(false);
@@ -11,20 +11,19 @@ export default function ClockActions({ userId, onChanged }) {
   // === Pause ===
   // isOnBreak: local UI state driven from pauses list
   const [isOnBreak, setIsOnBreak] = useState(false);
-  const [lastAction, setLastAction] = useState(null);
   const [pauses, setPauses] = useState([]);
   const [pausesLoading, setPausesLoading] = useState(false);
 
-  const loadLast = async () => {
+  const loadLast = useCallback(async () => {
     if (!userId) return;
     setError('');
     try {
       console.log('[ClockActions] Chargement du statut pour userId:', userId);
-      
+
       // Récupérer le pointage en cours de l'utilisateur connecté
       const currentClock = await getCurrentClock(userId);
       console.log('[ClockActions] Current clock:', currentClock);
-      
+
       if (currentClock && !currentClock.clockOut) {
         console.log('[ClockActions] Pointage actif trouvé:', currentClock);
         setOpenSession(currentClock);
@@ -36,7 +35,7 @@ export default function ClockActions({ userId, onChanged }) {
         const history = await getClockHistory(userId, 1);
         const last = history?.[0] || null;
         console.log('[ClockActions] Dernier pointage dans l\'historique:', last);
-        
+
         setOpenSession(last && !last.clockOut ? last : null);
         if (last && !last.clockOut) {
           await loadPausesForClock(last.id);
@@ -48,22 +47,9 @@ export default function ClockActions({ userId, onChanged }) {
       console.error('[ClockActions] Erreur lors du chargement:', e);
       setError(e.message || 'Impossible de charger le statut de pointage');
     }
-  };
+  }, [userId]);
 
-  useEffect(() => { loadLast(); }, [userId]);
-
-  // --- Pause helpers ---
-  const fmtLocalDateTime = (d) => {
-    // backend expects LocalDateTime (no timezone): YYYY-MM-DDTHH:mm:ss
-    const pad = (n) => String(n).padStart(2, '0');
-    const year = d.getFullYear();
-    const month = pad(d.getMonth() + 1);
-    const day = pad(d.getDate());
-    const hour = pad(d.getHours());
-    const min = pad(d.getMinutes());
-    const sec = pad(d.getSeconds());
-    return `${year}-${month}-${day}T${hour}:${min}:${sec}`;
-  };
+  useEffect(() => { loadLast(); }, [loadLast]);
 
   // --- Pause helpers ---
   const loadPausesForClock = async (clockId) => {
@@ -90,7 +76,6 @@ export default function ClockActions({ userId, onChanged }) {
       setOpenSession(data);
       setPauses([]);
       setIsOnBreak(false);
-      setLastAction({ type: 'in', time: new Date() });
       onChanged && onChanged();
     } catch (e) {
       setError(e.message || 'Échec du pointage Arrivée');
@@ -102,11 +87,10 @@ export default function ClockActions({ userId, onChanged }) {
   const handleClockOut = async () => {
     setLoading(true); setError('');
     try {
-      const data = await clockOut(userId);
+      await clockOut(userId);
       setOpenSession(null);
       setPauses([]);
       setIsOnBreak(false);
-      setLastAction({ type: 'out', time: new Date() });
       onChanged && onChanged();
     } catch (e) {
       setError(e.message || 'Échec du pointage Départ');
@@ -144,17 +128,6 @@ const handleBreak = async () => {
     ? { label: 'En pause', cls: 'bg-yellow-100 text-yellow-800' }
     : { label: 'Au travail', cls: 'bg-black text-white' };
 
-  const lastLabel = () => {
-    if (!lastAction) return '';
-    switch (lastAction.type) {
-      case 'in': return 'Arrivée';
-      case 'out': return 'Départ';
-      case 'break-start': return 'Début de pause';
-      case 'break-end': return 'Fin de pause';
-      default: return '';
-    }
-  };
-
   return (
     <div className="space-y-4">
       {/* Statut compact */}
@@ -182,7 +155,7 @@ const handleBreak = async () => {
           className="w-full"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-          Pointer l'arrivée
+          Pointer l&apos;arrivée
         </Button>
 
         <Button

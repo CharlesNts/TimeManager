@@ -1,6 +1,6 @@
 // src/pages/ForgotPasswordPage.jsx
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Mail, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -13,7 +13,6 @@ import { requestPasswordReset } from '../api/passwordApi';
  * L'utilisateur entre son email, le backend envoie un lien de reset
  */
 export default function ForgotPasswordPage() {
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -44,7 +43,7 @@ export default function ForgotPasswordPage() {
             </div>
             <h2 className="text-2xl font-semibold text-gray-900 mb-2">Email envoyé !</h2>
             <p className="text-gray-600 mb-6">
-              Si un compte existe avec l'adresse <strong>{email}</strong>, vous recevrez un email avec un lien pour réinitialiser votre mot de passe.
+              Si un compte existe avec l&apos;adresse <strong>{email}</strong>, vous recevrez un email avec un lien pour réinitialiser votre mot de passe.
             </p>
             <p className="text-sm text-gray-500 mb-6">
               Le lien est valable pendant 1 heure.

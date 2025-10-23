@@ -4,7 +4,7 @@ import { Tooltip, Legend } from 'recharts'
 // Small shadcn-like chart primitives to be reused by dashboard components.
 // This mirrors the example provided and adapts to the project's CSS variables.
 
-export const ChartContainer = ({ children, className = '', config = {}, ...props }) => {
+export const ChartContainer = ({ children, className = '', ...props }) => {
   return (
     <div className={`tm-chart-container ${className}`} {...props}>
       {children}
@@ -35,7 +35,7 @@ export const ChartLegendContent = ({ payload }) => {
   )
 }
 
-export const ChartTooltipContent = ({ payload, label, labelFormatter, indicator = 'dot' }) => {
+export const ChartTooltipContent = ({ payload, label, labelFormatter }) => {
   return (
     <div className="p-2 bg-white border rounded-md shadow-sm">
       <div className="text-xs font-medium">{labelFormatter ? labelFormatter(label) : label}</div>

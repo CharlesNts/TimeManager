@@ -67,7 +67,7 @@ export default function EditUserModal({ isOpen, onClose, onSave, userData = null
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-900">
-            {userData ? 'Modifier l\'utilisateur' : 'Créer un utilisateur'}
+            {userData ? 'Modifier l&apos;utilisateur' : 'Créer un utilisateur'}
           </h2>
           <button
             onClick={onClose}
@@ -144,8 +144,8 @@ export default function EditUserModal({ isOpen, onClose, onSave, userData = null
           {/* Informations */}
           <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded-r-lg">
             <p className="text-xs text-blue-700">
-              <strong>Note :</strong> La modification du rôle prendra effet immédiatement. 
-              L'utilisateur sera notifié par email du changement.
+              <strong>Note :</strong> La modification du rôle prendra effet immédiatement.
+              L&apos;utilisateur sera notifié par email du changement.
             </p>
           </div>
 

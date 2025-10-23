@@ -85,7 +85,7 @@ export const userApi = {
 // Exporter les fonctions individuelles pour compatibilité avec le code existant
 export const getUserById = userApi.getById;
 export const updateUserById = userApi.update;
-export const updateUserPassword = async (id, newPassword) => {
+export const updateUserPassword = async () => {
   // Cet endpoint n'existe pas dans le backend actuel
   throw new Error('Password update endpoint not implemented in backend');
 };

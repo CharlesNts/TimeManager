@@ -24,7 +24,6 @@ import {
   TrendingUp,
   Edit,
   Trash2,
-  Download,
   UserPlus,
 } from 'lucide-react';
 
@@ -41,8 +40,7 @@ import {
 
 // shadcn components
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 
 // ---------- Utils time (Europe/Paris) ----------
 const toParis = (date) => new Date(date.toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
@@ -382,9 +380,7 @@ export default function TeamDetail() {
     alert(`🚧 Export PDF backend à brancher : /api/teams/${teamId}/export?period=${selectedPeriod}&format=pdf`);
   };
 
-  const [showExportMenu, setShowExportMenu] = useState(false);
-
-  const getStatusBadge = (status) => {
+    const getStatusBadge = (status) => {
     switch (status) {
       case 'active':
         return <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">Actif</span>;
@@ -585,7 +581,7 @@ export default function TeamDetail() {
               <CardHeader>
                 <CardTitle className={`flex items-center ${schedule ? 'text-green-900' : 'text-amber-900'}`}>
                   <CalendarClock className="w-5 h-5 mr-2" />
-                  Planning de l'équipe
+                  Planning de l&apos;équipe
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -612,7 +608,7 @@ export default function TeamDetail() {
                     };
                     const workDaysDisplay = Object.entries(daysMap)
                       .filter(([key]) => pattern[key] && pattern[key].length > 0)
-                      .map(([_, val]) => val)
+                      .map(([, val]) => val)
                       .join(', ');
                     
                     // Extraire les horaires du premier jour travaillé
@@ -648,7 +644,7 @@ export default function TeamDetail() {
                   <div className={`space-y-2 text-sm`}>
                     <div className="text-center py-4">
                       <p className="font-medium mb-2">Aucun planning configuré</p>
-                      <p className="text-xs opacity-75">Cliquez sur le bouton "Horaires" pour configurer le planning</p>
+                      <p className="text-xs opacity-75">Cliquez sur le bouton &quot;Horaires&quot; pour configurer le planning</p>
                     </div>
                   </div>
                 )}
@@ -662,7 +658,7 @@ export default function TeamDetail() {
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center">
                   <Users className="w-5 h-5 mr-2" />
-                  Membres de l'équipe
+                  Membres de l&apos;équipe
                 </CardTitle>
 
                 {(user?.role === 'CEO' || user?.role === 'MANAGER') && (

@@ -83,7 +83,7 @@ export const reportsApi = {
    * Obtenir des statistiques pour une équipe
    * Combine plusieurs endpoints pour un rapport d'équipe complet
    */
-  getTeamStats: async (teamId, from, to, zoneId = null) => {
+  getTeamStats: async () => {
     // Note: Le backend n'a pas d'endpoint direct pour les stats d'équipe
     // Cette fonction pourrait être implémentée en agrégeant les données utilisateurs
     // ou en ajoutant un endpoint backend dédié

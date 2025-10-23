@@ -50,8 +50,8 @@ export default function TeamFormModal({
     description: '',
     managerId: ''
   });
-  
-  const [loading, setLoading] = useState(false);
+
+  const [, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   // Liste des managers disponibles - Chargée depuis l'API
@@ -193,7 +193,7 @@ export default function TeamFormModal({
             {/* Nom de l'équipe */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nom de l'équipe <span className="text-red-500">*</span>
+                Nom de l&apos;équipe <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -215,7 +215,7 @@ export default function TeamFormModal({
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
-                placeholder="Décrivez le rôle et les responsabilités de l'équipe..."
+                placeholder="Décrivez le rôle et les responsabilités de l&apos;équipe..."
                 rows={4}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-none"
               />
@@ -246,7 +246,7 @@ export default function TeamFormModal({
                     ))}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    Seuls les utilisateurs avec le rôle "Manager" ou "CEO" peuvent être sélectionnés
+                    Seuls les utilisateurs avec le rôle &quot;Manager&quot; ou &quot;CEO&quot; peuvent être sélectionnés
                   </p>
                 </>
               ) : (
@@ -281,7 +281,7 @@ export default function TeamFormModal({
               </label>
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800 mb-3">
-                  Le planning de travail sera configuré après la création de l'équipe. Une boîte de dialogue vous permettra de le configurer immédiatement.
+                  Le planning de travail sera configuré après la création de l&apos;équipe. Une boîte de dialogue vous permettra de le configurer immédiatement.
                 </p>
               </div>
             </div>

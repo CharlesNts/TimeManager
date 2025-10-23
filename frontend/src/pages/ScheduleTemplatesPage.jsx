@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
@@ -7,7 +6,6 @@ import {
   Calendar,
   Plus,
   Edit2,
-  ChevronDown,
   AlertCircle,
   Check,
   Clock,
@@ -23,7 +21,6 @@ import { Badge } from '../components/ui/badge';
 import WorkScheduleConfigurator from '../components/manager/WorkScheduleConfigurator';
 
 export default function ScheduleTemplatesPage() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const sidebarItems = getSidebarItems(user?.role);
 

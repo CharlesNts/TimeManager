@@ -1,16 +1,6 @@
 // src/components/layout/Sidebar.jsx
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Users, 
-  UserCircle, 
-  BarChart3, 
-  FileText, 
-  Send, 
-  Bell, 
-  Grid3x3 
-} from 'lucide-react';
 
 /**
  * Composant Sidebar réutilisable avec navigation React Router

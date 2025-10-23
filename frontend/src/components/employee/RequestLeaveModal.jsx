@@ -108,7 +108,7 @@ export default function RequestLeaveModal({ open, onClose, userId, onSuccess }) 
             Demander un congé
           </DialogTitle>
           <DialogDescription>
-            Soumettez votre demande de congé. Votre manager pourra l'approuver ou la rejeter.
+            Soumettez votre demande de congé. Votre manager pourra l&apos;approuver ou la rejeter.
           </DialogDescription>
         </DialogHeader>
 

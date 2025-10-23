@@ -26,7 +26,7 @@ export default function ProfilePage() {
     role: 'EMPLOYEE',
   });
 
-  const [userTeams, setUserTeams] = useState([]);
+  const [, setUserTeams] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
@@ -215,7 +215,7 @@ export default function ProfilePage() {
             <CardHeader>
               <CardTitle>Informations personnelles</CardTitle>
               <CardDescription>
-                Gérez vos informations de contact et d'identification
+                Gérez vos informations de contact et d&apos;identification
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -264,7 +264,7 @@ export default function ProfilePage() {
                     value={profileData.email}
                     disabled
                   />
-                  <p className="text-xs text-muted-foreground">L'email n'est pas modifiable ici.</p>
+                  <p className="text-xs text-muted-foreground">L&apos;email n&apos;est pas modifiable ici.</p>
                 </div>
 
                 {/* Téléphone */}

@@ -27,7 +27,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
         <div className="min-h-screen flex items-center justify-center p-8">
           <div className="max-w-md w-full bg-white border border-gray-200 rounded-lg p-6 text-center">
             <h2 className="text-xl font-semibold mb-2">Accès refusé</h2>
-            <p className="text-sm text-gray-600 mb-4">Vous n'avez pas la permission d'accéder à cette page.</p>
+            <p className="text-sm text-gray-600 mb-4">Vous n&apos;avez pas la permission d&apos;accéder à cette page.</p>
           </div>
         </div>
       );

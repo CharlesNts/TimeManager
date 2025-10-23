@@ -1,5 +1,5 @@
 // src/pages/ManagerDashboard.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getSidebarItems } from '../utils/navigationConfig';
@@ -10,11 +10,8 @@ import {
   Clock,
   TrendingUp,
   Building2,
-  UserPlus,
   Plus,
   AlertCircle,
-  FileDown,
-  FileSpreadsheet,
   CalendarClock,
 } from 'lucide-react';
 import api from '../api/client';
@@ -26,9 +23,7 @@ import { exportManagerDashboardPDF } from '../utils/pdfExport';
 import { exportManagerDashboardCSV } from '../utils/csvExport';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
 import KPICard from '../components/dashboard/KPICard';
-import KPIChartCard from '../components/dashboard/KPIChartCard';
 import PeriodSelector from '../components/manager/PeriodSelector';
 import ExportMenu from '../components/ui/ExportMenu';
 import { buildChartSeries } from '../api/statsApi';
@@ -97,7 +92,7 @@ export default function ManagerDashboard() {
   const [latenessData, setLatenessData] = useState({ totalDays: 0, lateDays: 0, rate: 0, lateDaysChartSeries: [] });
 
   // extract loadDashboard so it can be called after team creation
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     if (!user || user.role !== 'MANAGER') return;
     
     setLoading(true);
@@ -193,13 +188,14 @@ export default function ManagerDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
-  useEffect(() => { loadDashboard(); }, [user]);
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
   
   // Charger les vraies statistiques avec charts
   useEffect(() => {
     if (!stats.totalMembers || !user) return;
+    loadDashboard();
     
     const loadRealStats = async () => {
       try {
@@ -367,7 +363,7 @@ export default function ManagerDashboard() {
     };
     
     loadRealStats();
-  }, [stats.totalMembers, selectedGranularity, teams, user]);
+  }, [stats.totalMembers, selectedGranularity, selectedPeriod, teams, user, loadDashboard]);
 
   // --- Team creation modal state ---
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);

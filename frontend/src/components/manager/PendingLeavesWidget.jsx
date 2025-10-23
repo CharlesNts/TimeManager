@@ -108,12 +108,12 @@ export default function PendingLeavesWidget() {
           <div className="p-4 bg-yellow-100 border border-yellow-300 rounded-lg">
             <p className="text-sm text-yellow-800 font-semibold mb-2">⚠️ Fonctionnalité non disponible</p>
             <p className="text-xs text-yellow-700 mb-3">
-              Le backend n'est pas encore configuré pour filtrer les demandes de congés par manager.
+              Le backend n&apos;est pas encore configuré pour filtrer les demandes de congés par manager.
             </p>
             <details className="text-xs text-yellow-700">
               <summary className="cursor-pointer font-semibold mb-2">Détails techniques (cliquer pour voir)</summary>
               <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-left font-mono text-xs space-y-1">
-                <p><strong>Problème:</strong> L'endpoint /api/leaves/pending retourne TOUTES les demandes du système.</p>
+                <p><strong>Problème:</strong> L&apos;endpoint /api/leaves/pending retourne TOUTES les demandes du système.</p>
                 <p><strong>Solution:</strong> Le controller doit extraire le manager connecté et appeler findPendingForManager(managerId).</p>
                 <p><strong>Fichier:</strong> LeavesController.java (ligne 76-79)</p>
                 <p><strong>Status:</strong> En attente de correction backend</p>
@@ -188,7 +188,7 @@ export default function PendingLeavesWidget() {
 
               {leave.reason && (
                 <p className="text-xs text-gray-600 mb-2 italic">
-                  "{leave.reason}"
+                  &quot;{leave.reason}&quot;
                 </p>
               )}
 

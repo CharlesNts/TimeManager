@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
 import { Toaster } from './components/ui/sonner';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
@@ -19,20 +19,6 @@ import CreateUserPage from './pages/CreateUserPage';
 import ScheduleTemplatesPage from './pages/ScheduleTemplatesPage';
 import NotFoundPage from './pages/NotFoundPage';
 
-/**
- * Router pour le dashboard - redirige selon le rôle
- */
-function DashboardRouter() {
-  const { user } = useAuth();
-  
-  if (user?.role === 'CEO') {
-    return <CEODashboard />;
-  } else if (user?.role === 'MANAGER') {
-    return <ManagerDashboard />;
-  } else {
-    return <EmployeeDashboard />;
-  }
-}
 
 /**
  * Composant App - Point d'entrée avec le système de routing
@@ -65,7 +51,6 @@ function App() {
           {/* Authentification - Pages publiques */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           

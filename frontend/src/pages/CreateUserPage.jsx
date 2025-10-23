@@ -133,7 +133,7 @@ export default function CreateUserPage() {
           <CardHeader>
             <CardTitle className="text-2xl">Créer un utilisateur</CardTitle>
             <p className="text-sm text-gray-600">
-              Ajouter un nouveau membre à l'équipe PrimeBank
+              Ajouter un nouveau membre à l&apos;équipe PrimeBank
             </p>
           </CardHeader>
 
@@ -311,7 +311,7 @@ export default function CreateUserPage() {
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4 mr-2" />
-                      Créer l'utilisateur
+                      Créer l&apos;utilisateur
                     </>
                   )}
                 </Button>

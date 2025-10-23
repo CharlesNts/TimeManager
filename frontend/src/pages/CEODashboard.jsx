@@ -7,20 +7,15 @@ import Layout from '../components/layout/Layout';
 import {
   Users,
   UserCheck,
-  Clock,
-  TrendingUp,
   Building2,
   AlertCircle,
   BarChart3,
   CheckCircle,
   XCircle,
-  FileDown,
-  FileSpreadsheet,
 } from 'lucide-react';
 import api from '../api/client';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import KPIChartCard from '../components/dashboard/KPIChartCard';
 import ExportMenu from '../components/ui/ExportMenu';
 import { exportCEODashboardPDF } from '../utils/pdfExport';
@@ -169,7 +164,7 @@ export default function CEODashboard() {
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard CEO</h1>
                 <p className="text-gray-500 mt-1">
-                  Vue d'ensemble globale des statistiques et indicateurs clés de l'entreprise
+                  Vue d&apos;ensemble globale des statistiques et indicateurs clés de l&apos;entreprise
                 </p>
               </div>
               <ExportMenu 

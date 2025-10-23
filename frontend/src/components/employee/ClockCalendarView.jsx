@@ -5,7 +5,7 @@ import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { ChevronLeft, ChevronRight, Clock, Calendar as CalendarIcon, AlertCircle } from 'lucide-react';
 import { toParis, toISO, dateToISO } from '../../utils/dateUtils';
-import { calculateDayStatus, getStatusStyle, isScheduledWorkDay, getExpectedHoursForDay } from '../../utils/workStatusUtils';
+import { calculateDayStatus, getStatusStyle, isScheduledWorkDay } from '../../utils/workStatusUtils';
 import { getEmployeeLeaves } from '../../api/leavesApi';
 
 const DAYS_FR = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -270,7 +270,7 @@ export default function ClockCalendarView({ open, onClose, clocks = [], userName
       setProcessedClocks(daily);
       setLoading(false);
     }
-  }, [open, userId, clocks]);
+  }, [open, userId, clocks, today]);
 
   const calendarDays = useMemo(() => {
     return getCalendarDays(currentYear, currentMonth, processedClocks, activeSchedule, approvedLeaves);

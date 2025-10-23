@@ -42,7 +42,7 @@ export default function LoginPage() {
       });
       
       console.log('🔐 Réponse login:', res.data);
-      const { tokenType, accessToken, expiresIn } = res.data;
+      const { accessToken, expiresIn } = res.data;
       console.log('🔑 Token reçu:', accessToken?.substring(0, 20) + '...');
 
       // Stocker le token AVANT d'appeler /auth/me
@@ -152,7 +152,7 @@ export default function LoginPage() {
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Pas de compte ? <a href="/register" className="text-black font-medium hover:underline">S'inscrire</a>
+              Pas de compte ? <a href="/register" className="text-black font-medium hover:underline">S&apos;inscrire</a>
             </p>
           </div>
         </CardContent>
