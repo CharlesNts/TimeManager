@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
-import { Badge } from '../ui/badge';
+import { Badge } from '../ui/Badge';
 import { ChevronLeft, ChevronRight, Clock, Calendar as CalendarIcon, AlertCircle } from 'lucide-react';
 import { toParis, toISO, dateToISO } from '../../utils/dateUtils';
 import { calculateDayStatus, getStatusStyle, isScheduledWorkDay } from '../../utils/workStatusUtils';

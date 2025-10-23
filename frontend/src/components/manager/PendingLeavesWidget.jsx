@@ -3,7 +3,7 @@ import { Check, X, AlertCircle, Loader2, Calendar } from 'lucide-react';
 import { getPendingLeaves, approveLeave, rejectLeave, getLeaveTypeLabel } from '../../api/leavesApi';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Badge } from '../ui/badge';
+import { Badge } from '../ui/Badge';
 
 export default function PendingLeavesWidget() {
   const [leaves, setLeaves] = useState([]);
