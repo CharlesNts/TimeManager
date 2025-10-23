@@ -27,8 +27,8 @@ _Accessibles sans authentification_
 - **Statut** : Compte créé avec status `PENDING` (attente approbation CEO)
 - **Workflow** : CEO doit approuver l'inscription dans `/users`
 
-### `/demo` - Page de démonstration
-- **Fichier** : `DemoPage.jsx`
+
+
 - **Description** : Démo des composants UI
 - **Utilité** : Développement et tests visuels
 

@@ -8,9 +8,11 @@ import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import TeamFormModal from '../components/manager/TeamFormModal';
 import AddMemberModal from '../components/manager/AddMemberModal';
+import WorkScheduleConfigurator from '../components/manager/WorkScheduleConfigurator';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import PeriodSelector from '../components/manager/PeriodSelector';
 import ExportMenu from '../components/ui/ExportMenu';
+import { getPeriodInfo } from '../utils/granularityUtils';
 
 import {
   ArrowLeft,
@@ -18,14 +20,15 @@ import {
   UserCircle,
   Clock,
   Calendar,
+  CalendarClock,
   TrendingUp,
   Edit,
   Trash2,
-  Download,
   UserPlus,
 } from 'lucide-react';
 
 import api from '../api/client';
+import { scheduleTemplatesApi } from '../api/scheduleTemplatesApi';
 import {
   updateTeam,          // depuis src/api/teamApi.js
 } from '../api/teamApi';
@@ -37,8 +40,7 @@ import {
 
 // shadcn components
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 
 // ---------- Utils time (Europe/Paris) ----------
 const toParis = (date) => new Date(date.toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
@@ -143,7 +145,8 @@ export default function TeamDetail() {
   const sidebarItems = getSidebarItems(user?.role);
 
   // --------- UI state
-  const [selectedPeriod, setSelectedPeriod] = useState(7); // 7 / 30 / 365
+  const [selectedGranularity, setSelectedGranularity] = useState('week'); // 'day' / 'week' / 'month' / 'year'
+  const selectedPeriod = getPeriodInfo(selectedGranularity).periodCount; // For backward compatibility
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
 
@@ -152,10 +155,12 @@ export default function TeamDetail() {
   const [members, setMembers] = useState([]);            // TeamMemberDTO[] : { user, team, joinedAt }
   const [hoursByMember, setHoursByMember] = useState({}); // userId -> minutes
   const [lastByMember, setLastByMember] = useState({}); // userId -> { status, lastClockIn }
+  const [schedule, setSchedule] = useState(null);        // ScheduleTemplate pour l'équipe
 
   // --------- Modals
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, member: null });
 
   // ====== LOAD TEAM + MEMBERS ======
@@ -170,6 +175,16 @@ export default function TeamDetail() {
       ]);
       setTeam(teamData);
       setMembers(membersData);
+      
+      // Charger le schedule de l'équipe
+      try {
+        const scheduleData = await scheduleTemplatesApi.getActiveForTeam(teamId);
+        setSchedule(scheduleData);
+      } catch (e) {
+        // Si pas de schedule, c'est normal
+        console.warn('Pas de schedule trouvé pour l\'équipe:', e);
+        setSchedule(null);
+      }
     } catch (e) {
       setErr(e?.message || 'Erreur de chargement');
     } finally {
@@ -365,9 +380,7 @@ export default function TeamDetail() {
     alert(`🚧 Export PDF backend à brancher : /api/teams/${teamId}/export?period=${selectedPeriod}&format=pdf`);
   };
 
-  const [showExportMenu, setShowExportMenu] = useState(false);
-
-  const getStatusBadge = (status) => {
+    const getStatusBadge = (status) => {
     switch (status) {
       case 'active':
         return <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">Actif</span>;
@@ -436,11 +449,26 @@ export default function TeamDetail() {
                     Retour
                   </Button>
 
-                  <ExportMenu
-                    onExportPDF={handleExportPDF}
-                    onExportCSV={handleExportCSV}
-                    variant="outline"
-                  />
+                  {/* Menu d'export - Affiché uniquement pour les managers et CEO */}
+                  {(user?.role === 'MANAGER' || user?.role === 'CEO') && (
+                    <ExportMenu
+                      onExportPDF={handleExportPDF}
+                      onExportCSV={handleExportCSV}
+                      variant="outline"
+                    />
+                  )}
+
+                  {/* Configurer horaires (Manager et CEO) */}
+                  {(user?.role === 'MANAGER' || user?.role === 'CEO') && (
+                    <Button
+                      onClick={() => setIsScheduleModalOpen(true)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <CalendarClock className="w-4 h-4 mr-2" />
+                      Horaires
+                    </Button>
+                  )}
 
                   {/* Actions équipe (CEO seulement) */}
                   {user?.role === 'CEO' && (
@@ -472,78 +500,157 @@ export default function TeamDetail() {
             )}
           </div>
 
-          {/* KPIs */}
-          <div className="space-y-6">
-            <Card>
-              <CardContent className="p-4">
-                <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+          {/* KPIs - Affichés uniquement pour les managers et CEO */}
+          {(user?.role === 'MANAGER' || user?.role === 'CEO') && (
+            <div className="space-y-6">
+              <Card>
+                <CardContent className="p-4">
+                  <PeriodSelector selectedGranularity={selectedGranularity} onGranularityChange={setSelectedGranularity} />
+                </CardContent>
+              </Card>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total heures</p>
+                        <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.totalHoursThisWeek}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {selectedPeriod === 7 ? 'Cette semaine' : selectedPeriod === 30 ? 'Ce mois' : '12 derniers mois'}
+                        </p>
+                      </div>
+                      <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
+                        <Clock className="w-6 h-6 text-white" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Moyenne</p>
+                        <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.averageHoursPerMember}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Par membre</p>
+                      </div>
+                      <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
+                        <TrendingUp className="w-6 h-6 text-white" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Actifs</p>
+                        <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.activeMembers}</p>
+                        <p className="text-xs text-muted-foreground mt-1">En ce moment</p>
+                      </div>
+                      <div className="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center">
+                        <Users className="w-6 h-6 text-white" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">En pause</p>
+                        <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.onBreak}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Actuellement</p>
+                      </div>
+                      <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
+                        <Clock className="w-6 h-6 text-white" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {/* Planning Info - Affiché uniquement pour les managers et CEO */}
+          {(user?.role === 'MANAGER' || user?.role === 'CEO') && (
+            <Card className={schedule ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}>
+              <CardHeader>
+                <CardTitle className={`flex items-center ${schedule ? 'text-green-900' : 'text-amber-900'}`}>
+                  <CalendarClock className="w-5 h-5 mr-2" />
+                  Planning de l&apos;équipe
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {schedule ? (
+                  (() => {
+                    // Parser le weeklyPatternJson
+                    let pattern = null;
+                    try {
+                      pattern = JSON.parse(schedule.weeklyPatternJson || '{}');
+                    } catch (e) {
+                      console.warn('Erreur parsing weeklyPatternJson:', e);
+                      pattern = {};
+                    }
+                    
+                    // Extraire les jours travaillés
+                    const daysMap = {
+                      mon: 'Lundi',
+                      tue: 'Mardi',
+                      wed: 'Mercredi',
+                      thu: 'Jeudi',
+                      fri: 'Vendredi',
+                      sat: 'Samedi',
+                      sun: 'Dimanche'
+                    };
+                    const workDaysDisplay = Object.entries(daysMap)
+                      .filter(([key]) => pattern[key] && pattern[key].length > 0)
+                      .map(([, val]) => val)
+                      .join(', ');
+                    
+                    // Extraire les horaires du premier jour travaillé
+                    const firstWorkDay = Object.entries(pattern).find(([key, val]) => 
+                      ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].includes(key) && 
+                      val && val.length > 0
+                    );
+                    const times = firstWorkDay && firstWorkDay[1][0] ? firstWorkDay[1][0] : null;
+
+                    return (
+                      <div className={`space-y-2 text-sm text-green-800`}>
+                        <div className="flex justify-between">
+                          <span className="font-medium">Jours travaillés :</span>
+                          <span>{workDaysDisplay || 'Non configuré'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="font-medium">Horaires :</span>
+                          <span>{times ? `${times[0]} - ${times[1]}` : 'Non configuré'}</span>
+                        </div>
+                        {pattern.excludedDates && pattern.excludedDates.length > 0 && (
+                          <div className="flex justify-between">
+                            <span className="font-medium">Jours exclus :</span>
+                            <span>{pattern.excludedDates.length} jour(s)</span>
+                          </div>
+                        )}
+                        <div className="text-xs mt-3 border-t pt-2 opacity-75">
+                          ✓ Planning configuré
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div className={`space-y-2 text-sm`}>
+                    <div className="text-center py-4">
+                      <p className="font-medium mb-2">Aucun planning configuré</p>
+                      <p className="text-xs opacity-75">Cliquez sur le bouton &quot;Horaires&quot; pour configurer le planning</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total heures</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.totalHoursThisWeek}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {selectedPeriod === 7 ? 'Cette semaine' : selectedPeriod === 30 ? 'Ce mois' : '12 derniers mois'}
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
-                      <Clock className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Moyenne</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.averageHoursPerMember}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Par membre</p>
-                    </div>
-                    <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
-                      <TrendingUp className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Actifs</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.activeMembers}</p>
-                      <p className="text-xs text-muted-foreground mt-1">En ce moment</p>
-                    </div>
-                    <div className="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center">
-                      <Users className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">En pause</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.onBreak}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Actuellement</p>
-                    </div>
-                    <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
-                      <Clock className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+          )}
 
           {/* Membres */}
           <Card>
@@ -551,7 +658,7 @@ export default function TeamDetail() {
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center">
                   <Users className="w-5 h-5 mr-2" />
-                  Membres de l'équipe
+                  Membres de l&apos;équipe
                 </CardTitle>
 
                 {(user?.role === 'CEO' || user?.role === 'MANAGER') && (
@@ -575,9 +682,11 @@ export default function TeamDetail() {
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Nom</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Rôle</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Arrivé le</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
-                      Heures ({selectedPeriod}j)
-                    </th>
+                    {(user?.role === 'MANAGER' || user?.role === 'CEO') && (
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
+                        Heures ({selectedPeriod}j)
+                      </th>
+                    )}
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Dernier pointage</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Statut</th>
                     <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Actions</th>
@@ -613,7 +722,9 @@ export default function TeamDetail() {
                       <td className="py-3 px-4 text-sm text-gray-600">
                         {m.joinedAt ? new Date(m.joinedAt).toLocaleDateString('fr-FR') : '—'}
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-700 font-medium">{m.hoursInPeriod}</td>
+                      {(user?.role === 'MANAGER' || user?.role === 'CEO') && (
+                        <td className="py-3 px-4 text-sm text-gray-700 font-medium">{m.hoursInPeriod}</td>
+                      )}
                       <td className="py-3 px-4 text-sm text-gray-600">{m.lastClockIn}</td>
                       <td className="py-3 px-4">{getStatusBadge(m.status)}</td>
                       <td className="py-3 px-4 text-right">
@@ -700,6 +811,18 @@ export default function TeamDetail() {
         confirmText="Supprimer"
         cancelText="Annuler"
         variant="danger"
+      />
+
+      {/* Work schedule configurator modal */}
+      <WorkScheduleConfigurator
+        open={isScheduleModalOpen}
+        onClose={() => setIsScheduleModalOpen(false)}
+        teamId={team?.id}
+        teamName={team?.name}
+        onSave={() => {
+          // Recharger le schedule après sauvegarde
+          loadAll();
+        }}
       />
     </Layout>
   );

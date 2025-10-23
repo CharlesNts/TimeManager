@@ -14,10 +14,9 @@ import {
   createTeam,
   updateTeam,
   deleteTeam,
-} from '../api/teams';
+} from '../api/teamApi';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
+import { Card, CardContent, CardDescription, CardTitle } from '../components/ui/card';
 
 export default function TeamsList() {
   const navigate = useNavigate();
@@ -175,7 +174,7 @@ export default function TeamsList() {
               />
 
               {/* Bouton Créer (CEO et MANAGER peuvent créer, ajuste selon ta règle) */}
-              {(user?.role === 'CEO' || user?.role === 'MANAGER') && (
+              {user?.role === 'CEO' && (
                 <Button
                   onClick={handleCreateTeam}
                   variant="default"
@@ -220,11 +219,11 @@ export default function TeamsList() {
                   Aucune équipe pour le moment
                 </CardTitle>
                 <CardDescription className="mb-4">
-                  {user?.role === 'CEO' || user?.role === 'MANAGER'
+                  {user?.role === 'CEO'
                     ? 'Commencez par créer votre première équipe'
                     : "Vous n'êtes membre d'aucune équipe"}
                 </CardDescription>
-                {(user?.role === 'CEO' || user?.role === 'MANAGER') && (
+                {user?.role === 'CEO' && (
                   <Button
                     onClick={handleCreateTeam}
                     variant="default"

@@ -1,12 +1,7 @@
 // src/components/employee/ClockHistory.jsx
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import api from '../../api/client';
-import { Calendar, AlertTriangle } from 'lucide-react';
-
-// Horaires “flex”
-const WORK_START_HOUR = 9;
-const WORK_START_MINUTE = 30;
-const EARLY_CREDIT_CAP_MIN = 60; // 60 minutes max d'avance créditée
+import { Calendar } from 'lucide-react';
 
 // Utils date (Europe/Paris strict)
 const pad2 = (x) => String(x).padStart(2, '0');
@@ -23,10 +18,6 @@ const addDaysParis    = (d, n) => { const x = toParis(new Date(d)); x.setDate(x.
 
 // Europe/Paris
 const toParis = (date) => new Date(date.toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
-const minutesSinceMidnightParis = (d) => {
-  const p = toParis(d);
-  return p.getHours() * 60 + p.getMinutes();
-};
 
 // Format durée
 function formatDuration(clock) {
@@ -40,24 +31,25 @@ function formatDuration(clock) {
 }
 
 // Règle flex pour une session
-function complianceInfo(clockInDate, clockOutDate) {
-  const REQUIRED_DAY_MIN = 8 * 60;
-
-  const inMin = minutesSinceMidnightParis(clockInDate);
-  const expectedStartMin = WORK_START_HOUR * 60 + WORK_START_MINUTE;
-  const earlyRaw = Math.max(0, expectedStartMin - inMin);
-  const earlyArrivalMin = Math.min(EARLY_CREDIT_CAP_MIN, earlyRaw);
-  const lateArrivalMin = Math.max(0, inMin - expectedStartMin);
-
-  const endRef = clockOutDate ? toParis(clockOutDate) : toParis(new Date());
-  const workedMs = Math.max(0, endRef - toParis(clockInDate));
-  const workedMin = Math.round(workedMs / 60000);
-
-  const requiredMin = Math.max(0, REQUIRED_DAY_MIN - earlyArrivalMin + lateArrivalMin);
-  const deficitMin = Math.max(0, requiredMin - workedMin);
-
-  return { earlyArrivalMin, lateArrivalMin, workedMin, requiredMin, deficitMin, isLate: deficitMin > 0 };
-}
+// Unused function - kept for reference
+// function complianceInfo(clockInDate, clockOutDate) {
+//   const REQUIRED_DAY_MIN = 8 * 60;
+//
+//   const inMin = minutesSinceMidnightParis(clockInDate);
+//   const expectedStartMin = WORK_START_HOUR * 60 + WORK_START_MINUTE;
+//   const earlyRaw = Math.max(0, expectedStartMin - inMin);
+//   const earlyArrivalMin = Math.min(EARLY_CREDIT_CAP_MIN, earlyRaw);
+//   const lateArrivalMin = Math.max(0, inMin - expectedStartMin);
+//
+//   const endRef = clockOutDate ? toParis(clockOutDate) : toParis(new Date());
+//   const workedMs = Math.max(0, endRef - toParis(clockInDate));
+//   const workedMin = Math.round(workedMs / 60000);
+//
+//   const requiredMin = Math.max(0, REQUIRED_DAY_MIN - earlyArrivalMin + lateArrivalMin);
+//   const deficitMin = Math.max(0, requiredMin - workedMin);
+//
+//   return { earlyArrivalMin, lateArrivalMin, workedMin, requiredMin, deficitMin, isLate: deficitMin > 0 };
+// }
 
 export default function ClockHistory({ userId, period = 7, refreshKey = 0 }) {
   const [items, setItems] = useState([]);
@@ -96,16 +88,6 @@ export default function ClockHistory({ userId, period = 7, refreshKey = 0 }) {
     return () => { cancelled = true; };
   }, [userId, period, refreshKey]);
 
-  const { onTimeCount, lateCount } = useMemo(() => {
-    let onTime = 0, late = 0;
-    for (const c of items) {
-      const dIn = new Date(c.clockIn);
-      const dOut = c.clockOut ? new Date(c.clockOut) : null;
-      const comp = complianceInfo(dIn, dOut);
-      if (comp.isLate) late++; else onTime++;
-    }
-    return { onTimeCount: onTime, lateCount: late };
-  }, [items]);
 
   if (!userId) return null;
 
@@ -141,7 +123,6 @@ export default function ClockHistory({ userId, period = 7, refreshKey = 0 }) {
               {items.map((c) => {
                 const inDate = new Date(c.clockIn);
                 const outDate = c.clockOut ? new Date(c.clockOut) : null;
-                const comp = complianceInfo(inDate, outDate);
                 return (
                   <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-3 px-4 text-sm text-gray-700 font-medium">

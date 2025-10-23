@@ -42,7 +42,7 @@ const sidebarItems = [
 | `/users` | UsersListPage | Gestion utilisateurs (CEO) | UserCog |
 | `/login` | LoginPage | Connexion (pas de sidebar) | - |
 | `/register` | RegisterPage | Inscription (pas de sidebar) | - |
-| `/demo` | DemoPage | Démonstration composants | - |
+
 | `*` | NotFoundPage | Page 404 | - |
 
 ## 📱 Pages avec Sidebar
@@ -77,7 +77,7 @@ Toutes les pages suivantes utilisent le composant `<Layout>` avec la sidebar ide
    - CRUD utilisateurs
    - Filtres par rôle et statut
 
-6. **DemoPage** (`/demo`)
+
    - Vitrine des composants
    - Accessible uniquement par URL directe
 
@@ -134,7 +134,7 @@ Utilisateurs (/users)
 ### Pages hors flux
 - `/login` - Connexion (accessible directement)
 - `/register` - Inscription (accessible directement)
-- `/demo` - Démo composants (accessible par URL)
+
 - `/*` - 404 (toute URL invalide)
 
 ## 🎨 Cohérence Visuelle

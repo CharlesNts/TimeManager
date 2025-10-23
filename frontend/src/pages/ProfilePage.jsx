@@ -9,7 +9,7 @@ import { getUserById, updateUserById /*, updateUserPassword*/ } from '../api/use
 import { deleteUser } from '../api/userAdminApi';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
+import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 
@@ -26,7 +26,7 @@ export default function ProfilePage() {
     role: 'EMPLOYEE',
   });
 
-  const [userTeams, setUserTeams] = useState([]);
+  const [, setUserTeams] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
@@ -215,7 +215,7 @@ export default function ProfilePage() {
             <CardHeader>
               <CardTitle>Informations personnelles</CardTitle>
               <CardDescription>
-                Gérez vos informations de contact et d'identification
+                Gérez vos informations de contact et d&apos;identification
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -264,7 +264,7 @@ export default function ProfilePage() {
                     value={profileData.email}
                     disabled
                   />
-                  <p className="text-xs text-muted-foreground">L'email n'est pas modifiable ici.</p>
+                  <p className="text-xs text-muted-foreground">L&apos;email n&apos;est pas modifiable ici.</p>
                 </div>
 
                 {/* Téléphone */}
@@ -323,44 +323,6 @@ export default function ProfilePage() {
               )}
             </CardContent>
           </Card>
-
-          {/* Mes équipes */}
-          {userTeams.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Mes équipes</CardTitle>
-                <CardDescription>
-                  {userTeams.length} équipe{userTeams.length > 1 ? 's' : ''} dont vous faites partie
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {userTeams.map((team) => (
-                    <Card
-                      key={team.id}
-                      className="cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => window.location.href = `/teams/${team.id}`}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900">{team.name}</h4>
-                            <p className="text-sm text-muted-foreground mt-1">{team.description || 'Aucune description'}</p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <Badge variant="outline" className="text-xs">
-                                Manager : {team.managerName}
-                              </Badge>
-                            </div>
-                          </div>
-                          <Briefcase className="w-5 h-5 text-muted-foreground" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Sécurité */}
           <Card>

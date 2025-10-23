@@ -4,43 +4,45 @@ import { Calendar } from 'lucide-react';
 import { Button } from '../ui/button';
 
 /**
- * PeriodSelector - Sélecteur de période pour les statistiques
- * 
- * Permet de filtrer les données sur différentes périodes :
- * - 7 jours (semaine)
- * - 30 jours (mois)
- * - 365 jours (année)
- * 
+ * PeriodSelector - Sélecteur de granularité pour les statistiques
+ *
+ * Permet de filtrer les données par granularité :
+ * - Jour: 7 derniers jours (1 point par jour)
+ * - Semaine: 4 dernières semaines (1 point par semaine)
+ * - Mois: 12 derniers mois (1 point par mois)
+ * - Année: 5 dernières années (1 point par année)
+ *
  * Props:
- * - selectedPeriod: La période actuellement sélectionnée (7 | 30 | 365)
- * - onPeriodChange: Callback appelée quand la période change
- * 
+ * - selectedGranularity: 'day' | 'week' | 'month' | 'year'
+ * - onGranularityChange: Callback appelée quand la granularité change
+ *
  * Usage:
- * <PeriodSelector 
- *   selectedPeriod={period}
- *   onPeriodChange={(days) => setPeriod(days)}
+ * <PeriodSelector
+ *   selectedGranularity={granularity}
+ *   onGranularityChange={(type) => setGranularity(type)}
  * />
  */
-const PeriodSelector = ({ selectedPeriod = 7, onPeriodChange }) => {
-  const periods = [
-    { days: 7, label: '7 jours' },
-    { days: 30, label: '30 jours' },
-    { days: 365, label: '1 an' }
+const PeriodSelector = ({ selectedGranularity = 'week', onGranularityChange }) => {
+  const granularities = [
+    { type: 'day', label: 'Jour' },
+    { type: 'week', label: 'Semaine' },
+    { type: 'month', label: 'Mois' },
+    { type: 'year', label: 'Année' }
   ];
 
   return (
     <div className="flex items-center space-x-2">
       <Calendar className="w-5 h-5 text-gray-500" />
-      <span className="text-sm font-medium text-gray-700">Période :</span>
+      <span className="text-sm font-medium text-gray-700">Granularité :</span>
       <div className="flex space-x-2">
-        {periods.map((period) => (
+        {granularities.map((g) => (
           <Button
-            key={period.days}
-            onClick={() => onPeriodChange(period.days)}
-            variant={selectedPeriod === period.days ? "default" : "outline"}
+            key={g.type}
+            onClick={() => onGranularityChange(g.type)}
+            variant={selectedGranularity === g.type ? "default" : "outline"}
             size="sm"
           >
-            {period.label}
+            {g.label}
           </Button>
         ))}
       </div>

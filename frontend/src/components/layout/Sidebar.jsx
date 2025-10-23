@@ -1,16 +1,6 @@
 // src/components/layout/Sidebar.jsx
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Users, 
-  UserCircle, 
-  BarChart3, 
-  FileText, 
-  Send, 
-  Bell, 
-  Grid3x3 
-} from 'lucide-react';
 
 /**
  * Composant Sidebar réutilisable avec navigation React Router
@@ -34,8 +24,20 @@ export default function Sidebar({ items = [] }) {
   return (
     <aside className="w-16 bg-black flex flex-col items-center py-6 space-y-8">
       {/* Logo en haut */}
-      <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-        <span className="text-black font-bold text-sm">PB</span>
+      <div className="w-10 h-10 flex items-center justify-center">
+        <img 
+          src="/images/PrimeBank-LogoIcon-inverted.png" 
+          alt="PrimeBank" 
+          className="w-10 h-10 object-contain"
+          onError={(e) => {
+            // Fallback si l'image n'est pas trouvée
+            e.target.style.display = 'none';
+            e.target.nextElementSibling.style.display = 'flex';
+          }}
+        />
+        <div className="w-10 h-10 bg-white rounded-lg items-center justify-center hidden">
+          <span className="text-black font-bold text-sm">PB</span>
+        </div>
       </div>
 
       {/* Navigation items */}

@@ -40,22 +40,29 @@ export default function LoginPage() {
         email: formData.email,
         password: formData.password,
       });
-      const { tokenType, accessToken, expiresIn } = res.data;
+      
+      console.log('🔐 Réponse login:', res.data);
+      const { accessToken, expiresIn } = res.data;
+      console.log('🔑 Token reçu:', accessToken?.substring(0, 20) + '...');
 
-      // 2) Stockage token
+      // Stocker le token AVANT d'appeler /auth/me
       localStorage.setItem('access_token', accessToken);
-      localStorage.setItem('token_type', tokenType);
-      localStorage.setItem('expires_in', String(expiresIn));
+      if (expiresIn) {
+        const expiresAt = Date.now() + expiresIn * 1000;
+        localStorage.setItem('token_expires_at', expiresAt.toString());
+      }
 
-      // 3) Charger le profil et MAJ contexte
+      console.log('👤 Appel /auth/me (l\'interceptor va ajouter le token automatiquement)');
+      // ⚠️ Ne PAS passer de headers explicites, l'interceptor s'en charge !
       const me = await api.get('/auth/me');
+      console.log('✅ Profil chargé:', me.data);
       setUser(me.data);
 
       // 4) Navigation + fallback dur si un guard bloque
       try {
-        navigate('/dashboard', { replace: true });
+        navigate('/my-clocks', { replace: true });
       } catch {
-        window.location.replace('/dashboard');
+        window.location.replace('/my-clocks');
       }
     } catch (err) {
       console.error('❌ Erreur de connexion:', err);
@@ -145,7 +152,7 @@ export default function LoginPage() {
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Pas de compte ? <a href="/register" className="text-black font-medium hover:underline">S'inscrire</a>
+              Pas de compte ? <a href="/register" className="text-black font-medium hover:underline">S&apos;inscrire</a>
             </p>
           </div>
         </CardContent>
