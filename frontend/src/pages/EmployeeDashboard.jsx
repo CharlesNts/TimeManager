@@ -254,6 +254,11 @@ export default function EmployeeDashboard() {
         let singleCurrentMinutes = 0;
         let singlePreviousMinutes = 0;
         const dailyHoursMap = {};
+        
+        const dailyScheduledMap = {};
+        const dailyOverlapMap = {};
+        let totalScheduledMinutes = 0;
+        let totalOverlapMinutes = 0;
 
         clocks.forEach(c => {
             const inD = new Date(c.clockIn);
@@ -273,24 +278,36 @@ export default function EmployeeDashboard() {
         });
 
         // Fetch Schedules (Adherence)
-        let totalScheduledMinutes = 0;
-        const dailyScheduledMap = {};
-        
-        // We iterate over the user's teams to find shifts assigned to them (or team shifts if relevant)
-        // Note: simpler to listForEmployee if we have that endpoint, otherwise listForTeam for all teams
-        // workShiftsApi.listForEmployee is available
         try {
             const shifts = await workShiftsApi.listForEmployee(targetUserId, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString());
             if (Array.isArray(shifts)) {
                 shifts.forEach(shift => {
-                    const start = new Date(shift.startAt);
-                    const end = new Date(shift.endAt);
-                    const minutes = Math.max(0, Math.round((end - start) / 60000));
-                    totalScheduledMinutes += minutes;
+                    const shiftStart = new Date(shift.startAt);
+                    const shiftEnd = new Date(shift.endAt);
+                    const shiftDuration = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
+                    totalScheduledMinutes += shiftDuration;
 
-                    const shiftStartParis = toParis(start);
+                    const shiftStartParis = toParis(shiftStart);
                     const dayKey = `${shiftStartParis.getFullYear()}-${String(shiftStartParis.getMonth() + 1).padStart(2, '0')}-${String(shiftStartParis.getDate()).padStart(2, '0')}`;
-                    dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + minutes;
+                    dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + shiftDuration;
+                    
+                    // OVERLAP CALCULATION
+                    let shiftOverlap = 0;
+                    clocks.forEach(c => {
+                        const clockIn = new Date(c.clockIn);
+                        const clockOut = c.clockOut ? new Date(c.clockOut) : now;
+                        
+                        const overlapStart = new Date(Math.max(shiftStart, clockIn));
+                        const overlapEnd = new Date(Math.min(shiftEnd, clockOut));
+                        
+                        if (overlapEnd > overlapStart) {
+                            shiftOverlap += Math.max(0, Math.round((overlapEnd - overlapStart) / 60000));
+                        }
+                    });
+                    
+                    const effectiveOverlap = Math.min(shiftOverlap, shiftDuration);
+                    totalOverlapMinutes += effectiveOverlap;
+                    dailyOverlapMap[dayKey] = (dailyOverlapMap[dayKey] || 0) + effectiveOverlap;
                 });
             }
         } catch (e) {
@@ -301,7 +318,7 @@ export default function EmployeeDashboard() {
         const hoursPerPeriod = periodBoundaries.map(period => {
           let totalMin = 0;
           Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
-            const dayDate = new Date(dayKey + 'T00:00:00');
+            const dayDate = new Date(dayKey);
             if (dayDate >= period.startDate && dayDate <= period.endDate) totalMin += minutes;
           });
           return { date: period.label, minutesWorked: totalMin };
@@ -309,17 +326,17 @@ export default function EmployeeDashboard() {
         const hoursData = buildChartSeries(hoursPerPeriod, 12, periodCount);
 
         const adherencePerPeriod = periodBoundaries.map(period => {
-            let worked = 0;
+            let overlap = 0;
             let scheduled = 0;
-            Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
-                const dayDate = new Date(dayKey + 'T00:00:00');
-                if (dayDate >= period.startDate && dayDate <= period.endDate) worked += minutes;
+            Object.entries(dailyOverlapMap).forEach(([dayKey, minutes]) => {
+                const dayDate = new Date(dayKey);
+                if (dayDate >= period.startDate && dayDate <= period.endDate) overlap += minutes;
             });
             Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
-                const dayDate = new Date(dayKey + 'T00:00:00');
+                const dayDate = new Date(dayKey);
                 if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
             });
-            const rate = scheduled > 0 ? Math.min(100, Math.round((worked / scheduled) * 100)) : (worked > 0 ? 100 : 0);
+            const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : (overlap > 0 ? 100 : 0);
             return { date: period.label, value: rate };
         });
         const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value })); 
@@ -347,7 +364,7 @@ export default function EmployeeDashboard() {
         setHoursChartSeries(hoursData);
         setAvgChartSeries(avgChart);
         setAdherenceData({
-            rate: totalScheduledMinutes > 0 ? Math.min(100, (totalCurrentMinutes / totalScheduledMinutes) * 100) : (totalCurrentMinutes > 0 ? 100 : 0),
+            rate: totalScheduledMinutes > 0 ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100) : 0,
             scheduledHours: Math.round(totalScheduledMinutes / 60),
             chartSeries: adherenceSeries
         });
@@ -356,7 +373,7 @@ export default function EmployeeDashboard() {
             minutesCurrent: totalCurrentMinutes % 60,
             evolutionRate,
             evolutionLabel,
-            avgCurrent: Math.round(totalCurrentMinutes / periodCount / 60 * 10) / 10 // Rough avg per period unit displayed
+            avgCurrent: Math.round(totalCurrentMinutes / periodCount / 60 * 10) / 10 
         });
 
       } catch (e) {

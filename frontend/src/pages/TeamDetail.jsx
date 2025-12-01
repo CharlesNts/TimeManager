@@ -211,10 +211,37 @@ export default function TeamDetail() {
         let singlePreviousMinutes = 0;
 
         const dailyHoursMap = {};
-        const memberMinutesMap = {}; // for comparison chart & table
-        const lastMap = {}; // for table
+        const memberMinutesMap = {};
+        const lastMap = {};
+        
+        const dailyScheduledMap = {};
+        const dailyOverlapMap = {};
+        let totalScheduledMinutes = 0;
+        let totalOverlapMinutes = 0;
 
-        // 1. Fetch Clocks
+        // 1. Fetch Shifts for Team (Once)
+        let teamShifts = [];
+        try {
+            teamShifts = await workShiftsApi.listForTeam(teamId, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString());
+            if (!Array.isArray(teamShifts)) teamShifts = [];
+        } catch (e) { console.warn(e); }
+        
+        const shiftsByEmployee = {};
+        teamShifts.forEach(shift => {
+            if (!shift.employeeId) return;
+            if (!shiftsByEmployee[shift.employeeId]) shiftsByEmployee[shift.employeeId] = [];
+            shiftsByEmployee[shift.employeeId].push(shift);
+            
+            const shiftStart = new Date(shift.startAt);
+            const shiftEnd = new Date(shift.endAt);
+            const duration = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
+            totalScheduledMinutes += duration;
+            
+            const dayKey = toParis(shiftStart).toISOString().split('T')[0];
+            dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + duration;
+        });
+
+        // 2. Fetch Clocks & Process Overlap
         await Promise.all(members.map(async (m) => {
             const userId = m.user?.id ?? m.userId;
             if (!userId) return;
@@ -238,14 +265,33 @@ export default function TeamDetail() {
                     else if (inD >= singlePreviousStart && inD <= singlePreviousEnd) singlePreviousMinutes += minutes;
 
                     // Daily map
-                    const yearStr = inD.getFullYear();
-                    const monthStr = String(inD.getMonth() + 1).padStart(2, '0');
-                    const dayStr = String(inD.getDate()).padStart(2, '0');
-                    const dayKey = `${yearStr}-${monthStr}-${dayStr}`;
+                    const dayKey = inD.toISOString().split('T')[0];
                     dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
                 });
 
                 memberMinutesMap[userId] = userTotal;
+
+                // Overlap Logic
+                const userShifts = shiftsByEmployee[userId] || [];
+                userShifts.forEach(shift => {
+                    const shiftStart = new Date(shift.startAt);
+                    const shiftEnd = new Date(shift.endAt);
+                    const shiftDuration = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
+                    
+                    let overlap = 0;
+                    clocks.forEach(c => {
+                        const clockIn = new Date(c.clockIn);
+                        const clockOut = c.clockOut ? new Date(c.clockOut) : now;
+                        const oStart = new Date(Math.max(shiftStart, clockIn));
+                        const oEnd = new Date(Math.min(shiftEnd, clockOut));
+                        if (oEnd > oStart) overlap += Math.round((oEnd - oStart) / 60000);
+                    });
+                    
+                    const effective = Math.min(overlap, shiftDuration);
+                    totalOverlapMinutes += effective;
+                    const dayKey = toParis(shiftStart).toISOString().split('T')[0];
+                    dailyOverlapMap[dayKey] = (dailyOverlapMap[dayKey] || 0) + effective;
+                });
 
                 // Last clock info
                 if (lastClock) {
@@ -265,64 +311,40 @@ export default function TeamDetail() {
             }
         }));
 
-        // 2. Fetch Schedules
-        let totalScheduledMinutes = 0;
-        const dailyScheduledMap = {};
-        try {
-            const shifts = await workShiftsApi.listForTeam(teamId, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString());
-            if (Array.isArray(shifts)) {
-                shifts.forEach(shift => {
-                    const start = new Date(shift.startAt);
-                    const end = new Date(shift.endAt);
-                    const minutes = Math.max(0, Math.round((end - start) / 60000));
-                    totalScheduledMinutes += minutes;
-
-                    const shiftStartParis = toParis(start);
-                    const yearStr = shiftStartParis.getFullYear();
-                    const monthStr = String(shiftStartParis.getMonth() + 1).padStart(2, '0');
-                    const dayStr = String(shiftStartParis.getDate()).padStart(2, '0');
-                    const dayKey = `${yearStr}-${monthStr}-${dayStr}`;
-                    dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + minutes;
-                });
-            }
-        } catch (err) {
-            console.warn('Error fetching shifts', err);
-        }
-
         // 3. Build Data for Charts
         
         // A. Hours Area Chart
         const hoursPerPeriod = periodBoundaries.map(period => {
           let totalMin = 0;
           Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
-            const dayDate = new Date(dayKey + 'T00:00:00');
+            const dayDate = new Date(dayKey);
             if (dayDate >= period.startDate && dayDate <= period.endDate) totalMin += minutes;
           });
           return { date: period.label, minutesWorked: totalMin };
         });
         const hoursData = buildChartSeries(hoursPerPeriod, 12, selectedPeriod);
 
-        // B. Adherence Chart
+        // B. Adherence Chart (Overlap)
         const adherencePerPeriod = periodBoundaries.map(period => {
-            let worked = 0;
+            let overlap = 0;
             let scheduled = 0;
-            Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
-                const dayDate = new Date(dayKey + 'T00:00:00');
-                if (dayDate >= period.startDate && dayDate <= period.endDate) worked += minutes;
+            Object.entries(dailyOverlapMap).forEach(([dayKey, minutes]) => {
+                const dayDate = new Date(dayKey);
+                if (dayDate >= period.startDate && dayDate <= period.endDate) overlap += minutes;
             });
             Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
-                const dayDate = new Date(dayKey + 'T00:00:00');
+                const dayDate = new Date(dayKey);
                 if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
             });
-            const rate = scheduled > 0 ? Math.min(100, Math.round((worked / scheduled) * 100)) : (worked > 0 ? 100 : 0);
+            const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : (overlap > 0 ? 100 : 0);
             return { date: period.label, value: rate };
         });
         const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value })); 
         const adherenceSeries = buildChartSeries(adherenceForChart, 12, selectedPeriod);
         
         const globalAdherenceRate = totalScheduledMinutes > 0 
-            ? Math.min(100, (totalCurrentMinutes / totalScheduledMinutes) * 100) 
-            : (totalCurrentMinutes > 0 ? 100 : 0);
+            ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100) 
+            : 0;
 
         // C. Member Comparison Bar Chart
         const memberCompData = members.map(m => {
