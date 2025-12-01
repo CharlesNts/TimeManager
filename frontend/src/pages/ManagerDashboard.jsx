@@ -27,7 +27,7 @@ import PeriodSelector from '../components/manager/PeriodSelector';
 import ExportMenu from '../components/ui/ExportMenu';
 import { buildChartSeries } from '../api/statsApi';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
-import { getPeriodInfo, getDisplayPeriodBoundaries, getDisplayPeriodBoundariesShifted } from '../utils/granularityUtils';
+import { getPeriodInfo, getDisplayPeriodBoundaries } from '../utils/granularityUtils';
 import { toParis } from '../utils/dateUtils';
 
 // Helper function to format minutes
@@ -214,17 +214,36 @@ export default function ManagerDashboard() {
       try {
         const now = new Date();
         const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
-        const previousBoundaries = getDisplayPeriodBoundariesShifted(selectedGranularity, 1);
+        
+        // Chart ranges (Wide)
         const startOfCurrentPeriod = periodBoundaries[0].startDate;
         const endOfCurrentPeriod = now;
-        const startOfPreviousPeriod = previousBoundaries[0].startDate;
-        const endOfPreviousPeriod = startOfCurrentPeriod;
+        
+        // Single Period for Evolution
+        const latestPeriod = periodBoundaries[periodBoundaries.length - 1];
+        const singleCurrentStart = latestPeriod.startDate;
+        const singleCurrentEnd = latestPeriod.endDate; 
+        
+        let singlePreviousStart, singlePreviousEnd;
+        if (periodBoundaries.length >= 2) {
+            const prev = periodBoundaries[periodBoundaries.length - 2];
+            singlePreviousStart = prev.startDate;
+            singlePreviousEnd = prev.endDate;
+        } else {
+            // Fallback
+            singlePreviousStart = new Date(singleCurrentStart);
+            if (selectedGranularity === 'day') singlePreviousStart.setDate(singlePreviousStart.getDate() - 1);
+            else if (selectedGranularity === 'week') singlePreviousStart.setDate(singlePreviousStart.getDate() - 7);
+            singlePreviousEnd = new Date(singleCurrentStart); 
+        }
 
         let totalCurrentMinutes = 0; 
         let singleCurrentMinutes = 0; 
         let singlePreviousMinutes = 0; 
 
         const dailyHoursMap = {};
+        const dailyScheduledMap = {};
+        let totalScheduledMinutes = 0;
         
         // Extract Unique Users across all teams
         const allMemberIds = teams.flatMap(team => 
@@ -242,10 +261,9 @@ export default function ManagerDashboard() {
                     params: { from: startOfCurrentPeriod.toISOString(), to: endOfCurrentPeriod.toISOString() }
                });
                
-               userStatsMap[userId] = { totalMin: 0, clocks: [] };
+               userStatsMap[userId] = { totalMin: 0 };
 
                if (Array.isArray(currentClocks)) {
-                   userStatsMap[userId].clocks = currentClocks;
                    currentClocks.forEach(clock => {
                        const clockIn = new Date(clock.clockIn);
                        const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
@@ -278,8 +296,6 @@ export default function ManagerDashboard() {
 
         // 2. Aggregate Per Team (using fetched user data)
         const teamMinutesMap = {};
-        let totalScheduledMinutes = 0;
-        const dailyScheduledMap = {};
 
         await Promise.all(
           teams.map(async (team) => {
@@ -324,8 +340,8 @@ export default function ManagerDashboard() {
         
         // Build Team Comparison Data
         const comparisonData = Object.values(teamMinutesMap)
-            .map(t => ({ name: t.name, value: Math.round(t.minutes / 60 * 10) / 10 })) // Convert to hours
-            .sort((a, b) => b.value - a.value); // Sort desc
+            .map(t => ({ name: t.name, value: Math.round(t.minutes / 60 * 10) / 10 })) 
+            .sort((a, b) => b.value - a.value); 
 
         setTeamComparisonData(comparisonData);
 
@@ -368,14 +384,27 @@ export default function ManagerDashboard() {
 
         // Convertir les minutes en heures pour l'affichage
         const hoursCurrentDisplay = Math.round(totalCurrentMinutes / 60 * 100) / 100;
-        const hoursPreviousDisplay = Math.round(totalPreviousMinutes / 60 * 100) / 100;
         const scheduledHoursDisplay = Math.round(totalScheduledMinutes / 60);
+        
+        // Evolution logic
+        const singleCurrentHours = singleCurrentMinutes / 60;
+        const singlePreviousHours = singlePreviousMinutes / 60;
+        const evolutionRate = singlePreviousHours > 0 
+            ? ((singleCurrentHours - singlePreviousHours) / singlePreviousHours) * 100 
+            : 0;
+            
+        // Dynamic label
+        let evolutionLabel = "vs période précédente";
+        if (selectedGranularity === 'week') evolutionLabel = "vs semaine précédente";
+        if (selectedGranularity === 'day') evolutionLabel = "vs hier";
+        if (selectedGranularity === 'month') evolutionLabel = "vs mois précédent";
+        if (selectedGranularity === 'year') evolutionLabel = "vs année précédente";
         
         setHoursTotals({
           current: hoursCurrentDisplay,
-          previous: hoursPreviousDisplay,
           currentMinutes: totalCurrentMinutes,
-          previousMinutes: totalPreviousMinutes
+          evolutionRate: evolutionRate,
+          evolutionLabel: evolutionLabel
         });
         
         setHoursChartSeries(hoursData);
@@ -616,7 +645,7 @@ export default function ManagerDashboard() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-6">
-                        {/* Heures totales */}
+                        {/* Heures totales + Evolution (Merged) */}
                         <Card>
                           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-gray-500">
@@ -687,7 +716,7 @@ export default function ManagerDashboard() {
                           </CardContent>
                         </Card>
 
-                        {/* Comparaison des Équipes (REPLACES Moyenne par membre) */}
+                        {/* Comparaison des Équipes */}
                         <Card>
                           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-gray-500">
@@ -717,7 +746,6 @@ export default function ManagerDashboard() {
                             </div>
                           </CardContent>
                         </Card>
-
 
                       </div>
                     </CardContent>

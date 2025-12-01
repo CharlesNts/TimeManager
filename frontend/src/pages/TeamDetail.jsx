@@ -4,7 +4,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getSidebarItems } from '../utils/navigationConfig';
 
-
 import Layout from '../components/layout/Layout';
 import TeamFormModal from '../components/manager/TeamFormModal';
 import AddMemberModal from '../components/manager/AddMemberModal';
@@ -19,28 +18,67 @@ import {
   Users,
   UserCircle,
   Clock,
-  Calendar,
+  CalendarCheck,
   CalendarClock,
-  TrendingUp,
   Edit,
   Trash2,
   UserPlus,
 } from 'lucide-react';
 
 import api from '../api/client';
-import { scheduleTemplatesApi } from '../api/scheduleTemplatesApi';
 import {
-  updateTeam,          // depuis src/api/teamApi.js
+  updateTeam,
 } from '../api/teamApi';
 import {
-  fetchTeamMembers,    // depuis src/api/teamMembersApi.js
+  fetchTeamMembers,
   addMember,
   removeMember,
 } from '../api/teamMembersApi';
+import workShiftsApi from '../api/workShiftsApi';
+import { buildChartSeries } from '../api/statsApi';
+import { getDisplayPeriodBoundaries } from '../utils/granularityUtils';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 
 // shadcn components
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+
+// Helper function to format minutes
+function fmtMinutes(v) {
+  if (typeof v !== 'number') return '—'
+  const h = Math.floor(v / 60)
+  const m = v % 60
+  return `${h}h ${String(m).padStart(2, '0')}m`
+}
+
+// Custom Tooltip context-aware for different chart types
+const CustomTooltip = ({ active, payload, type = 'hours' }) => {
+  if (!active || !payload || payload.length === 0) return null
+  const value = payload[0].value
+  const label = payload[0].payload?.label || payload[0].payload?.name || 'N/A'
+
+  let title = 'Heures travaillées'
+  let formattedValue = fmtMinutes(value)
+
+  if (type === 'adherence') {
+    title = 'Adhérence'
+    formattedValue = `${value}%`
+  } else if (type === 'members') {
+    title = 'Par Membre'
+    formattedValue = fmtMinutes(value)
+  } else if (type === 'comparison') {
+    title = 'Évolution'
+    formattedValue = `${value >= 0 ? '+' : ''}${value}%`
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-md shadow-md p-2">
+      <p className="text-xs font-medium text-gray-900">{title}</p>
+      <p className="text-xs text-gray-600 mb-1">{label}</p>
+      <p className="text-sm font-semibold text-gray-700">{formattedValue}</p>
+    </div>
+  )
+};
 
 // ---------- Utils time (Europe/Paris) ----------
 const toParis = (date) => new Date(date.toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
@@ -49,59 +87,12 @@ const toISO = (d) => {
   const p = toParis(d);
   return `${p.getFullYear()}-${pad(p.getMonth() + 1)}-${pad(p.getDate())}T${pad(p.getHours())}:${pad(p.getMinutes())}:${pad(p.getSeconds())}`;
 };
-const startOfDay = (d) => { const x = toParis(d); x.setHours(0,0,0,0); return x; };
-const endOfDay   = (d) => { const x = toParis(d); x.setHours(23,59,59,999); return x; };
-
-const startOfWeekMon = (d) => {
-  const x = startOfDay(d);
-  const day = x.getDay(); // 0=dim,1=lun,...6=sam
-  const diff = (day === 0 ? -6 : 1 - day);
-  x.setDate(x.getDate() + diff);
-  return startOfDay(x);
-};
-const endOfWeekSun = (d) => {
-  const start = startOfWeekMon(d);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  return endOfDay(end);
-};
-
-const firstDayOfMonth = (d) => {
-  const x = toParis(d);
-  x.setDate(1);
-  return startOfDay(x);
-};
-const lastDayOfMonth = (d) => {
-  const x = toParis(d);
-  x.setMonth(x.getMonth() + 1, 0);
-  return endOfDay(x);
-};
 
 const minutesBetween = (a, b) => Math.max(0, Math.round((b - a) / 60000));
-const fmtHM = (mins) => `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
-
-// ---- calcule un range [from, to] selon period (7, 30, 365)
-function computeRange(period) {
-  const now = new Date();
-  if (period === 7) {
-    // semaine en cours (lun → dim)
-    return { from: startOfWeekMon(now), to: endOfWeekSun(now) };
-  } else if (period === 30) {
-    // mois en cours
-    return { from: firstDayOfMonth(now), to: lastDayOfMonth(now) };
-  } else {
-    // 365 jours glissants
-    const from = new Date(now);
-    from.setDate(from.getDate() - 364);
-    from.setHours(0, 0, 0, 0);
-    return { from, to: endOfDay(now) };
-  }
-}
 
 // ---- récupère le détail d’équipe (GET /api/teams/:id)
 async function fetchTeamById(teamId) {
   const { data } = await api.get(`/api/teams/${teamId}`);
-  // map léger pour garder un shape cohérent
   return {
     id: data.id,
     name: data.name,
@@ -128,15 +119,6 @@ async function fetchLastClock(userId) {
   return data?.content?.[0] || null;
 }
 
-// ---- total minutes travaillées à partir des clocks
-function sumWorkedMinutes(clocks) {
-  return clocks.reduce((sum, c) => {
-    const inD = toParis(new Date(c.clockIn));
-    const outD = c.clockOut ? toParis(new Date(c.clockOut)) : toParis(new Date()); // session ouverte
-    return sum + minutesBetween(inD, outD);
-  }, 0);
-}
-
 export default function TeamDetail() {
   const { teamId } = useParams();
   const navigate = useNavigate();
@@ -145,17 +127,24 @@ export default function TeamDetail() {
   const sidebarItems = getSidebarItems(user?.role);
 
   // --------- UI state
-  const [selectedGranularity, setSelectedGranularity] = useState('week'); // 'day' / 'week' / 'month' / 'year'
-  const selectedPeriod = getPeriodInfo(selectedGranularity).periodCount; // For backward compatibility
+  const [selectedGranularity, setSelectedGranularity] = useState('week');
+  const selectedPeriod = getPeriodInfo(selectedGranularity).periodCount;
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
 
   // --------- Data state
-  const [team, setTeam] = useState(null);                // {id, name, description, managerId, managerName, createdAt}
-  const [members, setMembers] = useState([]);            // TeamMemberDTO[] : { user, team, joinedAt }
-  const [hoursByMember, setHoursByMember] = useState({}); // userId -> minutes
-  const [lastByMember, setLastByMember] = useState({}); // userId -> { status, lastClockIn }
-  const [schedule, setSchedule] = useState(null);        // ScheduleTemplate pour l'équipe
+  const [team, setTeam] = useState(null);
+  const [members, setMembers] = useState([]);
+
+  // --------- Charts & Stats State
+  const [hoursChartSeries, setHoursChartSeries] = useState([]);
+  const [memberComparisonData, setMemberComparisonData] = useState([]);
+  const [adherenceData, setAdherenceData] = useState({ rate: 0, scheduledHours: 0, chartSeries: [] });
+  const [hoursTotals, setHoursTotals] = useState({ current: 0, evolutionRate: 0, evolutionLabel: '' });
+  
+  // For Table
+  const [hoursByMember, setHoursByMember] = useState({});
+  const [lastByMember, setLastByMember] = useState({});
 
   // --------- Modals
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -175,16 +164,6 @@ export default function TeamDetail() {
       ]);
       setTeam(teamData);
       setMembers(membersData);
-      
-      // Charger le schedule de l'équipe
-      try {
-        const scheduleData = await scheduleTemplatesApi.getActiveForTeam(teamId);
-        setSchedule(scheduleData);
-      } catch (e) {
-        // Si pas de schedule, c'est normal
-        console.warn('Pas de schedule trouvé pour l\'équipe:', e);
-        setSchedule(null);
-      }
     } catch (e) {
       setErr(e?.message || 'Erreur de chargement');
     } finally {
@@ -197,71 +176,199 @@ export default function TeamDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
-  // ====== FOR PERIOD: compute clocks & hours per member ======
+  // ====== LOAD STATS & CHARTS ======
   useEffect(() => {
-    const computeHours = async () => {
-      if (!members.length) {
-        setHoursByMember({});
-        setLastByMember({});
-        return;
-      }
-      const { from, to } = computeRange(selectedPeriod);
+    if (!members.length || !teamId) return;
+
+    const loadTeamStats = async () => {
       try {
-        const results = await Promise.all(
-          members.map(async (m) => {
-            const uid = m.user?.id ?? m.userId ?? null;
-            if (!uid) return [null, 0, null];
-            const [clocks, last] = await Promise.all([
-              fetchClocksRange(uid, from, to),
-              fetchLastClock(uid).catch(() => null),
-            ]);
-            const worked = sumWorkedMinutes(clocks);
-            return [uid, worked, last];
-          })
-        );
+        const now = new Date();
+        const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
+        
+        // Chart Range
+        const startOfCurrentPeriod = periodBoundaries[0].startDate;
+        const endOfCurrentPeriod = now;
 
-        const hoursMap = {};
-        const lastMap = {};
-        for (const [uid, mins, last] of results) {
-          if (!uid) continue;
-          hoursMap[uid] = mins;
-          if (last) {
-            const isActive = !last.clockOut; // pas de clockOut => session ouverte
-            const lastIn = toParis(new Date(last.clockIn)).toLocaleTimeString('fr-FR', {
-              hour: '2-digit',
-              minute: '2-digit',
-              timeZone: 'Europe/Paris',
-            });
-            lastMap[uid] = { status: isActive ? 'active' : 'offline', lastClockIn: lastIn };
-          } else {
-            lastMap[uid] = { status: 'offline', lastClockIn: '-' };
-          }
+        // Single Period Evolution
+        const latestPeriod = periodBoundaries[periodBoundaries.length - 1];
+        const singleCurrentStart = latestPeriod.startDate;
+        const singleCurrentEnd = latestPeriod.endDate;
+        
+        let singlePreviousStart, singlePreviousEnd;
+        if (periodBoundaries.length >= 2) {
+            const prev = periodBoundaries[periodBoundaries.length - 2];
+            singlePreviousStart = prev.startDate;
+            singlePreviousEnd = prev.endDate;
+        } else {
+            singlePreviousStart = new Date(singleCurrentStart);
+            if (selectedGranularity === 'day') singlePreviousStart.setDate(singlePreviousStart.getDate() - 1);
+            else if (selectedGranularity === 'week') singlePreviousStart.setDate(singlePreviousStart.getDate() - 7);
+            singlePreviousEnd = new Date(singleCurrentStart); 
         }
-        setHoursByMember(hoursMap);
+
+        let totalCurrentMinutes = 0;
+        let singleCurrentMinutes = 0;
+        let singlePreviousMinutes = 0;
+
+        const dailyHoursMap = {};
+        const memberMinutesMap = {}; // for comparison chart & table
+        const lastMap = {}; // for table
+
+        // 1. Fetch Clocks
+        await Promise.all(members.map(async (m) => {
+            const userId = m.user?.id ?? m.userId;
+            if (!userId) return;
+
+            try {
+                const [clocks, lastClock] = await Promise.all([
+                    fetchClocksRange(userId, startOfCurrentPeriod, endOfCurrentPeriod),
+                    fetchLastClock(userId).catch(() => null)
+                ]);
+
+                let userTotal = 0;
+                clocks.forEach(c => {
+                    const inD = toParis(new Date(c.clockIn));
+                    const outD = c.clockOut ? toParis(new Date(c.clockOut)) : toParis(new Date());
+                    const minutes = minutesBetween(inD, outD);
+                    userTotal += minutes;
+                    
+                    // Global stats
+                    totalCurrentMinutes += minutes;
+                    if (inD >= singleCurrentStart && inD <= singleCurrentEnd) singleCurrentMinutes += minutes;
+                    else if (inD >= singlePreviousStart && inD <= singlePreviousEnd) singlePreviousMinutes += minutes;
+
+                    // Daily map
+                    const yearStr = inD.getFullYear();
+                    const monthStr = String(inD.getMonth() + 1).padStart(2, '0');
+                    const dayStr = String(inD.getDate()).padStart(2, '0');
+                    const dayKey = `${yearStr}-${monthStr}-${dayStr}`;
+                    dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
+                });
+
+                memberMinutesMap[userId] = userTotal;
+
+                // Last clock info
+                if (lastClock) {
+                    const isActive = !lastClock.clockOut;
+                    const lastIn = toParis(new Date(lastClock.clockIn)).toLocaleTimeString('fr-FR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZone: 'Europe/Paris',
+                    });
+                    lastMap[userId] = { status: isActive ? 'active' : 'offline', lastClockIn: lastIn };
+                } else {
+                    lastMap[userId] = { status: 'offline', lastClockIn: '-' };
+                }
+
+            } catch (err) {
+                console.warn(`Error stats member ${userId}`, err);
+            }
+        }));
+
+        // 2. Fetch Schedules
+        let totalScheduledMinutes = 0;
+        const dailyScheduledMap = {};
+        try {
+            const shifts = await workShiftsApi.listForTeam(teamId, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString());
+            if (Array.isArray(shifts)) {
+                shifts.forEach(shift => {
+                    const start = new Date(shift.startAt);
+                    const end = new Date(shift.endAt);
+                    const minutes = Math.max(0, Math.round((end - start) / 60000));
+                    totalScheduledMinutes += minutes;
+
+                    const shiftStartParis = toParis(start);
+                    const yearStr = shiftStartParis.getFullYear();
+                    const monthStr = String(shiftStartParis.getMonth() + 1).padStart(2, '0');
+                    const dayStr = String(shiftStartParis.getDate()).padStart(2, '0');
+                    const dayKey = `${yearStr}-${monthStr}-${dayStr}`;
+                    dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + minutes;
+                });
+            }
+        } catch (err) {
+            console.warn('Error fetching shifts', err);
+        }
+
+        // 3. Build Data for Charts
+        
+        // A. Hours Area Chart
+        const hoursPerPeriod = periodBoundaries.map(period => {
+          let totalMin = 0;
+          Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
+            const dayDate = new Date(dayKey + 'T00:00:00');
+            if (dayDate >= period.startDate && dayDate <= period.endDate) totalMin += minutes;
+          });
+          return { date: period.label, minutesWorked: totalMin };
+        });
+        const hoursData = buildChartSeries(hoursPerPeriod, 12, selectedPeriod);
+
+        // B. Adherence Chart
+        const adherencePerPeriod = periodBoundaries.map(period => {
+            let worked = 0;
+            let scheduled = 0;
+            Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
+                const dayDate = new Date(dayKey + 'T00:00:00');
+                if (dayDate >= period.startDate && dayDate <= period.endDate) worked += minutes;
+            });
+            Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
+                const dayDate = new Date(dayKey + 'T00:00:00');
+                if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
+            });
+            const rate = scheduled > 0 ? Math.min(100, Math.round((worked / scheduled) * 100)) : (worked > 0 ? 100 : 0);
+            return { date: period.label, value: rate };
+        });
+        const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value })); 
+        const adherenceSeries = buildChartSeries(adherenceForChart, 12, selectedPeriod);
+        
+        const globalAdherenceRate = totalScheduledMinutes > 0 
+            ? Math.min(100, (totalCurrentMinutes / totalScheduledMinutes) * 100) 
+            : (totalCurrentMinutes > 0 ? 100 : 0);
+
+        // C. Member Comparison Bar Chart
+        const memberCompData = members.map(m => {
+            const uid = m.user?.id ?? m.userId;
+            return {
+                name: m.user ? `${m.user.firstName} ${m.user.lastName}` : 'Unknown',
+                value: Math.round((memberMinutesMap[uid] || 0) / 60 * 10) / 10
+            };
+        }).sort((a, b) => b.value - a.value);
+
+        // D. Totals & Evolution
+        const singleCurrentHours = singleCurrentMinutes / 60;
+        const singlePreviousHours = singlePreviousMinutes / 60;
+        const evolutionRate = singlePreviousHours > 0 
+            ? ((singleCurrentHours - singlePreviousHours) / singlePreviousHours) * 100 
+            : 0;
+
+        let evolutionLabel = "vs période précédente";
+        if (selectedGranularity === 'week') evolutionLabel = "vs semaine précédente";
+        if (selectedGranularity === 'day') evolutionLabel = "vs hier";
+        if (selectedGranularity === 'month') evolutionLabel = "vs mois précédent";
+        if (selectedGranularity === 'year') evolutionLabel = "vs année précédente";
+
+        setHoursChartSeries(hoursData);
+        setMemberComparisonData(memberCompData);
+        setAdherenceData({
+            rate: globalAdherenceRate,
+            scheduledHours: Math.round(totalScheduledMinutes / 60),
+            chartSeries: adherenceSeries
+        });
+        setHoursTotals({
+            current: Math.round(totalCurrentMinutes / 60 * 100) / 100,
+            evolutionRate,
+            evolutionLabel
+        });
+        
+        setHoursByMember(memberMinutesMap);
         setLastByMember(lastMap);
+
       } catch (e) {
-        console.warn('[TeamDetail] computeHours error:', e?.message || e);
-        setHoursByMember({});
-        setLastByMember({});
+        console.error('[TeamDetail] loadTeamStats error:', e);
       }
     };
-    computeHours();
-  }, [members, selectedPeriod]);
 
-  // ====== Aggregated team KPIs ======
-  const teamStats = useMemo(() => {
-    const values = Object.values(hoursByMember);
-    const total = values.reduce((a, b) => a + b, 0);
-    const count = values.length || 1;
-    const avg = Math.round(total / count);
-    const active = Object.values(lastByMember).filter((v) => v?.status === 'active').length;
-    return {
-      totalHoursThisWeek: fmtHM(total),
-      averageHoursPerMember: fmtHM(avg),
-      activeMembers: active,
-      onBreak: 0, // pas d'API pause pour le moment
-    };
-  }, [hoursByMember, lastByMember]);
+    loadTeamStats();
+  }, [members, teamId, selectedGranularity, selectedPeriod]);
 
   const handleBack = () => navigate(-1);
 
@@ -337,7 +444,7 @@ export default function TeamDetail() {
         lastName: u.lastName || '',
         role: u.role || 'EMPLOYEE',
         joinedAt: m.joinedAt,
-        hoursInPeriod: fmtHM(hoursByMember[u.id] || 0),
+        hoursInPeriod: fmtMinutes(hoursByMember[u.id] || 0),
         lastClockIn: lastByMember[u.id]?.lastClockIn || '-',
         status: lastByMember[u.id]?.status || 'offline',
       };
@@ -430,7 +537,7 @@ export default function TeamDetail() {
                         {members.length} membres
                       </span>
                       <span className="flex items-center">
-                        <Calendar className="w-4 h-4 mr-1" />
+                        <CalendarClock className="w-4 h-4 mr-1" />
                         {team?.createdAt
                           ? `Créée le ${new Date(team.createdAt).toLocaleDateString('fr-FR')}`
                           : '—'}
@@ -493,8 +600,6 @@ export default function TeamDetail() {
                       </Button>
                     </>
                   )}
-
-                  {/* Ajouter membre déplacé dans la section 'Membres' ci-dessous */}
                 </div>
               </div>
             )}
@@ -504,74 +609,122 @@ export default function TeamDetail() {
           {(user?.role === 'MANAGER' || user?.role === 'CEO') && (
             <div className="space-y-6">
               <Card>
-                <CardContent className="p-4">
-                  <PeriodSelector selectedGranularity={selectedGranularity} onGranularityChange={setSelectedGranularity} />
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-xl">Statistiques de l&#39;équipe</CardTitle>
+                    </div>
+                    <PeriodSelector selectedGranularity={selectedGranularity} onGranularityChange={setSelectedGranularity} />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    {/* Volume de Travail */}
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">
+                          Volume de Travail Équipe
+                        </CardTitle>
+                        <Clock className="h-4 w-4 text-gray-400" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-end gap-2">
+                            <div className="text-2xl font-bold">
+                            {Math.floor(hoursTotals.current)}h {Math.round((hoursTotals.current % 1) * 60)}m
+                            </div>
+                            <div className={`text-sm mb-1 font-medium ${hoursTotals.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {hoursTotals.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(hoursTotals.evolutionRate).toFixed(1)}%
+                            </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">{hoursTotals.evolutionLabel}</p>
+                        <div className="h-[120px] mt-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={hoursChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
+                              <defs>
+                                <linearGradient id="hoursFill" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="6%" stopColor="var(--color-desktop)" stopOpacity={0.16} />
+                                  <stop offset="95%" stopColor="var(--color-desktop)" stopOpacity={0.03} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
+                              <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
+                              <YAxis hide />
+                              <RechartsTooltip content={<CustomTooltip type="hours" />} cursor={false} />
+                              <Area type="monotone" dataKey="value" stroke="var(--color-desktop)" fill="url(#hoursFill)" strokeWidth={2} dot={false} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Adhérence */}
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">
+                          Respect du Planning
+                        </CardTitle>
+                        <CalendarCheck className="h-4 w-4 text-gray-400" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{adherenceData.rate.toFixed(1)}%</div>
+                        <p className="text-xs text-gray-500 mt-2">
+                            {adherenceData.scheduledHours}h planifiées
+                        </p>
+                        <div className="h-[120px] mt-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={adherenceData.chartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
+                              <defs>
+                                <linearGradient id="adhFill" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="6%" stopColor="#10b981" stopOpacity={0.16} />
+                                  <stop offset="95%" stopColor="#10b981" stopOpacity={0.03} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
+                              <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
+                              <YAxis hide />
+                              <RechartsTooltip content={<CustomTooltip type="adherence" />} cursor={false} />
+                              <Area type="monotone" dataKey="value" stroke="#10b981" fill="url(#adhFill)" strokeWidth={2} dot={false} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Comparaison Membres */}
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">
+                          Comparaison des Membres
+                        </CardTitle>
+                        <Users className="h-4 w-4 text-gray-400" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                            {memberComparisonData.length > 0 ? memberComparisonData[0]?.name : 'Aucune donnée'}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">Membre le plus actif</p>
+                        <div className="h-[120px] mt-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={memberComparisonData} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
+                              <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
+                              <XAxis dataKey="name" axisLine={false} tick={{ fontSize: 12 }} interval={0} />
+                              <YAxis hide />
+                              <RechartsTooltip content={<CustomTooltip type="members" />} cursor={false} />
+                              <Bar dataKey="value" fill="var(--color-desktop)" radius={[4, 4, 0, 0]}>
+                                {memberComparisonData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={index === 0 ? '#2563eb' : '#94a3b8'} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                  </div>
                 </CardContent>
               </Card>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total heures</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.totalHoursThisWeek}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {selectedPeriod === 7 ? 'Cette semaine' : selectedPeriod === 30 ? 'Ce mois' : '12 derniers mois'}
-                        </p>
-                      </div>
-                      <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
-                        <Clock className="w-6 h-6 text-white" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Moyenne</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.averageHoursPerMember}</p>
-                        <p className="text-xs text-muted-foreground mt-1">Par membre</p>
-                      </div>
-                      <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
-                        <TrendingUp className="w-6 h-6 text-white" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Actifs</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.activeMembers}</p>
-                        <p className="text-xs text-muted-foreground mt-1">En ce moment</p>
-                      </div>
-                      <div className="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center">
-                        <Users className="w-6 h-6 text-white" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">En pause</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-1">{teamStats.onBreak}</p>
-                        <p className="text-xs text-muted-foreground mt-1">Actuellement</p>
-                      </div>
-                      <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
-                        <Clock className="w-6 h-6 text-white" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
             </div>
           )}
 
@@ -583,7 +736,7 @@ export default function TeamDetail() {
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center">
                   <Users className="w-5 h-5 mr-2" />
-                  Membres de l&apos;équipe
+                  Membres de l&#39;équipe
                 </CardTitle>
 
                 {(user?.role === 'CEO' || user?.role === 'MANAGER') && (
@@ -635,7 +788,7 @@ export default function TeamDetail() {
                       </td>
                       <td className="py-3 px-4">
                         <span
-                          className={`px-2 py-1 text-xs font-medium rounded ${
+                          className={`px-2 py-1 text-xs font-medium rounded ${ 
                             m.role === 'MANAGER'
                               ? 'bg-blue-100 text-blue-700'
                               : 'bg-gray-100 text-gray-700'

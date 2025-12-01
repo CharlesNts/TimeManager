@@ -11,8 +11,6 @@ import ExportMenu from '../components/ui/ExportMenu';
 import api from '../api/client';
 import {
   fetchTeamsForCurrentUser,
-  createTeam,
-  updateTeam,
   deleteTeam,
 } from '../api/teamApi';
 import { Button } from '../components/ui/button';
@@ -118,7 +116,7 @@ export default function TeamsList() {
     }
   };
 
-  const handleSaveTeam = async (savedTeam) => {
+  const handleSaveTeam = async () => {
     // savedTeam est l'objet retourné par l'API via le modal
     try {
       setIsModalOpen(false);
