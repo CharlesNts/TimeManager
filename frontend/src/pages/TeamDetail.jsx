@@ -227,18 +227,27 @@ export default function TeamDetail() {
         } catch (e) { console.warn(e); }
         
         const shiftsByEmployee = {};
+        const allMemberIds = members.map(m => m.user?.id ?? m.userId).filter(Boolean);
+
         teamShifts.forEach(shift => {
-            if (!shift.employeeId) return;
-            if (!shiftsByEmployee[shift.employeeId]) shiftsByEmployee[shift.employeeId] = [];
-            shiftsByEmployee[shift.employeeId].push(shift);
+            const shiftDuration = Math.max(0, Math.round((new Date(shift.endAt) - new Date(shift.startAt)) / 60000));
+            totalScheduledMinutes += shiftDuration;
             
-            const shiftStart = new Date(shift.startAt);
-            const shiftEnd = new Date(shift.endAt);
-            const duration = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
-            totalScheduledMinutes += duration;
-            
-            const dayKey = toParis(shiftStart).toISOString().split('T')[0];
-            dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + duration;
+            const shiftStartParis = toParis(new Date(shift.startAt));
+            const dayKey = `${shiftStartParis.getFullYear()}-${String(shiftStartParis.getMonth() + 1).padStart(2, '0')}-${String(shiftStartParis.getDate()).padStart(2, '0')}`;
+            dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + shiftDuration;
+
+            if (shift.employeeId) {
+                // Assigned shift
+                if (!shiftsByEmployee[shift.employeeId]) shiftsByEmployee[shift.employeeId] = [];
+                shiftsByEmployee[shift.employeeId].push(shift);
+            } else {
+                // Team shift (applies to all)
+                allMemberIds.forEach(uid => {
+                    if (!shiftsByEmployee[uid]) shiftsByEmployee[uid] = [];
+                    shiftsByEmployee[uid].push(shift);
+                });
+            }
         });
 
         // 2. Fetch Clocks & Process Overlap

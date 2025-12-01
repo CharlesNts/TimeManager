@@ -279,37 +279,56 @@ export default function EmployeeDashboard() {
 
         // Fetch Schedules (Adherence)
         try {
-            const shifts = await workShiftsApi.listForEmployee(targetUserId, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString());
-            if (Array.isArray(shifts)) {
-                shifts.forEach(shift => {
-                    const shiftStart = new Date(shift.startAt);
-                    const shiftEnd = new Date(shift.endAt);
-                    const shiftDuration = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
-                    totalScheduledMinutes += shiftDuration;
+            // Fetch shifts for all teams the user belongs to (to catch Team Shifts)
+            const shiftsPromises = teamsForUser.map(t => 
+                workShiftsApi.listForTeam(t.id, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString())
+                    .catch(() => [])
+            );
+            // Also try listForEmployee directly in case of individual shifts outside teams (rare but possible)
+            shiftsPromises.push(
+                workShiftsApi.listForEmployee(targetUserId, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString())
+                    .catch(() => [])
+            );
 
-                    const shiftStartParis = toParis(shiftStart);
-                    const dayKey = `${shiftStartParis.getFullYear()}-${String(shiftStartParis.getMonth() + 1).padStart(2, '0')}-${String(shiftStartParis.getDate()).padStart(2, '0')}`;
-                    dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + shiftDuration;
+            const allShiftsRaw = await Promise.all(shiftsPromises);
+            const allShifts = allShiftsRaw.flat();
+            
+            // Dedup by ID
+            const uniqueShifts = Array.from(new Map(allShifts.map(s => [s.id, s])).values());
+
+            // Filter for this user
+            const userShifts = uniqueShifts.filter(s => 
+                s.employeeId === Number(targetUserId) || !s.employeeId
+            );
+
+            userShifts.forEach(shift => {
+                const shiftStart = new Date(shift.startAt);
+                const shiftEnd = new Date(shift.endAt);
+                const shiftDuration = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
+                totalScheduledMinutes += shiftDuration;
+
+                const shiftStartParis = toParis(shiftStart);
+                const dayKey = `${shiftStartParis.getFullYear()}-${String(shiftStartParis.getMonth() + 1).padStart(2, '0')}-${String(shiftStartParis.getDate()).padStart(2, '0')}`;
+                dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + shiftDuration;
+                
+                // OVERLAP CALCULATION
+                let shiftOverlap = 0;
+                clocks.forEach(c => {
+                    const clockIn = new Date(c.clockIn);
+                    const clockOut = c.clockOut ? new Date(c.clockOut) : now;
                     
-                    // OVERLAP CALCULATION
-                    let shiftOverlap = 0;
-                    clocks.forEach(c => {
-                        const clockIn = new Date(c.clockIn);
-                        const clockOut = c.clockOut ? new Date(c.clockOut) : now;
-                        
-                        const overlapStart = new Date(Math.max(shiftStart, clockIn));
-                        const overlapEnd = new Date(Math.min(shiftEnd, clockOut));
-                        
-                        if (overlapEnd > overlapStart) {
-                            shiftOverlap += Math.max(0, Math.round((overlapEnd - overlapStart) / 60000));
-                        }
-                    });
+                    const overlapStart = new Date(Math.max(shiftStart, clockIn));
+                    const overlapEnd = new Date(Math.min(shiftEnd, clockOut));
                     
-                    const effectiveOverlap = Math.min(shiftOverlap, shiftDuration);
-                    totalOverlapMinutes += effectiveOverlap;
-                    dailyOverlapMap[dayKey] = (dailyOverlapMap[dayKey] || 0) + effectiveOverlap;
+                    if (overlapEnd > overlapStart) {
+                        shiftOverlap += Math.max(0, Math.round((overlapEnd - overlapStart) / 60000));
+                    }
                 });
-            }
+                
+                const effectiveOverlap = Math.min(shiftOverlap, shiftDuration);
+                totalOverlapMinutes += effectiveOverlap;
+                dailyOverlapMap[dayKey] = (dailyOverlapMap[dayKey] || 0) + effectiveOverlap;
+            });
         } catch (e) {
             console.warn('Error fetching shifts for employee', e);
         }

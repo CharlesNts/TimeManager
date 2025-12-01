@@ -303,41 +303,53 @@ export default function ManagerDashboard() {
         // 3. Process Shifts & Calculate Overlap (True Adherence)
         const allShifts = shiftsResults.flat();
         
+        // Map team -> members for team shifts
+        const teamMembersMap = {};
+        teams.forEach(t => {
+            teamMembersMap[t.id] = t.members.map(m => m.user?.id || m.userId).filter(Boolean);
+        });
+        
         allShifts.forEach(shift => {
             const shiftStart = new Date(shift.startAt);
             const shiftEnd = new Date(shift.endAt);
-            const userId = shift.employeeId; // Ensure shifts have employeeId
             const shiftDuration = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
-            
-            totalScheduledMinutes += shiftDuration;
-            
             const dayKey = toParis(shiftStart).toISOString().split('T')[0];
-            dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + shiftDuration;
 
-            // Calculate Overlap for this shift
-            // Find all user clocks that intersect with this shift
-            if (userId && userStatsMap[userId]) {
-                const userClocks = userStatsMap[userId].clocks;
-                let minutesCovered = 0;
-
-                userClocks.forEach(clock => {
-                    const clockIn = new Date(clock.clockIn);
-                    const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
-
-                    // Intersection logic
-                    const overlapStart = new Date(Math.max(shiftStart, clockIn));
-                    const overlapEnd = new Date(Math.min(shiftEnd, clockOut));
-                    
-                    if (overlapEnd > overlapStart) {
-                        minutesCovered += Math.round((overlapEnd - overlapStart) / 60000);
-                    }
-                });
-
-                // Cap coverage at shift duration (cannot work more than 100% of a specific shift for adherence purposes)
-                const effectiveOverlap = Math.min(minutesCovered, shiftDuration);
-                totalOverlapMinutes += effectiveOverlap;
-                dailyOverlapMap[dayKey] = (dailyOverlapMap[dayKey] || 0) + effectiveOverlap;
+            // Determine target users for this shift
+            let targetUserIds = [];
+            if (shift.employeeId) {
+                targetUserIds = [shift.employeeId];
+            } else if (shift.teamId && teamMembersMap[shift.teamId]) {
+                targetUserIds = teamMembersMap[shift.teamId];
             }
+
+            // Process for each target user
+            targetUserIds.forEach(userId => {
+                totalScheduledMinutes += shiftDuration;
+                dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + shiftDuration;
+
+                // Calculate Overlap
+                if (userStatsMap[userId]) {
+                    const userClocks = userStatsMap[userId].clocks;
+                    let minutesCovered = 0;
+
+                    userClocks.forEach(clock => {
+                        const clockIn = new Date(clock.clockIn);
+                        const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
+
+                        const overlapStart = new Date(Math.max(shiftStart, clockIn));
+                        const overlapEnd = new Date(Math.min(shiftEnd, clockOut));
+                        
+                        if (overlapEnd > overlapStart) {
+                            minutesCovered += Math.round((overlapEnd - overlapStart) / 60000);
+                        }
+                    });
+
+                    const effectiveOverlap = Math.min(minutesCovered, shiftDuration);
+                    totalOverlapMinutes += effectiveOverlap;
+                    dailyOverlapMap[dayKey] = (dailyOverlapMap[dayKey] || 0) + effectiveOverlap;
+                }
+            });
         });
 
         // 4. Aggregate Per Team (using processed user stats)
