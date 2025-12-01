@@ -263,7 +263,7 @@ export default function TeamDetail() {
     };
   }, [hoursByMember, lastByMember]);
 
-  const handleBack = () => navigate('/teams');
+  const handleBack = () => navigate(-1);
 
   // ====== TEAM EDIT ======
   const handleEditTeam = () => setIsEditModalOpen(true);
@@ -466,7 +466,7 @@ export default function TeamDetail() {
                       size="sm"
                     >
                       <CalendarClock className="w-4 h-4 mr-2" />
-                      Horaires
+                      Planning
                     </Button>
                   )}
 
@@ -575,82 +575,7 @@ export default function TeamDetail() {
             </div>
           )}
 
-          {/* Planning Info - Affiché uniquement pour les managers et CEO */}
-          {(user?.role === 'MANAGER' || user?.role === 'CEO') && (
-            <Card className={schedule ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}>
-              <CardHeader>
-                <CardTitle className={`flex items-center ${schedule ? 'text-green-900' : 'text-amber-900'}`}>
-                  <CalendarClock className="w-5 h-5 mr-2" />
-                  Planning de l&apos;équipe
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {schedule ? (
-                  (() => {
-                    // Parser le weeklyPatternJson
-                    let pattern = null;
-                    try {
-                      pattern = JSON.parse(schedule.weeklyPatternJson || '{}');
-                    } catch (e) {
-                      console.warn('Erreur parsing weeklyPatternJson:', e);
-                      pattern = {};
-                    }
-                    
-                    // Extraire les jours travaillés
-                    const daysMap = {
-                      mon: 'Lundi',
-                      tue: 'Mardi',
-                      wed: 'Mercredi',
-                      thu: 'Jeudi',
-                      fri: 'Vendredi',
-                      sat: 'Samedi',
-                      sun: 'Dimanche'
-                    };
-                    const workDaysDisplay = Object.entries(daysMap)
-                      .filter(([key]) => pattern[key] && pattern[key].length > 0)
-                      .map(([, val]) => val)
-                      .join(', ');
-                    
-                    // Extraire les horaires du premier jour travaillé
-                    const firstWorkDay = Object.entries(pattern).find(([key, val]) => 
-                      ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].includes(key) && 
-                      val && val.length > 0
-                    );
-                    const times = firstWorkDay && firstWorkDay[1][0] ? firstWorkDay[1][0] : null;
 
-                    return (
-                      <div className={`space-y-2 text-sm text-green-800`}>
-                        <div className="flex justify-between">
-                          <span className="font-medium">Jours travaillés :</span>
-                          <span>{workDaysDisplay || 'Non configuré'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">Horaires :</span>
-                          <span>{times ? `${times[0]} - ${times[1]}` : 'Non configuré'}</span>
-                        </div>
-                        {pattern.excludedDates && pattern.excludedDates.length > 0 && (
-                          <div className="flex justify-between">
-                            <span className="font-medium">Jours exclus :</span>
-                            <span>{pattern.excludedDates.length} jour(s)</span>
-                          </div>
-                        )}
-                        <div className="text-xs mt-3 border-t pt-2 opacity-75">
-                          ✓ Planning configuré
-                        </div>
-                      </div>
-                    );
-                  })()
-                ) : (
-                  <div className={`space-y-2 text-sm`}>
-                    <div className="text-center py-4">
-                      <p className="font-medium mb-2">Aucun planning configuré</p>
-                      <p className="text-xs opacity-75">Cliquez sur le bouton &quot;Horaires&quot; pour configurer le planning</p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
 
           {/* Membres */}
           <Card>

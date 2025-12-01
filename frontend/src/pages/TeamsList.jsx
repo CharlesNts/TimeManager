@@ -118,27 +118,13 @@ export default function TeamsList() {
     }
   };
 
-  const handleSaveTeam = async (teamData) => {
-    // teamData attendu depuis TeamFormModal: { name, description, managerId }
+  const handleSaveTeam = async (savedTeam) => {
+    // savedTeam est l'objet retourné par l'API via le modal
     try {
-      // Préparer le payload pour le backend
-      // Le backend attend un TeamDTO avec { name, description, manager: UserDTO }
-      // On envoie { name, description, managerId } et le backend mappera
-      const payload = {
-        name: teamData.name,
-        description: teamData.description,
-        managerId: teamData.managerId || user?.id, // Fallback sur user.id si managerId absent
-      };
-
-      if (modalMode === 'create') {
-        await createTeam(payload);
-      } else if (selectedTeam) {
-        await updateTeam(selectedTeam.id, payload);
-      }
       setIsModalOpen(false);
       await load();
     } catch (e) {
-      alert(e.message || 'Enregistrement impossible');
+      alert(e.message || 'Erreur de rechargement');
     }
   };
 
@@ -242,7 +228,7 @@ export default function TeamsList() {
       <TeamFormModal
         isOpen={isModalOpen}
         mode={modalMode}
-        teamData={selectedTeam}
+        team={selectedTeam}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveTeam}
         userRole={user?.role}
