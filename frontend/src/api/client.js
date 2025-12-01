@@ -2,9 +2,9 @@
 import axios from 'axios';
 
 // Configuration de l'URL de base de l'API
-// En dev: utilise localhost:8080 directement (CORS configuré côté backend)
-// En prod: utiliser VITE_API_URL dans .env pour pointer vers le domaine réel
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// En dev: on utilise le proxy Vite (chemin relatif), donc on laisse vide ou '/'
+// En prod: utiliser VITE_API_URL si le backend est ailleurs
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
