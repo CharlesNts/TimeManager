@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -20,32 +20,82 @@ const DAYS_FR = [
 export default function WorkScheduleConfigurator({ open, onClose, teamId, teamName, schedule, onSave }) {
   const isEditing = !!schedule;
 
-  // Initialize from schedule if editing, otherwise default values
-  const [scheduleName, setScheduleName] = useState(schedule?.name || `Planning ${teamName || 'équipe'}`);
+  // Helper map for day name to value conversion
+  const dayNameToValueMap = {
+    mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0
+  };
+  const dayValueToNameMap = {
+    1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat', 0: 'sun'
+  };
 
-  const parsePattern = () => {
+  const parsePattern = useCallback(() => {
     if (!schedule?.weeklyPatternJson) {
       return { workDays: [1, 2, 3, 4, 5], startTime: '09:00', endTime: '17:30' };
     }
     try {
-      return JSON.parse(schedule.weeklyPatternJson);
-    } catch {
+      const parsedPattern = JSON.parse(schedule.weeklyPatternJson);
+      const dayKeys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+      const extractedWorkDays = [];
+      let extractedStartTime = '09:00';
+      let extractedEndTime = '17:30';
+
+      dayKeys.forEach((key) => {
+        const actualDayValue = dayNameToValueMap[key];
+        if (parsedPattern[key] && Array.isArray(parsedPattern[key]) && parsedPattern[key].length > 0) {
+          extractedWorkDays.push(actualDayValue);
+          if (parsedPattern[key][0] && Array.isArray(parsedPattern[key][0]) && parsedPattern[key][0].length === 2) {
+            extractedStartTime = parsedPattern[key][0][0];
+            extractedEndTime = parsedPattern[key][0][1];
+          }
+        }
+      });
+
+      return {
+        workDays: extractedWorkDays.sort((a, b) => {
+          const orderA = a === 0 ? 7 : a;
+          const orderB = b === 0 ? 7 : b;
+          return orderA - orderB;
+        }),
+        startTime: extractedStartTime,
+        endTime: extractedEndTime
+      };
+
+    } catch (e) {
+      console.warn('Erreur parsing schedule.weeklyPatternJson dans WorkScheduleConfigurator:', e);
       return { workDays: [1, 2, 3, 4, 5], startTime: '09:00', endTime: '17:30' };
     }
-  };
+  }, [schedule]);
 
-  const initialPattern = parsePattern();
-  const [workDays, setWorkDays] = useState(initialPattern.workDays);
-  const [startTime, setStartTime] = useState(initialPattern.startTime);
-  const [endTime, setEndTime] = useState(initialPattern.endTime);
+  const [scheduleName, setScheduleName] = useState(schedule?.name || `Planning ${teamName || 'équipe'}`);
+  const [workDays, setWorkDays] = useState([]); // Initialized to empty to be set by useEffect
+  const [startTime, setStartTime] = useState('09:00'); // Initialized to default to be set by useEffect
+  const [endTime, setEndTime] = useState('17:30'); // Initialized to default to be set by useEffect
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Reset form data when modal opens or schedule changes (for editing)
+  useEffect(() => {
+    if (open) {
+      const resetValues = parsePattern();
+      setScheduleName(schedule?.name || `Planning ${teamName || 'équipe'}`);
+      setWorkDays(resetValues.workDays);
+      setStartTime(resetValues.startTime);
+      setEndTime(resetValues.endTime);
+      setError('');
+    }
+  }, [open, schedule, teamName, parsePattern]);
+
 
   const toggleWorkDay = (dayValue) => {
     setWorkDays((prev) =>
       prev.includes(dayValue)
         ? prev.filter((d) => d !== dayValue)
-        : [...prev, dayValue].sort()
+        : [...prev, dayValue].sort((a, b) => {
+          // Sort correctly for days of week (Mon-Sun, 0 for Sun)
+          const orderA = a === 0 ? 7 : a; // Sunday last
+          const orderB = b === 0 ? 7 : b;
+          return orderA - orderB;
+        })
     );
   };
 
@@ -63,29 +113,33 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
     }
 
     if (workDays.length === 0) {
-      setError('Sélectionnez au least un jour de travail');
+      setError('Sélectionnez au moins un jour de travail');
       return;
     }
 
     setIsSaving(true);
     try {
-      // Créer le pattern JSON simple avec seulement les jours et horaires
-      const weeklyPattern = {
-        workDays: workDays,
-        startTime: startTime,
-        endTime: endTime,
-      };
+      // Créer le weeklyPatternJson dans le format attendu par TeamDetail
+      const weeklyPattern = {};
+      workDays.forEach(dayValue => {
+        const dayName = dayValueToNameMap[dayValue];
+        if (dayName) {
+          weeklyPattern[dayName] = [[startTime, endTime]];
+        }
+      });
+      weeklyPattern.excludedDates = []; // Ensure it's always an array, even if empty
 
       let template;
 
       if (isEditing) {
-        // Mode édition: appeler UPDATE
         template = await scheduleTemplatesApi.update(schedule.id, {
           name: scheduleName,
           weeklyPatternJson: JSON.stringify(weeklyPattern),
+          // Assuming teamId and active status are not changed via this modal
+          teamId: schedule.teamId,
+          active: schedule.active,
         });
       } else {
-        // Mode création: appeler CREATE
         template = await scheduleTemplatesApi.create({
           teamId,
           name: scheduleName,
@@ -94,7 +148,6 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
         });
       }
 
-      // Appeler le callback onSave si fourni
       if (onSave) {
         onSave(template);
       }

@@ -195,7 +195,7 @@ export default function ManagerDashboard() {
   // Charger les vraies statistiques avec charts
   useEffect(() => {
     if (!stats.totalMembers || !user) return;
-    loadDashboard();
+    // loadDashboard(); // Removed to prevent infinite loop
     
     const loadRealStats = async () => {
       try {
@@ -383,29 +383,25 @@ export default function ManagerDashboard() {
     setIsScheduleModalOpen(true);
   };
 
-  const handleSaveTeam = async (teamData) => {
+  const handleSaveTeam = async (savedTeam) => {
     try {
-      const payload = {
-        name: teamData.name,
-        description: teamData.description,
-        managerId: teamData.managerId || user?.id,
-      };
-      const createdTeam = await createTeam(payload);
+      // Le modal a déjà créé l'équipe et nous renvoie l'objet créé
       setIsTeamModalOpen(false);
       await loadDashboard();
       
       // Proposer de configurer les horaires après création
       const shouldConfig = window.confirm(
-        `Équipe "${payload.name}" créée avec succès !\n\nVoulez-vous configurer les horaires de travail maintenant ?`
+        `Équipe "${savedTeam.name}" créée avec succès !\n\nVoulez-vous configurer les horaires de travail maintenant ?`
       );
-      if (shouldConfig && createdTeam) {
-        setSelectedTeamForSchedule(createdTeam);
+      if (shouldConfig && savedTeam) {
+        setSelectedTeamForSchedule(savedTeam);
         setIsScheduleModalOpen(true);
       }
     } catch (e) {
-      alert(e.message || 'Enregistrement impossible');
+      alert(e.message || 'Erreur post-création');
     }
   };
+
 
   const handleExportPDF = () => {
     exportManagerDashboardPDF(user, stats, teams);
