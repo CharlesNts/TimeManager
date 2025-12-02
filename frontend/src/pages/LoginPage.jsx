@@ -79,7 +79,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div
+      className="min-h-screen flex items-center justify-center p-4 bg-cover bg-center"
+      style={{ backgroundImage: "url('/images/LoginBG.png')" }}
+    >
       <Card className="max-w-md w-full">
         <CardHeader>
           <CardTitle className="text-center">Connexion</CardTitle>

@@ -190,8 +190,8 @@ export default function ProfilePage() {
                     <h2 className="text-2xl font-bold text-gray-900">
                       {loading ? 'Chargement…' : `${profileData.firstName} ${profileData.lastName}`}
                     </h2>
-                    <Badge variant={profileData.role === 'CEO' ? 'default' : profileData.role === 'MANAGER' ? 'secondary' : 'outline'} className="mt-1">
-                      {profileData.role === 'MANAGER' ? 'Manager' : profileData.role === 'CEO' ? 'CEO' : 'Employé'}
+                    <Badge variant={profileData.role === 'ADMIN' ? 'default' : profileData.role === 'MANAGER' ? 'secondary' : 'outline'} className="mt-1">
+                      {profileData.role === 'MANAGER' ? 'Manager' : profileData.role === 'ADMIN' ? 'CEO' : 'Employé'}
                     </Badge>
                   </div>
                 </div>
@@ -289,11 +289,11 @@ export default function ProfilePage() {
                   <Input
                     id="role"
                     type="text"
-                    value={profileData.role === 'MANAGER' ? 'Manager' : profileData.role === 'CEO' ? 'CEO' : 'Employé'}
+                    value={profileData.role === 'MANAGER' ? 'Manager' : profileData.role === 'ADMIN' ? 'CEO' : 'Employé'}
                     disabled
                   />
                   <p className="text-xs text-muted-foreground">
-                    Le rôle ne peut être modifié que par le CEO.
+                    Le rôle ne peut être modifié que par un Administrateur.
                   </p>
                 </div>
               </div>

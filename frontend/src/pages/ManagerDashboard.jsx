@@ -31,6 +31,12 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import { getPeriodInfo, getDisplayPeriodBoundaries, getDisplayPeriodBoundariesShifted } from '../utils/granularityUtils';
 import { toParis } from '../utils/dateUtils';
 
+// Helper pour afficher le rôle côté UI (CEO -> ADMIN)
+function displayRole(role) {
+  if (!role) return '';
+  return role === 'CEO' ? 'ADMIN' : role;
+}
+
 // Helper function to format minutes
 function fmtMinutes(v) {
   if (typeof v !== 'number') return '—'
@@ -420,7 +426,7 @@ export default function ManagerDashboard() {
       sidebarItems={sidebarItems}
       pageTitle="Dashboard Manager"
       userName={`${user?.firstName} ${user?.lastName}`}
-      userRole={user?.role}
+      userRole={displayRole(user?.role)}
     >
       <div className="p-8 space-y-6">
         <div className="max-w-7xl mx-auto">

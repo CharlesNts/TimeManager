@@ -140,7 +140,12 @@ export default function ScheduleTemplatesPage() {
 
   if (!user || user.role !== 'MANAGER') {
     return (
-      <Layout sidebarItems={sidebarItems}>
+      <Layout
+        sidebarItems={sidebarItems}
+        pageTitle="Gestion des plannings"
+        userName={user ? `${user.firstName} ${user.lastName}` : ''}
+        userRole={user?.role}
+      >
         <div className="p-8 text-center">
           <AlertCircle className="w-12 h-12 mx-auto mb-4 text-yellow-600" />
           <h1 className="text-xl font-semibold text-gray-900 mb-2">Accès Restreint</h1>
@@ -151,7 +156,12 @@ export default function ScheduleTemplatesPage() {
   }
 
   return (
-    <Layout sidebarItems={sidebarItems}>
+    <Layout
+      sidebarItems={sidebarItems}
+      pageTitle="Gestion des plannings"
+      userName={user ? `${user.firstName} ${user.lastName}` : ''}
+      userRole={user?.role}
+    >
       <div className="space-y-8">
         {/* Header */}
         <div>
