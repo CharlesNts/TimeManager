@@ -12,14 +12,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -42,6 +41,7 @@ class LeavesControllerOverlapIT {
                 .role(Role.EMPLOYEE).active(true).build();
         employeeId = users.save(u).getId();
     }
+
     @Test
     void overlapping_with_pending_is_rejected() throws Exception {
         leaves.save(LeaveRequest.builder()
@@ -65,6 +65,7 @@ class LeavesControllerOverlapIT {
                 .andExpect(status().is4xxClientError())
                 .andExpect(content().string(containsString("Overlaps")));
     }
+
     @Test
     void overlapping_leave_is_rejected_with_conflict() throws Exception {
         // create an APPROVED leave in repo to force an overlap
@@ -99,12 +100,14 @@ class LeavesControllerOverlapIT {
         req.setStartAt(LocalDateTime.of(2025,1,20,0,0));
         req.setEndAt(LocalDateTime.of(2025,1,22,0,0));
         req.setReason("flu");
+
         String created = mvc.perform(post("/api/leaves")
                         .param("employeeId", employeeId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(om.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
+
         long leaveId = om.readTree(created).get("id").asLong();
 
         var decision = new LeaveDecisionDTO();
@@ -148,7 +151,6 @@ class LeavesControllerOverlapIT {
                 .andExpect(jsonPath("$.status").value("CANCELLED"));
     }
 
-
     @Test
     void reject_sets_status_and_note() throws Exception {
         var req = new LeaveRequestCreateDTO();
@@ -175,5 +177,69 @@ class LeavesControllerOverlapIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("REJECTED"))
                 .andExpect(jsonPath("$.reason").value("nope"));
+    }
+
+    // ---------- NEW TESTS FOR UPDATE + DELETE ----------
+
+    @Test
+    void update_pending_leave_succeeds() throws Exception {
+        // 1) Create a pending leave
+        LeaveRequestCreateDTO create = new LeaveRequestCreateDTO();
+        create.setType(LeaveType.PAID);
+        create.setStartAt(LocalDateTime.of(2025, 5, 1, 0, 0));
+        create.setEndAt(LocalDateTime.of(2025, 5, 3, 0, 0));
+        create.setReason("initial");
+
+        String created = mvc.perform(post("/api/leaves")
+                        .param("employeeId", employeeId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(create)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        long id = om.readTree(created).get("id").asLong();
+
+        // 2) Update it via PUT
+        LeaveRequestCreateDTO update = new LeaveRequestCreateDTO();
+        update.setType(LeaveType.PAID);
+        update.setStartAt(LocalDateTime.of(2025, 5, 2, 0, 0));
+        update.setEndAt(LocalDateTime.of(2025, 5, 4, 0, 0));
+        update.setReason("updated reason");
+
+        mvc.perform(put("/api/leaves/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(update)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.reason").value("updated reason"));
+    }
+
+    @Test
+    void delete_pending_leave_succeeds() throws Exception {
+        // 1) Create a pending leave
+        LeaveRequestCreateDTO create = new LeaveRequestCreateDTO();
+        create.setType(LeaveType.PAID);
+        create.setStartAt(LocalDateTime.of(2025, 6, 1, 0, 0));
+        create.setEndAt(LocalDateTime.of(2025, 6, 3, 0, 0));
+        create.setReason("to be deleted");
+
+        String created = mvc.perform(post("/api/leaves")
+                        .param("employeeId", employeeId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(create)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        long id = om.readTree(created).get("id").asLong();
+
+        // 2) Delete it
+        mvc.perform(delete("/api/leaves/{id}", id))
+                .andExpect(status().isNoContent());
+
+        // 3) Verify it no longer appears in the employee's list
+        mvc.perform(get("/api/leaves")
+                        .param("employeeId", employeeId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+        // Optional: if nothing else exists, you can assert length 0:
+        // .andExpect(jsonPath("$.length()").value(0));
     }
 }

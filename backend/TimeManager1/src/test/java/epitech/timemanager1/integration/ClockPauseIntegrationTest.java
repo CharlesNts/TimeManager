@@ -1,6 +1,7 @@
 package epitech.timemanager1.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import epitech.timemanager1.entities.Clock;
 import epitech.timemanager1.entities.ClockPause;
 import epitech.timemanager1.entities.Role;
@@ -59,7 +60,7 @@ class ReportsWithPausesIT {
                 .note("lunch").build());
         pauses.save(ClockPause.builder()
                 .clock(c)
-                .startAt(LocalDateTime.of(2025, 6, 10, 15, 00))
+                .startAt(LocalDateTime.of(2025, 6, 10, 15, 0))
                 .endAt(LocalDateTime.of(2025, 6, 10, 15, 15))
                 .note("coffee").build());
     }
@@ -71,9 +72,21 @@ class ReportsWithPausesIT {
                         .param("to",   "2025-06-11T00:00:00"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andReturn().getResponse().getContentAsString();
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
 
-        double hours = om.readTree(resp).get("hours").asDouble();
-        assertThat(hours).isCloseTo(7.25, within(1e-6));
+        JsonNode node = om.readTree(resp);
+
+        double grossHours = node.get("grossHours").asDouble();
+        double pauseHours = node.get("pauseHours").asDouble();
+        double netHours   = node.get("netHours").asDouble();
+
+        // Gross should be full 8h
+        assertThat(grossHours).isCloseTo(8.0, within(1e-6));
+        // 45 minutes of pause -> 0.75h
+        assertThat(pauseHours).isCloseTo(0.75, within(1e-6));
+        // Net should be 7.25h
+        assertThat(netHours).isCloseTo(7.25, within(1e-6));
     }
 }

@@ -282,19 +282,17 @@ export const exportManagerDashboardPDF = (user, stats, teams = [], chartData = {
 };
 
 /**
- * Génère un PDF pour le dashboard CEO
+ * Génère un PDF pour le dashboard CEO (version simplifiée - KPIs uniquement)
  * @param {Object} user - Utilisateur connecté
  * @param {Object} stats - Statistiques globales
- * @param {Array} pendingUsers - Utilisateurs en attente
- * @param {Array} recentTeams - Équipes récentes
  */
-export const exportCEODashboardPDF = (user, stats, pendingUsers = [], recentTeams = []) => {
+export const exportCEODashboardPDF = (user, stats) => {
   const doc = new jsPDF();
   const today = new Date().toLocaleDateString('fr-FR');
 
   // En-tête
   doc.setFontSize(20);
-  doc.text('TimeManager - Dashboard CEO', 14, 20);
+  doc.text('TimeManager - Dashboard Admin', 14, 20);
 
   doc.setFontSize(10);
   doc.text(`${user.firstName} ${user.lastName}`, 14, 28);
@@ -309,12 +307,12 @@ export const exportCEODashboardPDF = (user, stats, pendingUsers = [], recentTeam
   doc.text('VUE D\'ENSEMBLE ENTREPRISE', 14, 48);
 
   const statsData = [
-    ['Total employes', stats.totalUsers?.toString() || '0'],
-    ['Utilisateurs approuves', stats.approvedUsers?.toString() || '0'],
+    ['Total employés', stats.totalUsers?.toString() || '0'],
+    ['Utilisateurs approuvés', stats.approvedUsers?.toString() || '0'],
     ['En attente d\'approbation', stats.pendingUsers?.toString() || '0'],
-    ['Total equipes', stats.totalTeams?.toString() || '0'],
+    ['Total équipes', stats.totalTeams?.toString() || '0'],
     ['Managers', stats.totalManagers?.toString() || '0'],
-    ['Employes actifs', 'Endpoint manquant'],
+    ['Employés actifs', stats.activeEmployees?.toString() || '0'],
   ];
 
   autoTable(doc, {
@@ -325,44 +323,10 @@ export const exportCEODashboardPDF = (user, stats, pendingUsers = [], recentTeam
     headStyles: { fillColor: [0, 0, 0] },
   });
 
-  // Utilisateurs en attente
-  if (pendingUsers.length > 0) {
-    doc.setFontSize(14);
-    doc.text('UTILISATEURS EN ATTENTE', 14, doc.lastAutoTable.finalY + 15);
-
-    const pendingData = pendingUsers.map(u => [
-      `${u.firstName} ${u.lastName}`,
-      u.email,
-      u.role || 'EMPLOYEE',
-    ]);
-
-    autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 20,
-      head: [['Nom', 'Email', 'Rôle demandé']],
-      body: pendingData,
-      theme: 'striped',
-      headStyles: { fillColor: [255, 153, 0] },
-    });
-  }
-
-  // Équipes récentes
-  if (recentTeams.length > 0) {
-    doc.setFontSize(14);
-    doc.text('EQUIPES RECENTES', 14, doc.lastAutoTable.finalY + 15);
-
-    const teamsData = recentTeams.map(t => [
-      t.name,
-      t.manager ? `${t.manager.firstName} ${t.manager.lastName}` : '—',
-    ]);
-
-    autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 20,
-      head: [['Nom', 'Manager']],
-      body: teamsData,
-      theme: 'striped',
-      headStyles: { fillColor: [0, 0, 0] },
-    });
-  }
+  // Note
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text('Pour des statistiques détaillées, consultez les pages Gestion des équipes et Gestion des utilisateurs.', 14, doc.lastAutoTable.finalY + 15);
 
   // Pied de page
   doc.setFontSize(8);
@@ -370,74 +334,105 @@ export const exportCEODashboardPDF = (user, stats, pendingUsers = [], recentTeam
   doc.text('TimeManager © 2025 - Document confidentiel', 105, 285, { align: 'center' });
 
   // Téléchargement
-  doc.save(`dashboard_ceo_${today.replace(/\//g, '-')}.pdf`);
+  doc.save(`dashboard_admin_${today.replace(/\//g, '-')}.pdf`);
 };
 
 /**
- * Génère un PDF pour la liste des utilisateurs
- * @param {Array} users - Liste des utilisateurs
+ * Génère un PDF pour la liste des équipes (Gestion des équipes)
+ * @param {Array} teams - Liste des équipes
+ * @param {Object} chartData - Données des graphiques (teamComparisonData, adherenceData)
+ * @param {string} granularityLabel - Label de la granularité
  */
-export const exportUsersListPDF = (users = []) => {
+export const exportTeamsListPDF = (teams = [], chartData = {}, granularityLabel = 'Cette semaine') => {
   const doc = new jsPDF();
   const today = new Date().toLocaleDateString('fr-FR');
 
   // En-tête
   doc.setFontSize(20);
-  doc.text('TimeManager - Liste des Utilisateurs', 14, 20);
+  doc.text('TimeManager - Gestion des Équipes', 14, 20);
 
   doc.setFontSize(10);
-  doc.text(`Date: ${today}`, 14, 28);
-  doc.text(`Total: ${users.length} utilisateurs`, 14, 34);
+  doc.text(`Période: ${granularityLabel}`, 14, 28);
+  doc.text(`Généré le ${today}`, 14, 34);
 
   // Ligne de séparation
   doc.setLineWidth(0.5);
   doc.line(14, 38, 196, 38);
 
-  // Statistiques rapides
-  const approved = users.filter(u => u.status === 'APPROVED').length;
-  const pending = users.filter(u => u.status === 'PENDING').length;
-  const rejected = users.filter(u => u.status === 'REJECTED').length;
+  let currentY = 46;
 
+  // KPIs
   doc.setFontSize(14);
-  doc.text('VUE D\'ENSEMBLE', 14, 48);
+  doc.text('VUE D\'ENSEMBLE', 14, currentY);
+  currentY += 8;
 
-  const statsData = [
-    ['Utilisateurs approuvés', approved.toString()],
-    ['En attente', pending.toString()],
-    ['Rejetés', rejected.toString()],
-  ];
+  const kpiWidth = 58;
+  const kpiGap = 6;
+  const kpiStartX = 14;
 
-  autoTable(doc, {
-    startY: 52,
-    head: [['Statut', 'Nombre']],
-    body: statsData,
-    theme: 'grid',
-    headStyles: { fillColor: [0, 0, 0] },
-  });
-
-  // Liste des utilisateurs
+  // KPI 1: Total équipes
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(kpiStartX, currentY, kpiWidth, 24, 2, 2, 'F');
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text('Total équipes', kpiStartX + 4, currentY + 8);
   doc.setFontSize(14);
-  doc.text('LISTE COMPLETE', 14, doc.lastAutoTable.finalY + 15);
+  doc.setTextColor(0);
+  doc.setFont(undefined, 'bold');
+  doc.text(teams.length.toString(), kpiStartX + 4, currentY + 18);
+  doc.setFont(undefined, 'normal');
 
-  const usersData = users.map(u => [
-    `${u.firstName} ${u.lastName}`,
-    u.email,
-    u.phoneNumber || '-',
-    u.role || 'EMPLOYEE',
-    u.status || 'PENDING',
-  ]);
+  // KPI 2: Adhérence moyenne
+  const kpi2X = kpiStartX + kpiWidth + kpiGap;
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(kpi2X, currentY, kpiWidth, 24, 2, 2, 'F');
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text('Adhérence moyenne', kpi2X + 4, currentY + 8);
+  doc.setFontSize(14);
+  doc.setTextColor(0);
+  doc.setFont(undefined, 'bold');
+  doc.text(`${(chartData.adherenceRate || 0).toFixed(0)}%`, kpi2X + 4, currentY + 18);
+  doc.setFont(undefined, 'normal');
 
-  autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 20,
-    head: [['Nom', 'Email', 'Téléphone', 'Rôle', 'Statut']],
-    body: usersData,
-    theme: 'striped',
-    headStyles: { fillColor: [0, 0, 0] },
-    styles: { fontSize: 8 },
-    columnStyles: {
-      1: { cellWidth: 50 }, // Email plus large
-    },
-  });
+  currentY += 30;
+
+  // Graphique: Comparaison équipes
+  if (chartData.teamComparisonData && chartData.teamComparisonData.length > 0) {
+    currentY = drawBarChart(doc, chartData.teamComparisonData, 14, currentY, 180, 60, {
+      title: 'Comparaison des équipes (heures)',
+      valueFormatter: (v) => `${v}h`,
+      primaryColor: [37, 99, 235],
+      secondaryColor: [148, 163, 184],
+    });
+  }
+
+  currentY += 8;
+
+  // Liste des équipes
+  if (teams.length > 0) {
+    doc.setFontSize(12);
+    doc.setTextColor(0);
+    doc.setFont(undefined, 'bold');
+    doc.text('LISTE DES ÉQUIPES', 14, currentY);
+    doc.setFont(undefined, 'normal');
+
+    const teamsData = teams.map(t => [
+      t.name,
+      t.description?.substring(0, 40) || '-',
+      t.managerName || '-',
+      (t.memberCount || 0).toString(),
+    ]);
+
+    autoTable(doc, {
+      startY: currentY + 5,
+      head: [['Nom', 'Description', 'Manager', 'Membres']],
+      body: teamsData,
+      theme: 'striped',
+      headStyles: { fillColor: [0, 0, 0], fontSize: 9 },
+      styles: { fontSize: 8 },
+    });
+  }
 
   // Pied de page
   doc.setFontSize(8);
@@ -445,7 +440,151 @@ export const exportUsersListPDF = (users = []) => {
   doc.text('TimeManager © 2025 - Document confidentiel', 105, 285, { align: 'center' });
 
   // Téléchargement
-  doc.save(`users_list_${today.replace(/\//g, '-')}.pdf`);
+  doc.save(`gestion_equipes_${today.replace(/\//g, '-')}.pdf`);
+};
+
+/**
+ * Génère un PDF pour la liste des utilisateurs (Gestion des utilisateurs)
+ * @param {Array} users - Liste des utilisateurs
+ * @param {Object} chartData - Données des graphiques (hoursChartSeries, adherenceData)
+ * @param {string} granularityLabel - Label de la granularité
+ */
+export const exportUsersListPDF = (users = [], chartData = {}, granularityLabel = 'Cette semaine') => {
+  const doc = new jsPDF();
+  const today = new Date().toLocaleDateString('fr-FR');
+
+  // En-tête
+  doc.setFontSize(20);
+  doc.text('TimeManager - Gestion des Utilisateurs', 14, 20);
+
+  doc.setFontSize(10);
+  doc.text(`Période: ${granularityLabel}`, 14, 28);
+  doc.text(`Date: ${today}`, 14, 34);
+  doc.text(`Total: ${users.length} utilisateurs`, 14, 40);
+
+  // Ligne de séparation
+  doc.setLineWidth(0.5);
+  doc.line(14, 44, 196, 44);
+
+  let currentY = 52;
+
+  // KPIs
+  const approved = users.filter(u => u.status === 'APPROVED').length;
+  const pending = users.filter(u => u.status === 'PENDING').length;
+
+  doc.setFontSize(14);
+  doc.text('VUE D\'ENSEMBLE', 14, currentY);
+  currentY += 8;
+
+  const kpiWidth = 45;
+  const kpiGap = 5;
+  const kpiStartX = 14;
+
+  // KPI 1: Total
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(kpiStartX, currentY, kpiWidth, 22, 2, 2, 'F');
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text('Total', kpiStartX + 4, currentY + 8);
+  doc.setFontSize(12);
+  doc.setTextColor(0);
+  doc.setFont(undefined, 'bold');
+  doc.text(users.length.toString(), kpiStartX + 4, currentY + 17);
+  doc.setFont(undefined, 'normal');
+
+  // KPI 2: Approuvés
+  const kpi2X = kpiStartX + kpiWidth + kpiGap;
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(kpi2X, currentY, kpiWidth, 22, 2, 2, 'F');
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text('Approuvés', kpi2X + 4, currentY + 8);
+  doc.setFontSize(12);
+  doc.setTextColor(0);
+  doc.setFont(undefined, 'bold');
+  doc.text(approved.toString(), kpi2X + 4, currentY + 17);
+  doc.setFont(undefined, 'normal');
+
+  // KPI 3: En attente
+  const kpi3X = kpi2X + kpiWidth + kpiGap;
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(kpi3X, currentY, kpiWidth, 22, 2, 2, 'F');
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text('En attente', kpi3X + 4, currentY + 8);
+  doc.setFontSize(12);
+  doc.setTextColor(0);
+  doc.setFont(undefined, 'bold');
+  doc.text(pending.toString(), kpi3X + 4, currentY + 17);
+  doc.setFont(undefined, 'normal');
+
+  // KPI 4: Adhérence
+  const kpi4X = kpi3X + kpiWidth + kpiGap;
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(kpi4X, currentY, kpiWidth, 22, 2, 2, 'F');
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text('Adhérence moy.', kpi4X + 4, currentY + 8);
+  doc.setFontSize(12);
+  doc.setTextColor(0);
+  doc.setFont(undefined, 'bold');
+  doc.text(`${(chartData.adherenceRate || 0).toFixed(0)}%`, kpi4X + 4, currentY + 17);
+  doc.setFont(undefined, 'normal');
+
+  currentY += 28;
+
+  // Graphique: Heures travaillées
+  if (chartData.hoursChartSeries && chartData.hoursChartSeries.length > 0) {
+    currentY = drawLineChart(doc, chartData.hoursChartSeries, 14, currentY, 180, 40, {
+      title: 'Évolution des heures travaillées',
+      valueFormatter: (v) => `${Math.round(v / 60 * 10) / 10}h`,
+      color: [37, 99, 235],
+    });
+  }
+
+  currentY += 5;
+
+  // Liste des utilisateurs (table compacte)
+  if (currentY < 200) {
+    doc.setFontSize(12);
+    doc.setTextColor(0);
+    doc.setFont(undefined, 'bold');
+    doc.text('LISTE DES UTILISATEURS', 14, currentY);
+    doc.setFont(undefined, 'normal');
+
+    const usersData = users.slice(0, 15).map(u => [
+      `${u.firstName} ${u.lastName}`,
+      u.email,
+      u.role || 'EMPLOYEE',
+      u.status === 'APPROVED' ? 'Approuvé' : 'En attente',
+    ]);
+
+    autoTable(doc, {
+      startY: currentY + 5,
+      head: [['Nom', 'Email', 'Rôle', 'Statut']],
+      body: usersData,
+      theme: 'striped',
+      headStyles: { fillColor: [0, 0, 0], fontSize: 8 },
+      styles: { fontSize: 7 },
+      columnStyles: {
+        1: { cellWidth: 55 },
+      },
+    });
+
+    if (users.length > 15) {
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text(`... et ${users.length - 15} autres utilisateurs`, 14, doc.lastAutoTable.finalY + 8);
+    }
+  }
+
+  // Pied de page
+  doc.setFontSize(8);
+  doc.setTextColor(128);
+  doc.text('TimeManager © 2025 - Document confidentiel', 105, 285, { align: 'center' });
+
+  // Téléchargement
+  doc.save(`gestion_utilisateurs_${today.replace(/\//g, '-')}.pdf`);
 };
 
 /**

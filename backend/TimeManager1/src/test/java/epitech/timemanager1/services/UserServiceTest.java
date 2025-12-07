@@ -6,19 +6,18 @@ import epitech.timemanager1.entities.User;
 import epitech.timemanager1.exception.ConflictException;
 import epitech.timemanager1.exception.NotFoundException;
 import epitech.timemanager1.mapper.UserMapper;
+import epitech.timemanager1.repositories.TeamMemberRepository;
 import epitech.timemanager1.repositories.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -31,14 +30,17 @@ class UserServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
-    private UserMapper userMapper = Mappers.getMapper(UserMapper.class);
+    @Mock
+    private TeamMemberRepository teamMemberRepository;
+
+    private final UserMapper userMapper = Mappers.getMapper(UserMapper.class);
 
     private UserService userService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        userService = new UserService(userRepository, userMapper, passwordEncoder);
+        userService = new UserService(userRepository, userMapper, passwordEncoder, teamMemberRepository);
     }
 
     private UserDTO getSampleUserDTO() {

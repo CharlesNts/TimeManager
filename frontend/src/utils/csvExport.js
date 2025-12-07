@@ -166,55 +166,79 @@ export const exportManagerDashboardCSV = (user, stats, teams = [], chartData = {
 };
 
 /**
- * Exporte le dashboard CEO en CSV
+ * Exporte le dashboard CEO en CSV (version simplifiée - KPIs uniquement)
  * @param {Object} user - Utilisateur connecté
  * @param {Object} stats - Statistiques globales
- * @param {Array} pendingUsers - Utilisateurs en attente
- * @param {Array} recentTeams - Équipes récentes
  */
-export const exportCEODashboardCSV = (user, stats, pendingUsers = [], recentTeams = []) => {
+export const exportCEODashboardCSV = (user, stats) => {
   const today = new Date().toLocaleDateString('fr-FR');
 
   const data = [
-    ['TimeManager - Dashboard CEO'],
+    ['TimeManager - Dashboard Admin'],
     [''],
-    ['CEO', `${user.firstName} ${user.lastName}`],
+    ['Admin', `${user.firstName} ${user.lastName}`],
     ['Date génération', today],
     [''],
     ['=== VUE D\'ENSEMBLE ENTREPRISE ==='],
     ['Indicateur', 'Valeur'],
-    ['Total employes', stats.totalUsers?.toString() || '0'],
-    ['Utilisateurs approuves', stats.approvedUsers?.toString() || '0'],
+    ['Total employés', stats.totalUsers?.toString() || '0'],
+    ['Utilisateurs approuvés', stats.approvedUsers?.toString() || '0'],
     ['En attente d\'approbation', stats.pendingUsers?.toString() || '0'],
-    ['Total equipes', stats.totalTeams?.toString() || '0'],
+    ['Total équipes', stats.totalTeams?.toString() || '0'],
     ['Managers', stats.totalManagers?.toString() || '0'],
-    ['Employes actifs', 'Endpoint manquant'],
+    ['Employés actifs', stats.activeEmployees?.toString() || '0'],
     [''],
-    ['=== UTILISATEURS EN ATTENTE ==='],
-    ['Nom', 'Email', 'Rôle demandé'],
+    ['Note: Pour des statistiques détaillées, consultez les pages Gestion des équipes et Gestion des utilisateurs.'],
   ];
 
-  pendingUsers.forEach(u => {
-    data.push([
-      `${u.firstName} ${u.lastName}`,
-      u.email,
-      u.role || 'EMPLOYEE',
-    ]);
-  });
+  const csv = arrayToCSV(data);
+  downloadCSV(csv, `dashboard_admin_${today.replace(/\//g, '-')}.csv`);
+};
+
+/**
+ * Exporte la liste des équipes en CSV (Gestion des équipes)
+ * @param {Array} teams - Liste des équipes
+ * @param {Object} chartData - Données des graphiques
+ * @param {string} granularityLabel - Label de la granularité
+ */
+export const exportTeamsListCSV = (teams = [], chartData = {}, granularityLabel = 'Cette semaine') => {
+  const today = new Date().toLocaleDateString('fr-FR');
+
+  const data = [
+    ['TimeManager - Gestion des Équipes'],
+    [''],
+    ['Date génération', today],
+    ['Période', granularityLabel],
+    [''],
+    ['=== VUE D\'ENSEMBLE ==='],
+    ['Total équipes', teams.length.toString()],
+    ['Adhérence moyenne', `${(chartData.adherenceRate || 0).toFixed(1)}%`],
+    [''],
+    ['=== COMPARAISON ÉQUIPES ==='],
+    ['Équipe', 'Heures'],
+  ];
+
+  if (chartData.teamComparisonData && chartData.teamComparisonData.length > 0) {
+    chartData.teamComparisonData.forEach(t => {
+      data.push([t.name || '-', `${t.value || 0}h`]);
+    });
+  }
 
   data.push(['']);
-  data.push(['=== EQUIPES RECENTES ===']);
-  data.push(['Nom', 'Manager']);
+  data.push(['=== LISTE DES ÉQUIPES ===']);
+  data.push(['Nom', 'Description', 'Manager', 'Membres']);
 
-  recentTeams.forEach(t => {
+  teams.forEach(t => {
     data.push([
-      t.name,
-      t.manager ? `${t.manager.firstName} ${t.manager.lastName}` : '—',
+      t.name || '',
+      t.description || '-',
+      t.managerName || '-',
+      (t.memberCount || 0).toString(),
     ]);
   });
 
   const csv = arrayToCSV(data);
-  downloadCSV(csv, `dashboard_ceo_${today.replace(/\//g, '-')}.csv`);
+  downloadCSV(csv, `gestion_equipes_${today.replace(/\//g, '-')}.csv`);
 };
 
 /**

@@ -1,11 +1,11 @@
 package epitech.timemanager1.services;
 
 import epitech.timemanager1.dto.UserDTO;
-import epitech.timemanager1.entities.Role;
 import epitech.timemanager1.entities.User;
 import epitech.timemanager1.exception.ConflictException;
 import epitech.timemanager1.exception.NotFoundException;
 import epitech.timemanager1.mapper.UserMapper;
+import epitech.timemanager1.repositories.TeamMemberRepository;
 import epitech.timemanager1.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -33,6 +33,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final TeamMemberRepository teamMemberRepository;
 
     /**
      * Creates a new user based on the provided DTO.
@@ -133,9 +134,11 @@ public class UserService {
         if (!userRepository.existsById(id)) {
             throw new NotFoundException("User not found");
         }
+        if (teamMemberRepository.existsByUserId(id)) {
+            throw new ConflictException("User is member of at least one team and cannot be deleted");
+        }
         userRepository.deleteById(id);
     }
-
     /**
      * Approves a user (activates their account).
      *
