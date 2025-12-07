@@ -623,8 +623,8 @@ export default function TeamDetail() {
                     </Button>
                   )}
 
-                  {/* Actions équipe (CEO seulement) */}
-                  {user?.role === 'CEO' && (
+                  {/* Actions équipe (CEO ou manager de l'équipe) */}
+                  {(user?.role === 'CEO' || user?.id === team?.managerId) && (
                     <>
                       <Button
                         onClick={handleEditTeam}
