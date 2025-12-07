@@ -38,20 +38,19 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Public docs & misc
                         .requestMatchers("/error", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
-                        // Auth & password reset endpoints must be PUBLIC
-                        .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/api/auth/password/**").permitAll() // <-- covers /forgot and /reset
+                        // Public auth endpoints
+                        .requestMatchers("/auth/login", "/auth/register").permitAll()
+                        .requestMatchers("/api/auth/password/**").permitAll()
+
+                        // /auth/me must be authenticated
+                        .requestMatchers("/auth/me").authenticated()
 
                         // TEMP: keep user endpoints open for integration tests
                         .requestMatchers("/api/users/**").permitAll()
 
-                        // Everything else under /api requires a valid JWT
                         .requestMatchers("/api/**").authenticated()
-
-                        // Anything not matched above is public
                         .anyRequest().permitAll()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

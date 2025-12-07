@@ -8,9 +8,11 @@ import epitech.timemanager1.services.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.*;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -72,19 +74,37 @@ public class AuthController {
         Authentication auth = authManager.authenticate(
                 new UsernamePasswordAuthenticationToken(req.getEmail(), req.getPassword())
         );
-        String token = jwtTokenService.generate(String.valueOf(auth));
+
+        UserDetails principal = (UserDetails) auth.getPrincipal();
+        String username = principal.getUsername(); // this should be the email
+
+        String token = jwtTokenService.generate(username);
         return ResponseEntity.ok(new AuthResponse("Bearer", token, expiration));
     }
 
     /**
      * Returns information about the currently authenticated user.
      *
-     * @param principal the authenticated user principal
+     * @param authentication the authenticated user principal
      * @return a {@link ResponseEntity} containing the current {@link UserDTO}
      */
     @GetMapping("/me")
-    public ResponseEntity<UserDTO> me(@org.springframework.security.core.annotation.AuthenticationPrincipal
-                                      org.springframework.security.core.userdetails.User principal) {
-        return ResponseEntity.ok(userService.getByEmail(principal.getUsername()));
+    public ResponseEntity<UserDTO> me(Authentication authentication) {
+        // No authentication object at all
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (principal == null || "anonymousUser".equals(principal)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        UserDetails userDetails = (UserDetails) principal;
+        String email = userDetails.getUsername();
+
+        UserDTO dto = userService.getByEmail(email);
+        return ResponseEntity.ok(dto);
     }
+
 }
