@@ -14,7 +14,6 @@ import {
   CalendarClock,
 } from 'lucide-react';
 import api from '../api/client';
-import workShiftsApi from '../api/workShiftsApi';
 import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
 import TeamFormModal from '../components/manager/TeamFormModal';
 import WorkScheduleConfigurator from '../components/manager/WorkScheduleConfigurator';
@@ -29,6 +28,7 @@ import ExportMenu from '../components/ui/ExportMenu';
 import { buildChartSeries } from '../api/statsApi';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 import { getPeriodInfo, getDisplayPeriodBoundaries } from '../utils/granularityUtils';
+import { calculateScheduledMinutesFromTemplate } from '../utils/scheduleUtils';
 import { toParis } from '../utils/dateUtils';
 
 // Helper pour afficher le rôle côté UI (CEO -> ADMIN)
@@ -246,12 +246,9 @@ export default function ManagerDashboard() {
         let singleCurrentMinutes = 0;
         let singlePreviousMinutes = 0;
 
-        const dailyHoursMap = {}; // Actual hours
-        const dailyScheduledMap = {}; // Scheduled hours
-        const dailyOverlapMap = {}; // Overlap (Adherence)
-
+        const dailyHoursMap = {}; // Actual hours worked
+        let dailyScheduledMap = {}; // Scheduled hours from templates
         let totalScheduledMinutes = 0;
-        let totalOverlapMinutes = 0;
 
         // Extract Unique Users
         const allMemberIds = teams.flatMap(team =>
@@ -259,11 +256,16 @@ export default function ManagerDashboard() {
         ).filter(Boolean);
         const uniqueMemberIds = [...new Set(allMemberIds)];
 
-        const userStatsMap = {}; // { userId: { totalMin: 0, clocks: [], shifts: [] } }
+        const userStatsMap = {}; // { userId: { totalMin: 0, clocks: [] } }
 
-        // 1. Parallel Fetch: Clocks AND Shifts for all users/teams
-        // We fetch shifts by team, but we need to map them to users
-        const [clocksResults, shiftsResults] = await Promise.all([
+        // Map team -> member count for schedule calculation
+        const teamMemberCountMap = {};
+        teams.forEach(t => {
+          teamMemberCountMap[t.id] = t.members.length;
+        });
+
+        // 1. Parallel Fetch: Clocks for all users AND Schedule Templates for all teams
+        const [clocksResults, scheduleResults] = await Promise.all([
           // Fetch Clocks for all users
           Promise.all(uniqueMemberIds.map(async (userId) => {
             try {
@@ -273,18 +275,18 @@ export default function ManagerDashboard() {
               return { userId, clocks: Array.isArray(data) ? data : [] };
             } catch (e) { return { userId, clocks: [] }; }
           })),
-          // Fetch Shifts for all teams
+          // Fetch Active Schedule Templates for all teams
           Promise.all(teams.map(async (team) => {
             try {
-              const data = await workShiftsApi.listForTeam(team.id, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString());
-              return Array.isArray(data) ? data : [];
-            } catch (e) { return []; }
+              const schedule = await scheduleTemplatesApi.getActiveForTeam(team.id);
+              return { teamId: team.id, schedule };
+            } catch (e) { return { teamId: team.id, schedule: null }; }
           }))
         ]);
 
         // 2. Process Clocks (Actual Volume)
         clocksResults.forEach(({ userId, clocks }) => {
-          userStatsMap[userId] = { totalMin: 0, clocks }; // Store clocks for overlap calc
+          userStatsMap[userId] = { totalMin: 0, clocks };
 
           clocks.forEach(clock => {
             const clockIn = new Date(clock.clockIn);
@@ -307,55 +309,23 @@ export default function ManagerDashboard() {
           });
         });
 
-        // 3. Process Shifts & Calculate Overlap (True Adherence)
-        const allShifts = shiftsResults.flat();
+        // 3. Calculate Scheduled Hours from Schedule Templates
+        scheduleResults.forEach(({ teamId, schedule }) => {
+          if (!schedule) return;
 
-        // Map team -> members for team shifts
-        const teamMembersMap = {};
-        teams.forEach(t => {
-          teamMembersMap[t.id] = t.members.map(m => m.user?.id || m.userId).filter(Boolean);
-        });
+          const memberCount = teamMemberCountMap[teamId] || 0;
+          if (memberCount === 0) return;
 
-        allShifts.forEach(shift => {
-          const shiftStart = new Date(shift.startAt);
-          const shiftEnd = new Date(shift.endAt);
-          const shiftDuration = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
-          const dayKey = toParis(shiftStart).toISOString().split('T')[0];
+          const scheduledData = calculateScheduledMinutesFromTemplate(
+            startOfCurrentPeriod,
+            endOfCurrentPeriod,
+            schedule
+          );
 
-          // Determine target users for this shift
-          let targetUserIds = [];
-          if (shift.employeeId) {
-            targetUserIds = [shift.employeeId];
-          } else if (shift.teamId && teamMembersMap[shift.teamId]) {
-            targetUserIds = teamMembersMap[shift.teamId];
-          }
-
-          // Process for each target user
-          targetUserIds.forEach(userId => {
-            totalScheduledMinutes += shiftDuration;
-            dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + shiftDuration;
-
-            // Calculate Overlap
-            if (userStatsMap[userId]) {
-              const userClocks = userStatsMap[userId].clocks;
-              let minutesCovered = 0;
-
-              userClocks.forEach(clock => {
-                const clockIn = new Date(clock.clockIn);
-                const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
-
-                const overlapStart = new Date(Math.max(shiftStart, clockIn));
-                const overlapEnd = new Date(Math.min(shiftEnd, clockOut));
-
-                if (overlapEnd > overlapStart) {
-                  minutesCovered += Math.round((overlapEnd - overlapStart) / 60000);
-                }
-              });
-
-              const effectiveOverlap = Math.min(minutesCovered, shiftDuration);
-              totalOverlapMinutes += effectiveOverlap;
-              dailyOverlapMap[dayKey] = (dailyOverlapMap[dayKey] || 0) + effectiveOverlap;
-            }
+          // Multiply by number of members (each member should work those hours)
+          totalScheduledMinutes += scheduledData.totalMinutes * memberCount;
+          Object.entries(scheduledData.dailyMap).forEach(([dayKey, minutes]) => {
+            dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + (minutes * memberCount);
           });
         });
 
@@ -389,30 +359,37 @@ export default function ManagerDashboard() {
           return { date: period.label, minutesWorked: totalMin };
         });
 
-        // Chart Data: Adherence (Using Overlap)
+        // Chart Data: Adherence (Worked vs Scheduled from Template)
         const adherencePerPeriod = periodBoundaries.map(period => {
-          let overlap = 0;
+          let worked = 0;
           let scheduled = 0;
-          Object.entries(dailyOverlapMap).forEach(([dayKey, minutes]) => {
+
+          // Sum worked hours for this period
+          Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
             const dayDate = new Date(dayKey);
-            if (dayDate >= period.startDate && dayDate <= period.endDate) overlap += minutes;
+            if (dayDate >= period.startDate && dayDate <= period.endDate) worked += minutes;
           });
+
+          // Sum scheduled hours for this period (from template)
           Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
             const dayDate = new Date(dayKey);
             if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
           });
 
-          // Adherence = Overlap / Scheduled
-          const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : (overlap > 0 ? 100 : 0);
-          // Note: If overlap > 0 but scheduled = 0 (unscheduled work), we could decide it's 100% or N/A. 
-          // Standard adherence usually penalizes unscheduled work, but here we treat "Presence" as good.
+          // Adherence = min(worked, scheduled) / scheduled * 100
+          // Cap at 100% (can't have more than 100% adherence)
+          const overlap = Math.min(worked, scheduled);
+          const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : 0;
 
           return { date: period.label, value: rate };
         });
 
+        // Global adherence: total worked capped at scheduled / total scheduled
+        const totalWorkedMinutes = Object.values(dailyHoursMap).reduce((a, b) => a + b, 0);
+        const totalOverlapMinutes = Math.min(totalWorkedMinutes, totalScheduledMinutes);
         const globalAdherenceRate = totalScheduledMinutes > 0
           ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100)
-          : 0; // If nothing scheduled, 0% adherence to planning? Or 100? Let's say 0 if no plan exists.
+          : 0;
 
         const hoursData = buildChartSeries(hoursPerPeriod, 12, selectedPeriod);
         const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value }));

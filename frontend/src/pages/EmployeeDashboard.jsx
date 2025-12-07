@@ -12,7 +12,7 @@ import RequestLeaveModal from '../components/employee/RequestLeaveModal';
 import PeriodSelector from '../components/manager/PeriodSelector';
 import { Clock, AlertTriangle, Briefcase, ArrowLeft, Calendar, CalendarCheck } from 'lucide-react';
 import api from '../api/client';
-import workShiftsApi from '../api/workShiftsApi';
+import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
 import { buildChartSeries } from '../api/statsApi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { exportEmployeeDashboardPDF } from '../utils/pdfExport';
@@ -31,6 +31,8 @@ import {
   getPeriodInfo,
   getDisplayPeriodBoundaries
 } from '../utils/granularityUtils';
+
+import { calculateScheduledMinutesFromTemplate } from '../utils/scheduleUtils';
 
 // Helper functions for charts
 function fmtMinutes(v) {
@@ -77,9 +79,9 @@ async function fetchClocksRange(userId, from, to) {
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
-  const { userId } = useParams(); 
+  const { userId } = useParams();
   const navigate = useNavigate();
-  
+
   const [viewedEmployee, setViewedEmployee] = useState(null);
   const isViewingOtherEmployee = !!userId;
   const targetUserId = userId || user?.id;
@@ -137,7 +139,7 @@ export default function EmployeeDashboard() {
         const isClockedIn = !!(lastSession && !lastSession.clockOut);
 
         setHasClockedInToday(hasClockedToday);
-        
+
         if (!isClockedIn) {
           setCurrentStatus({ status: 'not-clocked', label: 'Non pointé', icon: '⏰', color: 'secondary' });
         } else {
@@ -146,7 +148,7 @@ export default function EmployeeDashboard() {
           const pauses = raw ? JSON.parse(raw) : [];
           const lastPause = pauses?.length ? pauses[pauses.length - 1] : null;
           const isOnBreak = !!(lastPause && !lastPause.endAt);
-          
+
           if (isOnBreak) {
             setCurrentStatus({ status: 'on-break', label: 'En pause', icon: '☕', color: 'outline' });
           } else {
@@ -173,16 +175,16 @@ export default function EmployeeDashboard() {
     evolutionLabel: '',
     avgCurrent: 0
   });
-  
+
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   useClockNotification(hasClockedInToday, user?.role, isViewingOtherEmployee);
   const { notifications, markAsRead } = useNotifications(hasClockedInToday, user?.role);
 
   const [teamsForUser, setTeamsForUser] = useState([]);
-  const [schedulesByTeam, setSchedulesByTeam] = useState({}); 
+  const [schedulesByTeam, setSchedulesByTeam] = useState({});
 
-  // Load Teams
+  // Load Teams and their Schedule Templates
   useEffect(() => {
     let cancel = false;
     const load = async () => {
@@ -191,9 +193,8 @@ export default function EmployeeDashboard() {
         const mod = await import('../api/teamApi');
         const data = await mod.fetchUserMemberships(targetUserId);
         if (!cancel) setTeamsForUser(Array.isArray(data) ? data : []);
-        
+
         if (Array.isArray(data) && data.length > 0) {
-          const { scheduleTemplatesApi } = await import('../api/scheduleTemplatesApi');
           const schedules = {};
           for (const team of data) {
             try {
@@ -233,17 +234,17 @@ export default function EmployeeDashboard() {
         const latestPeriod = periodBoundaries[periodBoundaries.length - 1];
         const singleCurrentStart = latestPeriod.startDate;
         const singleCurrentEnd = latestPeriod.endDate;
-        
+
         let singlePreviousStart, singlePreviousEnd;
         if (periodBoundaries.length >= 2) {
-            const prev = periodBoundaries[periodBoundaries.length - 2];
-            singlePreviousStart = prev.startDate;
-            singlePreviousEnd = prev.endDate;
+          const prev = periodBoundaries[periodBoundaries.length - 2];
+          singlePreviousStart = prev.startDate;
+          singlePreviousEnd = prev.endDate;
         } else {
-            singlePreviousStart = new Date(singleCurrentStart);
-            if (selectedGranularity === 'day') singlePreviousStart.setDate(singlePreviousStart.getDate() - 1);
-            else if (selectedGranularity === 'week') singlePreviousStart.setDate(singlePreviousStart.getDate() - 7);
-            singlePreviousEnd = new Date(singleCurrentStart); 
+          singlePreviousStart = new Date(singleCurrentStart);
+          if (selectedGranularity === 'day') singlePreviousStart.setDate(singlePreviousStart.getDate() - 1);
+          else if (selectedGranularity === 'week') singlePreviousStart.setDate(singlePreviousStart.getDate() - 7);
+          singlePreviousEnd = new Date(singleCurrentStart);
         }
 
         // Fetch Clocks
@@ -254,84 +255,44 @@ export default function EmployeeDashboard() {
         let singleCurrentMinutes = 0;
         let singlePreviousMinutes = 0;
         const dailyHoursMap = {};
-        
-        const dailyScheduledMap = {};
-        const dailyOverlapMap = {};
+
+        let dailyScheduledMap = {};
         let totalScheduledMinutes = 0;
-        let totalOverlapMinutes = 0;
 
         clocks.forEach(c => {
-            const inD = new Date(c.clockIn);
-            const outD = c.clockOut ? new Date(c.clockOut) : now;
-            const minutes = Math.max(0, Math.round((outD - inD) / 60000));
-            
-            totalCurrentMinutes += minutes;
-            if (inD >= singleCurrentStart && inD <= singleCurrentEnd) singleCurrentMinutes += minutes;
-            else if (inD >= singlePreviousStart && inD <= singlePreviousEnd) singlePreviousMinutes += minutes;
+          const inD = new Date(c.clockIn);
+          const outD = c.clockOut ? new Date(c.clockOut) : now;
+          const minutes = Math.max(0, Math.round((outD - inD) / 60000));
 
-            const clockInParis = toParis(inD);
-            const yearStr = clockInParis.getFullYear();
-            const monthStr = String(clockInParis.getMonth() + 1).padStart(2, '0');
-            const dayStr = String(clockInParis.getDate()).padStart(2, '0');
-            const dayKey = `${yearStr}-${monthStr}-${dayStr}`;
-            dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
+          totalCurrentMinutes += minutes;
+          if (inD >= singleCurrentStart && inD <= singleCurrentEnd) singleCurrentMinutes += minutes;
+          else if (inD >= singlePreviousStart && inD <= singlePreviousEnd) singlePreviousMinutes += minutes;
+
+          const clockInParis = toParis(inD);
+          const yearStr = clockInParis.getFullYear();
+          const monthStr = String(clockInParis.getMonth() + 1).padStart(2, '0');
+          const dayStr = String(clockInParis.getDate()).padStart(2, '0');
+          const dayKey = `${yearStr}-${monthStr}-${dayStr}`;
+          dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
         });
 
-        // Fetch Schedules (Adherence)
-        try {
-            // Fetch shifts for all teams the user belongs to (to catch Team Shifts)
-            const shiftsPromises = teamsForUser.map(t => 
-                workShiftsApi.listForTeam(t.id, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString())
-                    .catch(() => [])
-            );
-            // Also try listForEmployee directly in case of individual shifts outside teams (rare but possible)
-            shiftsPromises.push(
-                workShiftsApi.listForEmployee(targetUserId, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString())
-                    .catch(() => [])
-            );
+        // Calculate scheduled hours from Schedule Templates (not WorkShifts)
+        // Use schedulesByTeam which was populated by the teams loading useEffect
+        Object.values(schedulesByTeam).forEach(schedule => {
+          if (!schedule) return;
 
-            const allShiftsRaw = await Promise.all(shiftsPromises);
-            const allShifts = allShiftsRaw.flat();
-            
-            // Dedup by ID
-            const uniqueShifts = Array.from(new Map(allShifts.map(s => [s.id, s])).values());
+          const scheduledData = calculateScheduledMinutesFromTemplate(
+            startOfCurrentPeriod,
+            endOfCurrentPeriod,
+            schedule
+          );
 
-            // Filter for this user
-            const userShifts = uniqueShifts.filter(s => 
-                s.employeeId === Number(targetUserId) || !s.employeeId
-            );
-
-            userShifts.forEach(shift => {
-                const shiftStart = new Date(shift.startAt);
-                const shiftEnd = new Date(shift.endAt);
-                const shiftDuration = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
-                totalScheduledMinutes += shiftDuration;
-
-                const shiftStartParis = toParis(shiftStart);
-                const dayKey = `${shiftStartParis.getFullYear()}-${String(shiftStartParis.getMonth() + 1).padStart(2, '0')}-${String(shiftStartParis.getDate()).padStart(2, '0')}`;
-                dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + shiftDuration;
-                
-                // OVERLAP CALCULATION
-                let shiftOverlap = 0;
-                clocks.forEach(c => {
-                    const clockIn = new Date(c.clockIn);
-                    const clockOut = c.clockOut ? new Date(c.clockOut) : now;
-                    
-                    const overlapStart = new Date(Math.max(shiftStart, clockIn));
-                    const overlapEnd = new Date(Math.min(shiftEnd, clockOut));
-                    
-                    if (overlapEnd > overlapStart) {
-                        shiftOverlap += Math.max(0, Math.round((overlapEnd - overlapStart) / 60000));
-                    }
-                });
-                
-                const effectiveOverlap = Math.min(shiftOverlap, shiftDuration);
-                totalOverlapMinutes += effectiveOverlap;
-                dailyOverlapMap[dayKey] = (dailyOverlapMap[dayKey] || 0) + effectiveOverlap;
-            });
-        } catch (e) {
-            console.warn('Error fetching shifts for employee', e);
-        }
+          // Add to totals (employee belongs to each team once, so no multiplication needed)
+          totalScheduledMinutes += scheduledData.totalMinutes;
+          Object.entries(scheduledData.dailyMap).forEach(([dayKey, minutes]) => {
+            dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + minutes;
+          });
+        });
 
         // Build Charts
         const hoursPerPeriod = periodBoundaries.map(period => {
@@ -344,21 +305,29 @@ export default function EmployeeDashboard() {
         });
         const hoursData = buildChartSeries(hoursPerPeriod, 12, periodCount);
 
+        // Adherence Chart (Worked vs Scheduled from Template)
         const adherencePerPeriod = periodBoundaries.map(period => {
-            let overlap = 0;
-            let scheduled = 0;
-            Object.entries(dailyOverlapMap).forEach(([dayKey, minutes]) => {
-                const dayDate = new Date(dayKey);
-                if (dayDate >= period.startDate && dayDate <= period.endDate) overlap += minutes;
-            });
-            Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
-                const dayDate = new Date(dayKey);
-                if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
-            });
-            const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : (overlap > 0 ? 100 : 0);
-            return { date: period.label, value: rate };
+          let worked = 0;
+          let scheduled = 0;
+
+          // Sum worked hours for this period
+          Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
+            const dayDate = new Date(dayKey);
+            if (dayDate >= period.startDate && dayDate <= period.endDate) worked += minutes;
+          });
+
+          // Sum scheduled hours for this period (from template)
+          Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
+            const dayDate = new Date(dayKey);
+            if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
+          });
+
+          // Adherence = min(worked, scheduled) / scheduled * 100
+          const overlap = Math.min(worked, scheduled);
+          const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : 0;
+          return { date: period.label, value: rate };
         });
-        const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value })); 
+        const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value }));
         const adherenceSeries = buildChartSeries(adherenceForChart, 12, periodCount);
 
         // Averages
@@ -370,9 +339,9 @@ export default function EmployeeDashboard() {
         // Final Stats
         const singleCurrentHours = singleCurrentMinutes / 60;
         const singlePreviousHours = singlePreviousMinutes / 60;
-        const evolutionRate = singlePreviousHours > 0 
-            ? ((singleCurrentHours - singlePreviousHours) / singlePreviousHours) * 100 
-            : 0;
+        const evolutionRate = singlePreviousHours > 0
+          ? ((singleCurrentHours - singlePreviousHours) / singlePreviousHours) * 100
+          : 0;
 
         let evolutionLabel = "vs période précédente";
         if (selectedGranularity === 'week') evolutionLabel = "vs semaine précédente";
@@ -380,19 +349,26 @@ export default function EmployeeDashboard() {
         if (selectedGranularity === 'month') evolutionLabel = "vs mois précédent";
         if (selectedGranularity === 'year') evolutionLabel = "vs année précédente";
 
+        // Global adherence: total worked capped at scheduled / total scheduled
+        const totalWorkedMinutes = Object.values(dailyHoursMap).reduce((a, b) => a + b, 0);
+        const totalOverlapMinutes = Math.min(totalWorkedMinutes, totalScheduledMinutes);
+        const globalAdherenceRate = totalScheduledMinutes > 0
+          ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100)
+          : 0;
+
         setHoursChartSeries(hoursData);
         setAvgChartSeries(avgChart);
         setAdherenceData({
-            rate: totalScheduledMinutes > 0 ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100) : 0,
-            scheduledHours: Math.round(totalScheduledMinutes / 60),
-            chartSeries: adherenceSeries
+          rate: globalAdherenceRate,
+          scheduledHours: Math.round(totalScheduledMinutes / 60),
+          chartSeries: adherenceSeries
         });
         setStats({
-            hoursCurrent: Math.floor(totalCurrentMinutes / 60),
-            minutesCurrent: totalCurrentMinutes % 60,
-            evolutionRate,
-            evolutionLabel,
-            avgCurrent: Math.round(totalCurrentMinutes / periodCount / 60 * 10) / 10 
+          hoursCurrent: Math.floor(totalCurrentMinutes / 60),
+          minutesCurrent: totalCurrentMinutes % 60,
+          evolutionRate,
+          evolutionLabel,
+          avgCurrent: Math.round(totalCurrentMinutes / periodCount / 60 * 10) / 10
         });
 
       } catch (e) {
@@ -401,7 +377,7 @@ export default function EmployeeDashboard() {
     };
 
     loadKpis();
-  }, [targetUserId, refreshKey, selectedGranularity]);
+  }, [targetUserId, refreshKey, selectedGranularity, schedulesByTeam]);
 
   const handleChanged = async () => {
     setRefreshKey((k) => k + 1);
@@ -419,7 +395,7 @@ export default function EmployeeDashboard() {
 
   if (isViewingOtherEmployee && !viewedEmployee) {
     return (
-      <Layout 
+      <Layout
         sidebarItems={sidebarItems}
         pageTitle="Dashboard Employé"
         userName={`${user?.firstName} ${user?.lastName}`}
@@ -434,22 +410,22 @@ export default function EmployeeDashboard() {
     );
   }
 
-  const pageTitle = isViewingOtherEmployee 
+  const pageTitle = isViewingOtherEmployee
     ? `Dashboard de ${viewedEmployee?.firstName} ${viewedEmployee?.lastName}`
     : "Mon dashboard";
 
   return (
-    <Layout 
+    <Layout
       sidebarItems={sidebarItems}
       pageTitle={pageTitle}
       userName={`${user?.firstName} ${user?.lastName}`}
       userRole={user?.role}
       notifications={[]}
-      onMarkNotificationRead={() => {}}
+      onMarkNotificationRead={() => { }}
     >
       <div className="p-8 space-y-6">
         <div className="max-w-7xl mx-auto">
-          
+
           {/* En-tête */}
           <div className="mb-6">
             {isViewingOtherEmployee && (
@@ -469,13 +445,13 @@ export default function EmployeeDashboard() {
                   {pageTitle}
                 </h1>
                 <p className="text-gray-500 mt-1">
-                  {isViewingOtherEmployee 
+                  {isViewingOtherEmployee
                     ? `Consultez les statistiques et pointages de ${viewedEmployee?.firstName}`
                     : "Gérez vos pointages et consultez vos statistiques"}
                 </p>
               </div>
               {!isViewingOtherEmployee && (
-                <Badge 
+                <Badge
                   variant={currentStatus.color}
                   className="text-sm px-4 py-2 flex items-center gap-2"
                 >
@@ -506,7 +482,7 @@ export default function EmployeeDashboard() {
 
           {/* Main Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
+
             {/* Left Column: Actions & Teams */}
             {!isViewingOtherEmployee && (
               <div className="lg:col-span-1 space-y-6">
@@ -527,73 +503,73 @@ export default function EmployeeDashboard() {
                   </Card>
 
                   <Card className="mt-6 border-yellow-200 bg-yellow-50">
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Calendar className="w-5 h-5" />
+                        Congés
+                      </CardTitle>
+                      <CardDescription>
+                        Fonctionnalité en configuration
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="p-3 bg-yellow-100 border border-yellow-300 rounded-lg mb-3">
+                        <p className="text-xs text-yellow-800 font-semibold mb-1">⚠️ Non disponible</p>
+                        <p className="text-xs text-yellow-700">
+                          Le backend doit être configuré pour filtrer les demandes de congés par manager.
+                        </p>
+                      </div>
+                      <Button disabled className="w-full opacity-50 cursor-not-allowed">
+                        <Calendar className="w-4 h-4 mr-2" />
+                        Demander un congé
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <div className="mt-6">
+                    <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <Calendar className="w-5 h-5" />
-                          Congés
-                        </CardTitle>
+                        <CardTitle>Mes équipes</CardTitle>
                         <CardDescription>
-                          Fonctionnalité en configuration
+                          {teamsForUser.length} équipe{teamsForUser.length > 1 ? 's' : ''}
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <div className="p-3 bg-yellow-100 border border-yellow-300 rounded-lg mb-3">
-                          <p className="text-xs text-yellow-800 font-semibold mb-1">⚠️ Non disponible</p>
-                          <p className="text-xs text-yellow-700">
-                            Le backend doit être configuré pour filtrer les demandes de congés par manager.
-                          </p>
-                        </div>
-                        <Button disabled className="w-full opacity-50 cursor-not-allowed">
-                          <Calendar className="w-4 h-4 mr-2" />
-                          Demander un congé
-                        </Button>
+                        {teamsForUser.length === 0 ? (
+                          <div className="text-sm text-gray-500">Aucune équipe.</div>
+                        ) : (
+                          <div className="space-y-3">
+                            {teamsForUser.map((team) => (
+                              <Card
+                                key={team.id}
+                                className="cursor-pointer hover:shadow-md transition-shadow"
+                                onClick={() => window.location.href = `/teams/${team.id}`}
+                              >
+                                <CardContent className="p-4">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <h4 className="font-semibold text-gray-900">{team.name}</h4>
+                                      <p className="text-sm text-muted-foreground mt-1">{team.description || 'Aucune description'}</p>
+                                      <div className="flex items-center gap-2 mt-2">
+                                        <Badge variant="outline" className="text-xs">
+                                          Manager : {team.managerName || '—'}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                    <Briefcase className="w-5 h-5 text-muted-foreground" />
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
-
-                  <div className="mt-6">
-                      <Card>
-                        <CardHeader>
-                          <CardTitle>Mes équipes</CardTitle>
-                          <CardDescription>
-                            {teamsForUser.length} équipe{teamsForUser.length > 1 ? 's' : ''}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          {teamsForUser.length === 0 ? (
-                            <div className="text-sm text-gray-500">Aucune équipe.</div>
-                          ) : (
-                            <div className="space-y-3">
-                              {teamsForUser.map((team) => (
-                                  <Card
-                                    key={team.id}
-                                    className="cursor-pointer hover:shadow-md transition-shadow"
-                                    onClick={() => window.location.href = `/teams/${team.id}`}
-                                  >
-                                    <CardContent className="p-4">
-                                      <div className="flex items-center justify-between">
-                                        <div className="flex-1">
-                                          <h4 className="font-semibold text-gray-900">{team.name}</h4>
-                                          <p className="text-sm text-muted-foreground mt-1">{team.description || 'Aucune description'}</p>
-                                          <div className="flex items-center gap-2 mt-2">
-                                            <Badge variant="outline" className="text-xs">
-                                              Manager : {team.managerName || '—'}
-                                            </Badge>
-                                          </div>
-                                        </div>
-                                        <Briefcase className="w-5 h-5 text-muted-foreground" />
-                                      </div>
-                                    </CardContent>
-                                  </Card>
-                              ))}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </div>
+                  </div>
                 </div>
               </div>
             )}
-            
+
             {/* Right Column: Charts */}
             <div className={!isViewingOtherEmployee ? "lg:col-span-2" : "lg:col-span-3"}>
               <Card className="mb-6">
@@ -617,7 +593,7 @@ export default function EmployeeDashboard() {
                         <Calendar className="w-4 h-4" />
                         Planning
                       </Button>
-                      <ExportMenu 
+                      <ExportMenu
                         onExportPDF={handleExportPDF}
                         onExportCSV={handleExportCSV}
                         variant="default"
@@ -640,12 +616,12 @@ export default function EmployeeDashboard() {
                       </CardHeader>
                       <CardContent>
                         <div className="flex items-end gap-2">
-                            <div className="text-2xl font-bold">
+                          <div className="text-2xl font-bold">
                             {stats.hoursCurrent}h {String(stats.minutesCurrent).padStart(2, '0')}m
-                            </div>
-                            <div className={`text-sm mb-1 font-medium ${stats.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {stats.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(stats.evolutionRate).toFixed(1)}%
-                            </div>
+                          </div>
+                          <div className={`text-sm mb-1 font-medium ${stats.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {stats.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(stats.evolutionRate).toFixed(1)}%
+                          </div>
                         </div>
                         <p className="text-xs text-gray-500 mt-2">{stats.evolutionLabel}</p>
                         <div className="h-[120px] mt-4">
@@ -679,7 +655,7 @@ export default function EmployeeDashboard() {
                       <CardContent>
                         <div className="text-2xl font-bold">{adherenceData.rate.toFixed(1)}%</div>
                         <p className="text-xs text-gray-500 mt-2">
-                            {adherenceData.scheduledHours}h planifiées
+                          {adherenceData.scheduledHours}h planifiées
                         </p>
                         <div className="h-[120px] mt-4">
                           <ResponsiveContainer width="100%" height="100%">
