@@ -5,9 +5,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import EditUserModal from '../components/manager/EditUserModal';
+import PeriodSelector from '../components/manager/PeriodSelector';
 import ExportMenu from '../components/ui/ExportMenu';
+import ChartModal from '../components/ui/ChartModal';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/Badge';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { exportUsersListPDF } from '../utils/pdfExport';
 import { exportUsersListCSV } from '../utils/csvExport';
 import {
@@ -17,7 +20,15 @@ import {
   Trash2,
   Filter,
   Clock,
+  CalendarCheck,
 } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { buildChartSeries } from '../api/statsApi';
+import { getPeriodInfo, getDisplayPeriodBoundaries } from '../utils/granularityUtils';
+import { calculateScheduledMinutesFromTemplate } from '../utils/scheduleUtils';
+import { toParis } from '../utils/dateUtils';
+import api from '../api/client';
+import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
 
 import {
   fetchUsers,
@@ -28,14 +39,37 @@ import {
   deleteUser,
 } from '../api/userAdminApi';
 
-/**
- * Page UsersListPage - Gestion des utilisateurs (CEO uniquement)
- *
- * Back-end actuel :
- *  - UserDTO ne possède pas "status" ; on derive un statut depuis "active" :
- *      active === true  -> "APPROVED"
- *      active === false -> "PENDING" (pas de distinction "REJECTED" côté modèle)
- */
+// Helper function to format minutes
+function fmtMinutes(v) {
+  if (typeof v !== 'number') return '—'
+  const h = Math.floor(v / 60)
+  const m = v % 60
+  return `${h}h ${String(m).padStart(2, '0')}m`
+}
+
+// Custom Tooltip
+const CustomTooltip = ({ active, payload, type = 'hours' }) => {
+  if (!active || !payload || payload.length === 0) return null
+  const value = payload[0].value
+  const label = payload[0].payload?.label || 'N/A'
+
+  let title = 'Heures travaillées'
+  let formattedValue = fmtMinutes(value)
+
+  if (type === 'adherence') {
+    title = 'Adhérence'
+    formattedValue = `${Math.round(value)}%`
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-md shadow-md p-2">
+      <p className="text-xs font-medium text-gray-900">{title}</p>
+      <p className="text-xs text-gray-600 mb-1">{label}</p>
+      <p className="text-sm font-semibold text-gray-700">{formattedValue}</p>
+    </div>
+  )
+};
+
 export default function UsersListPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -46,13 +80,22 @@ export default function UsersListPage() {
   const [filterStatus, setFilterStatus] = useState('ALL');
 
   // Données
-  const [rows, setRows] = useState([]); // liste complète
+  const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
 
   // Modal d'édition
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+
+  // Granularity and Charts
+  const [selectedGranularity, setSelectedGranularity] = useState('week');
+  const selectedPeriod = getPeriodInfo(selectedGranularity).periodCount;
+  const [hoursChartSeries, setHoursChartSeries] = useState([]);
+  const [hoursTotals, setHoursTotals] = useState({ current: 0 });
+  const [adherenceData, setAdherenceData] = useState({ rate: 0, chartSeries: [] });
+  const [chartModal, setChartModal] = useState({ open: false, title: '', subtitle: '', data: [], chartType: 'area', config: {} });
+  const [statsLoading, setStatsLoading] = useState(true);
 
   const loadAll = async () => {
     setLoading(true);
@@ -62,11 +105,9 @@ export default function UsersListPage() {
         fetchUsers(),
         fetchPendingUsers(),
       ]);
-  
-      // Construire l’ensemble des IDs en attente (PENDING)
+
       const pendingIds = new Set(pending.map((u) => u.id));
-  
-      // Mapper les users et dériver le statut via pendingIds
+
       const mapped = allUsers.map((u) => ({
         id: u.id,
         firstName: u.firstName,
@@ -77,7 +118,7 @@ export default function UsersListPage() {
         createdAt: u.createdAt || new Date().toISOString(),
         phoneNumber: u.phoneNumber || '',
       }));
-  
+
       setRows(mapped);
     } catch (e) {
       setErr(e?.message || 'Erreur de chargement');
@@ -89,6 +130,158 @@ export default function UsersListPage() {
   useEffect(() => {
     loadAll();
   }, []);
+
+  // Load Stats for Graphs
+  useEffect(() => {
+    if (!rows.length) {
+      setStatsLoading(false);
+      return;
+    }
+
+    const loadStats = async () => {
+      setStatsLoading(true);
+      try {
+        const now = new Date();
+        const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
+        const startOfCurrentPeriod = periodBoundaries[0].startDate;
+        const endOfCurrentPeriod = now;
+
+        // Get all employees and managers for clocking
+        const targetUsers = rows.filter(u => u.role === 'EMPLOYEE' || u.role === 'MANAGER');
+
+        // Get all teams for schedule templates
+        const { data: allApiUsers } = await api.get('/api/users');
+        const managerAndCEOIds = (allApiUsers || [])
+          .filter(u => u.role === 'MANAGER' || u.role === 'CEO')
+          .map(u => u.id);
+
+        const teamPromises = managerAndCEOIds.map(id =>
+          api.get('/api/teams', { params: { managerId: id } })
+            .then(res => Array.isArray(res.data) ? res.data : [])
+            .catch(() => [])
+        );
+        const teamArrays = await Promise.all(teamPromises);
+        const teamsFlat = teamArrays.flat();
+        const uniqueTeams = Array.from(new Map(teamsFlat.map(t => [t.id, t])).values());
+
+        // Fetch members for all teams
+        const teamsWithMembers = await Promise.all(
+          uniqueTeams.map(async (team) => {
+            try {
+              const { data: members } = await api.get(`/api/teams/${team.id}/members`);
+              return { ...team, members: Array.isArray(members) ? members : [] };
+            } catch {
+              return { ...team, members: [] };
+            }
+          })
+        );
+
+        // Fetch clocks and schedules
+        const [clocksResults, scheduleResults] = await Promise.all([
+          Promise.all(targetUsers.map(async (u) => {
+            try {
+              const { data } = await api.get(`/api/users/${u.id}/clocks/range`, {
+                params: { from: startOfCurrentPeriod.toISOString(), to: endOfCurrentPeriod.toISOString() }
+              });
+              return { userId: u.id, clocks: Array.isArray(data) ? data : [] };
+            } catch { return { userId: u.id, clocks: [] }; }
+          })),
+          Promise.all(teamsWithMembers.map(async (team) => {
+            try {
+              const schedule = await scheduleTemplatesApi.getActiveForTeam(team.id);
+              return { teamId: team.id, schedule, memberCount: team.members.length };
+            } catch { return { teamId: team.id, schedule: null, memberCount: team.members.length }; }
+          }))
+        ]);
+
+        // Process clocks
+        const dailyHoursMap = {};
+        let totalMinutes = 0;
+        clocksResults.forEach(({ clocks }) => {
+          clocks.forEach(clock => {
+            const clockIn = new Date(clock.clockIn);
+            const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
+            const minutes = Math.max(0, Math.round((clockOut - clockIn) / 60000));
+            totalMinutes += minutes;
+
+            const clockInParis = toParis(clockIn);
+            const dayKey = `${clockInParis.getFullYear()}-${String(clockInParis.getMonth() + 1).padStart(2, '0')}-${String(clockInParis.getDate()).padStart(2, '0')}`;
+            dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
+          });
+        });
+
+        // Process schedules
+        let dailyScheduledMap = {};
+        let totalScheduledMinutes = 0;
+        scheduleResults.forEach(({ schedule, memberCount }) => {
+          if (!schedule || memberCount === 0) return;
+          const scheduledData = calculateScheduledMinutesFromTemplate(startOfCurrentPeriod, endOfCurrentPeriod, schedule);
+          totalScheduledMinutes += scheduledData.totalMinutes * memberCount;
+          Object.entries(scheduledData.dailyMap).forEach(([dayKey, minutes]) => {
+            dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + (minutes * memberCount);
+          });
+        });
+
+        // Hours Chart
+        const hoursPerPeriod = periodBoundaries.map(period => {
+          let totalMin = 0;
+          Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
+            const dayDate = new Date(dayKey);
+            if (dayDate >= period.startDate && dayDate <= period.endDate) totalMin += minutes;
+          });
+          return { date: period.label, minutesWorked: totalMin };
+        });
+
+        const hoursData = buildChartSeries(hoursPerPeriod, 12, selectedPeriod);
+        setHoursChartSeries(hoursData);
+
+        const avgMinutesPerPeriod = hoursPerPeriod.length > 0
+          ? hoursPerPeriod.reduce((sum, p) => sum + p.minutesWorked, 0) / hoursPerPeriod.length
+          : 0;
+        setHoursTotals({ current: avgMinutesPerPeriod });
+
+        // Adherence Chart
+        const adherencePerPeriod = periodBoundaries.map(period => {
+          let worked = 0;
+          let scheduled = 0;
+
+          Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
+            const dayDate = new Date(dayKey);
+            if (dayDate >= period.startDate && dayDate <= period.endDate) worked += minutes;
+          });
+
+          Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
+            const dayDate = new Date(dayKey);
+            if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
+          });
+
+          const overlap = Math.min(worked, scheduled);
+          const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : 0;
+
+          return { date: period.label, value: rate };
+        });
+
+        const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value }));
+        const adherenceSeries = buildChartSeries(adherenceForChart, 12, selectedPeriod);
+
+        const avgAdherenceRate = adherencePerPeriod.length > 0
+          ? adherencePerPeriod.reduce((sum, p) => sum + p.value, 0) / adherencePerPeriod.length
+          : 0;
+
+        setAdherenceData({
+          rate: avgAdherenceRate,
+          chartSeries: adherenceSeries
+        });
+
+      } catch (err) {
+        console.error('[UsersListPage] Error loading stats:', err);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    loadStats();
+  }, [rows.length, selectedGranularity, selectedPeriod]);
 
   // Filtrage
   const filteredUsers = useMemo(() => {
@@ -105,7 +298,7 @@ export default function UsersListPage() {
       await approveUser(userId);
       await loadAll();
     } catch (e) {
-      alert(e?.message || 'Échec de l’approbation');
+      alert(e?.message || 'Échec de l\'approbation');
     }
   };
 
@@ -135,7 +328,6 @@ export default function UsersListPage() {
   const handleSaveUser = async (formData) => {
     if (!selectedUser) return;
     try {
-      // formData attendu : { firstName, lastName, role, phoneNumber }
       await updateUser(selectedUser.id, {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -205,14 +397,129 @@ export default function UsersListPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <ExportMenu 
-                onExportCSV={() => exportUsersListCSV(filteredUsers)} 
-                onExportPDF={() => exportUsersListPDF(filteredUsers)} 
-                variant="outline" 
+              <ExportMenu
+                onExportCSV={() => exportUsersListCSV(filteredUsers)}
+                onExportPDF={() => exportUsersListPDF(
+                  filteredUsers,
+                  {
+                    hoursChartSeries,
+                    adherenceRate: adherenceData.rate,
+                  },
+                  getPeriodInfo(selectedGranularity).label
+                )}
+                variant="outline"
               />
               <Button onClick={() => navigate('/users/create')} variant="default">Créer un utilisateur</Button>
             </div>
           </div>
+
+          {/* Stats Charts Section */}
+          {!loading && rows.length > 0 && (
+            <Card className="mb-6">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xl">Statistiques globales</CardTitle>
+                    <CardDescription>
+                      Aperçu des performances - {getPeriodInfo(selectedGranularity).label}
+                    </CardDescription>
+                  </div>
+                  <PeriodSelector selectedGranularity={selectedGranularity} onGranularityChange={setSelectedGranularity} />
+                </div>
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <div className="text-gray-500 text-sm">Chargement des statistiques...</div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Hours Chart */}
+                    <Card
+                      className="cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setChartModal({
+                        open: true,
+                        title: 'Heures travaillées',
+                        subtitle: getPeriodInfo(selectedGranularity).label,
+                        data: hoursChartSeries,
+                        chartType: 'area',
+                        config: { color: 'var(--color-desktop)', gradientId: 'hoursModalFillUsers', tooltipType: 'hours' }
+                      })}
+                    >
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">
+                          Heures travaillées (total)
+                        </CardTitle>
+                        <Clock className="h-4 w-4 text-gray-400" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold mb-2">{fmtMinutes(Math.round(hoursTotals.current))}</div>
+                        <p className="text-xs text-gray-500">Moyenne par période</p>
+                        <div className="h-[120px] mt-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={hoursChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
+                              <defs>
+                                <linearGradient id="hoursFillUsers" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="6%" stopColor="var(--color-desktop)" stopOpacity={0.16} />
+                                  <stop offset="95%" stopColor="var(--color-desktop)" stopOpacity={0.03} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
+                              <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 11 }} />
+                              <YAxis hide />
+                              <RechartsTooltip content={<CustomTooltip type="hours" />} cursor={false} />
+                              <Area type="monotone" dataKey="value" stroke="var(--color-desktop)" fill="url(#hoursFillUsers)" strokeWidth={2} dot={false} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Adherence Chart */}
+                    <Card
+                      className="cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setChartModal({
+                        open: true,
+                        title: 'Adhérence moyenne',
+                        subtitle: getPeriodInfo(selectedGranularity).label,
+                        data: adherenceData.chartSeries,
+                        chartType: 'area',
+                        config: { color: '#10b981', gradientId: 'adhModalFillUsers', tooltipType: 'adherence' }
+                      })}
+                    >
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">
+                          Adhérence moyenne
+                        </CardTitle>
+                        <CalendarCheck className="h-4 w-4 text-gray-400" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold mb-2">{adherenceData.rate.toFixed(1)}%</div>
+                        <p className="text-xs text-gray-500">Respect du planning</p>
+                        <div className="h-[120px] mt-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={adherenceData.chartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
+                              <defs>
+                                <linearGradient id="adhFillUsers" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="6%" stopColor="#10b981" stopOpacity={0.16} />
+                                  <stop offset="95%" stopColor="#10b981" stopOpacity={0.03} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
+                              <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 11 }} />
+                              <YAxis hide />
+                              <RechartsTooltip content={<CustomTooltip type="adherence" />} cursor={false} />
+                              <Area type="monotone" dataKey="value" stroke="#10b981" fill="url(#adhFillUsers)" strokeWidth={2} dot={false} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Filtres */}
           <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
@@ -239,7 +546,6 @@ export default function UsersListPage() {
                 <option value="ALL">Tous les statuts</option>
                 <option value="PENDING">En attente</option>
                 <option value="APPROVED">Approuvés</option>
-                {/* "REJECTED" non géré côté modèle — on laisse l’option si tu ajoutes plus tard */}
               </select>
             </div>
           </div>
@@ -288,7 +594,6 @@ export default function UsersListPage() {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center justify-end space-x-2">
-                            {/* Voir dashboard */}
                             <Button
                               onClick={() => navigate(`/employee/${u.id}/dashboard`)}
                               variant="ghost"
@@ -297,7 +602,7 @@ export default function UsersListPage() {
                             >
                               <Clock className="w-4 h-4" />
                             </Button>
-                            
+
                             {u.status === 'PENDING' && (
                               <>
                                 <Button onClick={() => handleApprove(u.id)} variant="ghost" size="icon" title="Approuver">
@@ -344,6 +649,18 @@ export default function UsersListPage() {
         }}
         onSave={handleSaveUser}
         userData={selectedUser}
+      />
+
+      {/* Chart modal for enlarged view */}
+      <ChartModal
+        open={chartModal.open}
+        onClose={() => setChartModal({ ...chartModal, open: false })}
+        title={chartModal.title}
+        subtitle={chartModal.subtitle}
+        data={chartModal.data}
+        type={chartModal.chartType}
+        chartConfig={chartModal.config}
+        CustomTooltip={CustomTooltip}
       />
     </Layout>
   );
