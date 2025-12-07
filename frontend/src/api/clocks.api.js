@@ -98,17 +98,35 @@ export const createPause = async (clockId, pauseData) => {
 };
 
 /**
- * Terminer une pause (mettre à jour la pause existante)
- * @param {number} pauseId - ID de la pause à terminer
+ * Mettre à jour une pause (ex: terminer une pause en ajoutant endAt)
+ * PATCH /api/clocks/{clockId}/pauses/{pauseId}
+ * @param {number} clockId - ID du clock
+ * @param {number} pauseId - ID de la pause à mettre à jour
  * @param {Object} updateData - { startAt, endAt, note }
  * @returns {Promise<Object>} La pause mise à jour
  */
-export const endPause = async (pauseId, updateData) => {
+export const updatePause = async (clockId, pauseId, updateData) => {
   try {
-    const { data } = await api.patch(`/api/clocks/pauses/${pauseId}`, updateData);
+    const { data } = await api.patch(`/api/clocks/${clockId}/pauses/${pauseId}`, updateData);
     return data;
   } catch (error) {
-    console.error('[clocksApi] endPause error:', error?.message || error);
+    console.error('[clocksApi] updatePause error:', error?.message || error);
+    throw error;
+  }
+};
+
+/**
+ * Supprimer une pause
+ * DELETE /api/clocks/{clockId}/pauses/{pauseId}
+ * @param {number} clockId - ID du clock
+ * @param {number} pauseId - ID de la pause à supprimer
+ */
+export const deletePause = async (clockId, pauseId) => {
+  try {
+    await api.delete(`/api/clocks/${clockId}/pauses/${pauseId}`);
+    return true;
+  } catch (error) {
+    console.error('[clocksApi] deletePause error:', error?.message || error);
     throw error;
   }
 };
@@ -135,7 +153,7 @@ export const getClockPauses = async (clockId) => {
  */
 export const calculateTotalPauseTime = (pauses) => {
   if (!pauses || !Array.isArray(pauses)) return 0;
-  
+
   return pauses.reduce((total, pause) => {
     if (pause.startTime && pause.endTime) {
       const start = new Date(pause.startTime);
@@ -155,12 +173,12 @@ export const calculateTotalPauseTime = (pauses) => {
  */
 export const calculateNetWorkTime = (clock, pauses = []) => {
   if (!clock || !clock.startTime || !clock.endTime) return 0;
-  
+
   const start = new Date(clock.startTime);
   const end = new Date(clock.endTime);
   const totalWorkTime = (end - start) / (1000 * 60); // en minutes
   const totalPauseTime = calculateTotalPauseTime(pauses);
-  
+
   return Math.max(0, totalWorkTime - totalPauseTime);
 };
 
