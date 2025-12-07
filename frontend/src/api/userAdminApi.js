@@ -17,7 +17,7 @@ export async function approveUser(id) {
 }
 
 export async function rejectUser(id) {
-  await api.delete(`/api/users/users/${id}/reject`);
+  await api.put(`/api/users/users/${id}/reject`);
   return true;
 }
 
