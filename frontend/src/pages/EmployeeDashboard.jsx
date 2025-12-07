@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useClockNotification } from '../hooks/useClockNotification';
-import { useNotifications } from '../hooks/useNotifications';
+// import { useNotifications } from '../hooks/useNotifications'; // Removed
 import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import ClockActions from '../components/employee/ClockActions';
@@ -172,7 +172,7 @@ export default function EmployeeDashboard() {
   const [recentClocks, setRecentClocks] = useState([]);
   const [hoursChartSeries, setHoursChartSeries] = useState([]);
   const [avgChartSeries, setAvgChartSeries] = useState([]);
-  const [adherenceData, setAdherenceData] = useState({ rate: 0, scheduledHours: 0, chartSeries: [] });
+  const [adherenceData, setAdherenceData] = useState({ rate: 0, scheduledHours: 0, chartSeries: [], evolutionRate: 0 });
   const [stats, setStats] = useState({
     hoursCurrent: 0,
     evolutionRate: 0,
@@ -183,7 +183,7 @@ export default function EmployeeDashboard() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   useClockNotification(hasClockedInToday, user?.role, isViewingOtherEmployee);
-  const { notifications, markAsRead } = useNotifications(hasClockedInToday, user?.role);
+  // const { notifications, markAsRead } = useNotifications(hasClockedInToday, user?.role); // Removed
 
   const [teamsForUser, setTeamsForUser] = useState([]);
   const [schedulesByTeam, setSchedulesByTeam] = useState({});
@@ -359,12 +359,23 @@ export default function EmployeeDashboard() {
           ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100)
           : 0;
 
+        // Calcul de l'évolution d'adhérence (dernière période vs avant-dernière)
+        let adherenceEvolution = 0;
+        if (adherencePerPeriod.length >= 2) {
+          const currentAdh = adherencePerPeriod[adherencePerPeriod.length - 1].value;
+          const previousAdh = adherencePerPeriod[adherencePerPeriod.length - 2].value;
+          adherenceEvolution = previousAdh > 0
+            ? ((currentAdh - previousAdh) / previousAdh) * 100
+            : 0;
+        }
+
         setHoursChartSeries(hoursData);
         setAvgChartSeries(avgChart);
         setAdherenceData({
           rate: globalAdherenceRate,
           scheduledHours: Math.round(totalScheduledMinutes / 60),
-          chartSeries: adherenceSeries
+          chartSeries: adherenceSeries,
+          evolutionRate: adherenceEvolution
         });
         setStats({
           hoursCurrent: Math.floor(totalCurrentMinutes / 60),
@@ -412,8 +423,6 @@ export default function EmployeeDashboard() {
         pageTitle="Dashboard Employé"
         userName={`${user?.firstName} ${user?.lastName}`}
         userRole={user?.role}
-        notifications={notifications}
-        onMarkNotificationRead={markAsRead}
       >
         <div className="p-8">
           <div className="text-gray-600">Chargement...</div>
@@ -432,8 +441,6 @@ export default function EmployeeDashboard() {
       pageTitle={pageTitle}
       userName={`${user?.firstName} ${user?.lastName}`}
       userRole={user?.role}
-      notifications={[]}
-      onMarkNotificationRead={() => { }}
     >
       <div className="p-8 space-y-6">
         <div className="max-w-7xl mx-auto">
@@ -687,7 +694,10 @@ export default function EmployeeDashboard() {
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold">{adherenceData.rate.toFixed(1)}%</div>
-                        <p className="text-xs text-gray-500 mt-2">
+                        <div className={`text-sm mb-1 font-medium ${adherenceData.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {adherenceData.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(adherenceData.evolutionRate).toFixed(1)}%
+                        </div>
+                        <p className="text-xs text-gray-500">
                           {adherenceData.scheduledHours}h planifiées
                         </p>
                         <div className="h-[120px] mt-4">

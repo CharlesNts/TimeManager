@@ -142,7 +142,7 @@ export default function TeamDetail() {
   // --------- Charts & Stats State
   const [hoursChartSeries, setHoursChartSeries] = useState([]);
   const [memberComparisonData, setMemberComparisonData] = useState([]);
-  const [adherenceData, setAdherenceData] = useState({ rate: 0, scheduledHours: 0, chartSeries: [] });
+  const [adherenceData, setAdherenceData] = useState({ rate: 0, scheduledHours: 0, chartSeries: [], evolutionRate: 0 });
   const [hoursTotals, setHoursTotals] = useState({ current: 0, evolutionRate: 0, evolutionLabel: '' });
 
   // For Table
@@ -394,10 +394,22 @@ export default function TeamDetail() {
 
         setHoursChartSeries(hoursData);
         setMemberComparisonData(memberCompData);
+
+        // Calcul de l'évolution d'adhérence (dernière période vs avant-dernière)
+        let adherenceEvolution = 0;
+        if (adherencePerPeriod.length >= 2) {
+          const currentAdh = adherencePerPeriod[adherencePerPeriod.length - 1].value;
+          const previousAdh = adherencePerPeriod[adherencePerPeriod.length - 2].value;
+          adherenceEvolution = previousAdh > 0
+            ? ((currentAdh - previousAdh) / previousAdh) * 100
+            : 0;
+        }
+
         setAdherenceData({
           rate: avgAdherenceRate,
           scheduledHours: Math.round(totalScheduledMinutes / 60),
-          chartSeries: adherenceSeries
+          chartSeries: adherenceSeries,
+          evolutionRate: adherenceEvolution
         });
         setHoursTotals({
           current: hoursAverageDisplay,
@@ -755,7 +767,10 @@ export default function TeamDetail() {
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold">{adherenceData.rate.toFixed(1)}%</div>
-                        <p className="text-xs text-gray-500 mt-2">
+                        <div className={`text-sm mb-1 font-medium ${adherenceData.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {adherenceData.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(adherenceData.evolutionRate).toFixed(1)}%
+                        </div>
+                        <p className="text-xs text-gray-500">
                           Moyenne • {adherenceData.scheduledHours}h planifiées
                         </p>
                         <div className="h-[120px] mt-4">

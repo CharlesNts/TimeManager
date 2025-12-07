@@ -1,6 +1,6 @@
 // src/components/layout/Header.jsx
 import React from 'react';
-import { Bell, LogOut, User } from 'lucide-react';
+import { LogOut, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/button';
@@ -34,15 +34,10 @@ import {
 export default function Header({
   userName = "Utilisateur",
   userRole = null,
-  userAvatar = null,
-  notifications = [],
-  onMarkNotificationRead = null
+  userAvatar = null
 }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
-  
-  // Compter les notifications non lues
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   const handleLogout = () => {
     logout();
@@ -60,7 +55,7 @@ export default function Header({
 
   // Mapper les rôles à des variants de badge
   const getRoleBadgeVariant = (role) => {
-    switch(role?.toUpperCase()) {
+    switch (role?.toUpperCase()) {
       case 'CEO': return 'default';
       case 'MANAGER': return 'secondary';
       case 'EMPLOYEE': return 'outline';
@@ -86,9 +81,9 @@ export default function Header({
       <div className="flex items-center justify-between">
         {/* Logo / Nom de l'application */}
         <div className="flex items-center gap-3">
-          <img 
-            src="/images/PrimeBank-Logo.png" 
-            alt="PrimeBank" 
+          <img
+            src="/images/PrimeBank-Logo.png"
+            alt="PrimeBank"
             className="h-10 object-contain"
             onError={(e) => {
               // Fallback si l'image n'est pas trouvée
@@ -107,97 +102,28 @@ export default function Header({
           </div>
         </div>
 
-        {/* Partie droite: Notifications + Profil utilisateur */}
+        {/* Partie droite: Profil utilisateur */}
         <div className="flex items-center gap-3">
-          
-          {/* Dropdown de notifications */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="icon"
-                className="relative"
-              >
-                <Bell className="w-4 h-4" />
-                {/* Badge de notification */}
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-semibold rounded-full flex items-center justify-center">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuLabel className="flex items-center justify-between">
-                <span>Notifications</span>
-                {unreadCount > 0 && (
-                  <Badge variant="destructive" className="text-xs">
-                    {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
-                  </Badge>
-                )}
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              
-              {notifications.length === 0 ? (
-                <div className="p-4 text-center text-sm text-gray-500">
-                  🔔 Notifications temporairement indisponibles
-                  <p className="text-xs text-gray-400 mt-1">
-                    Le système de notifications nécessite une implémentation complète dans le backend.
-                  </p>
-                </div>
-              ) : (
-                <div className="max-h-[400px] overflow-y-auto">
-                  {notifications.map((notification) => (
-                    <DropdownMenuItem
-                      key={notification.id}
-                      className={`flex flex-col items-start gap-1 p-3 cursor-pointer ${
-                        !notification.read ? 'bg-blue-50' : ''
-                      }`}
-                      onClick={() => onMarkNotificationRead && onMarkNotificationRead(notification.id)}
-                    >
-                      <div className="flex items-start gap-2 w-full">
-                        <span className="text-lg">{notification.icon}</span>
-                        <div className="flex-1">
-                          <p className={`text-sm ${!notification.read ? 'font-semibold' : ''}`}>
-                            {notification.title}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {notification.message}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-1">
-                            {notification.time}
-                          </p>
-                        </div>
-                        {!notification.read && (
-                          <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1" />
-                        )}
-                      </div>
-                    </DropdownMenuItem>
-                  ))}
-                </div>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
 
           {/* Dropdown menu utilisateur avec shadcn */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 className="flex items-center gap-3 h-auto py-2 px-3 hover:bg-slate-100"
               >
                 <div className="text-right hidden md:block">
                   <p className="text-sm font-semibold text-gray-900">{userName}</p>
                   {userRole && (
-                    <Badge 
-                      variant={getRoleBadgeVariant(userRole)} 
+                    <Badge
+                      variant={getRoleBadgeVariant(userRole)}
                       className="text-xs mt-0.5"
                     >
                       {getRoleLabel(userRole)}
                     </Badge>
                   )}
                 </div>
-                
+
                 <Avatar className="h-10 w-10">
                   <AvatarImage src={userAvatar} alt={userName} />
                   <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
@@ -206,7 +132,7 @@ export default function Header({
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
-            
+
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div>
@@ -218,18 +144,18 @@ export default function Header({
                   )}
                 </div>
               </DropdownMenuLabel>
-              
+
               <DropdownMenuSeparator />
-              
+
               <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
                 <User className="w-4 h-4 mr-2" />
                 <span>Mon profil</span>
               </DropdownMenuItem>
-              
+
               <DropdownMenuSeparator />
-              
-              <DropdownMenuItem 
-                onClick={handleLogout} 
+
+              <DropdownMenuItem
+                onClick={handleLogout}
                 className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
               >
                 <LogOut className="w-4 h-4 mr-2" />

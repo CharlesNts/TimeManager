@@ -432,6 +432,7 @@ export default function ManagerDashboard() {
         });
 
         setHoursChartSeries(hoursData);
+
         setAdherenceData({
           rate: avgAdherenceRate,
           scheduledHours: scheduledHoursDisplay,
