@@ -58,10 +58,12 @@ export const listScheduleTemplatesForTeam = async (teamId) => {
 export const getActiveScheduleTemplate = async (teamId) => {
   try {
     const { data } = await api.get(`/api/schedule-templates/team/${teamId}`);
-    if (!Array.isArray(data)) return null;
-    // Retourner le premier planning actif
-    const activeSchedule = data.find(schedule => schedule.active);
-    return activeSchedule || (data.length > 0 ? data[0] : null);
+    if (!Array.isArray(data) || data.length === 0) return null;
+    // Trier par ID décroissant pour avoir le plus récent en premier
+    const sorted = [...data].sort((a, b) => b.id - a.id);
+    // Retourner le premier planning actif (le plus récent)
+    const activeSchedule = sorted.find(schedule => schedule.active);
+    return activeSchedule || sorted[0];
   } catch (error) {
     console.error('[scheduleTemplatesApi] getActiveScheduleTemplate error:', error?.message || error);
     throw error;

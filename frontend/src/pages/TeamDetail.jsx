@@ -35,6 +35,7 @@ import {
   removeMember,
 } from '../api/teamMembersApi';
 import workShiftsApi from '../api/workShiftsApi';
+import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
 import { buildChartSeries } from '../api/statsApi';
 import { getDisplayPeriodBoundaries } from '../utils/granularityUtils';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -141,7 +142,7 @@ export default function TeamDetail() {
   const [memberComparisonData, setMemberComparisonData] = useState([]);
   const [adherenceData, setAdherenceData] = useState({ rate: 0, scheduledHours: 0, chartSeries: [] });
   const [hoursTotals, setHoursTotals] = useState({ current: 0, evolutionRate: 0, evolutionLabel: '' });
-  
+
   // For Table
   const [hoursByMember, setHoursByMember] = useState({});
   const [lastByMember, setLastByMember] = useState({});
@@ -150,6 +151,7 @@ export default function TeamDetail() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [scheduleForConfig, setScheduleForConfig] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, member: null });
 
   // ====== LOAD TEAM + MEMBERS ======
@@ -184,7 +186,7 @@ export default function TeamDetail() {
       try {
         const now = new Date();
         const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
-        
+
         // Chart Range
         const startOfCurrentPeriod = periodBoundaries[0].startDate;
         const endOfCurrentPeriod = now;
@@ -193,17 +195,17 @@ export default function TeamDetail() {
         const latestPeriod = periodBoundaries[periodBoundaries.length - 1];
         const singleCurrentStart = latestPeriod.startDate;
         const singleCurrentEnd = latestPeriod.endDate;
-        
+
         let singlePreviousStart, singlePreviousEnd;
         if (periodBoundaries.length >= 2) {
-            const prev = periodBoundaries[periodBoundaries.length - 2];
-            singlePreviousStart = prev.startDate;
-            singlePreviousEnd = prev.endDate;
+          const prev = periodBoundaries[periodBoundaries.length - 2];
+          singlePreviousStart = prev.startDate;
+          singlePreviousEnd = prev.endDate;
         } else {
-            singlePreviousStart = new Date(singleCurrentStart);
-            if (selectedGranularity === 'day') singlePreviousStart.setDate(singlePreviousStart.getDate() - 1);
-            else if (selectedGranularity === 'week') singlePreviousStart.setDate(singlePreviousStart.getDate() - 7);
-            singlePreviousEnd = new Date(singleCurrentStart); 
+          singlePreviousStart = new Date(singleCurrentStart);
+          if (selectedGranularity === 'day') singlePreviousStart.setDate(singlePreviousStart.getDate() - 1);
+          else if (selectedGranularity === 'week') singlePreviousStart.setDate(singlePreviousStart.getDate() - 7);
+          singlePreviousEnd = new Date(singleCurrentStart);
         }
 
         let totalCurrentMinutes = 0;
@@ -213,7 +215,7 @@ export default function TeamDetail() {
         const dailyHoursMap = {};
         const memberMinutesMap = {};
         const lastMap = {};
-        
+
         const dailyScheduledMap = {};
         const dailyOverlapMap = {};
         let totalScheduledMinutes = 0;
@@ -222,106 +224,106 @@ export default function TeamDetail() {
         // 1. Fetch Shifts for Team (Once)
         let teamShifts = [];
         try {
-            teamShifts = await workShiftsApi.listForTeam(teamId, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString());
-            if (!Array.isArray(teamShifts)) teamShifts = [];
+          teamShifts = await workShiftsApi.listForTeam(teamId, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString());
+          if (!Array.isArray(teamShifts)) teamShifts = [];
         } catch (e) { console.warn(e); }
-        
+
         const shiftsByEmployee = {};
         const allMemberIds = members.map(m => m.user?.id ?? m.userId).filter(Boolean);
 
         teamShifts.forEach(shift => {
-            const shiftDuration = Math.max(0, Math.round((new Date(shift.endAt) - new Date(shift.startAt)) / 60000));
-            totalScheduledMinutes += shiftDuration;
-            
-            const shiftStartParis = toParis(new Date(shift.startAt));
-            const dayKey = `${shiftStartParis.getFullYear()}-${String(shiftStartParis.getMonth() + 1).padStart(2, '0')}-${String(shiftStartParis.getDate()).padStart(2, '0')}`;
-            dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + shiftDuration;
+          const shiftDuration = Math.max(0, Math.round((new Date(shift.endAt) - new Date(shift.startAt)) / 60000));
+          totalScheduledMinutes += shiftDuration;
 
-            if (shift.employeeId) {
-                // Assigned shift
-                if (!shiftsByEmployee[shift.employeeId]) shiftsByEmployee[shift.employeeId] = [];
-                shiftsByEmployee[shift.employeeId].push(shift);
-            } else {
-                // Team shift (applies to all)
-                allMemberIds.forEach(uid => {
-                    if (!shiftsByEmployee[uid]) shiftsByEmployee[uid] = [];
-                    shiftsByEmployee[uid].push(shift);
-                });
-            }
+          const shiftStartParis = toParis(new Date(shift.startAt));
+          const dayKey = `${shiftStartParis.getFullYear()}-${String(shiftStartParis.getMonth() + 1).padStart(2, '0')}-${String(shiftStartParis.getDate()).padStart(2, '0')}`;
+          dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + shiftDuration;
+
+          if (shift.employeeId) {
+            // Assigned shift
+            if (!shiftsByEmployee[shift.employeeId]) shiftsByEmployee[shift.employeeId] = [];
+            shiftsByEmployee[shift.employeeId].push(shift);
+          } else {
+            // Team shift (applies to all)
+            allMemberIds.forEach(uid => {
+              if (!shiftsByEmployee[uid]) shiftsByEmployee[uid] = [];
+              shiftsByEmployee[uid].push(shift);
+            });
+          }
         });
 
         // 2. Fetch Clocks & Process Overlap
         await Promise.all(members.map(async (m) => {
-            const userId = m.user?.id ?? m.userId;
-            if (!userId) return;
+          const userId = m.user?.id ?? m.userId;
+          if (!userId) return;
 
-            try {
-                const [clocks, lastClock] = await Promise.all([
-                    fetchClocksRange(userId, startOfCurrentPeriod, endOfCurrentPeriod),
-                    fetchLastClock(userId).catch(() => null)
-                ]);
+          try {
+            const [clocks, lastClock] = await Promise.all([
+              fetchClocksRange(userId, startOfCurrentPeriod, endOfCurrentPeriod),
+              fetchLastClock(userId).catch(() => null)
+            ]);
 
-                let userTotal = 0;
-                clocks.forEach(c => {
-                    const inD = toParis(new Date(c.clockIn));
-                    const outD = c.clockOut ? toParis(new Date(c.clockOut)) : toParis(new Date());
-                    const minutes = minutesBetween(inD, outD);
-                    userTotal += minutes;
-                    
-                    // Global stats
-                    totalCurrentMinutes += minutes;
-                    if (inD >= singleCurrentStart && inD <= singleCurrentEnd) singleCurrentMinutes += minutes;
-                    else if (inD >= singlePreviousStart && inD <= singlePreviousEnd) singlePreviousMinutes += minutes;
+            let userTotal = 0;
+            clocks.forEach(c => {
+              const inD = toParis(new Date(c.clockIn));
+              const outD = c.clockOut ? toParis(new Date(c.clockOut)) : toParis(new Date());
+              const minutes = minutesBetween(inD, outD);
+              userTotal += minutes;
 
-                    // Daily map
-                    const dayKey = inD.toISOString().split('T')[0];
-                    dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
-                });
+              // Global stats
+              totalCurrentMinutes += minutes;
+              if (inD >= singleCurrentStart && inD <= singleCurrentEnd) singleCurrentMinutes += minutes;
+              else if (inD >= singlePreviousStart && inD <= singlePreviousEnd) singlePreviousMinutes += minutes;
 
-                memberMinutesMap[userId] = userTotal;
+              // Daily map
+              const dayKey = inD.toISOString().split('T')[0];
+              dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
+            });
 
-                // Overlap Logic
-                const userShifts = shiftsByEmployee[userId] || [];
-                userShifts.forEach(shift => {
-                    const shiftStart = new Date(shift.startAt);
-                    const shiftEnd = new Date(shift.endAt);
-                    const shiftDuration = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
-                    
-                    let overlap = 0;
-                    clocks.forEach(c => {
-                        const clockIn = new Date(c.clockIn);
-                        const clockOut = c.clockOut ? new Date(c.clockOut) : now;
-                        const oStart = new Date(Math.max(shiftStart, clockIn));
-                        const oEnd = new Date(Math.min(shiftEnd, clockOut));
-                        if (oEnd > oStart) overlap += Math.round((oEnd - oStart) / 60000);
-                    });
-                    
-                    const effective = Math.min(overlap, shiftDuration);
-                    totalOverlapMinutes += effective;
-                    const dayKey = toParis(shiftStart).toISOString().split('T')[0];
-                    dailyOverlapMap[dayKey] = (dailyOverlapMap[dayKey] || 0) + effective;
-                });
+            memberMinutesMap[userId] = userTotal;
 
-                // Last clock info
-                if (lastClock) {
-                    const isActive = !lastClock.clockOut;
-                    const lastIn = toParis(new Date(lastClock.clockIn)).toLocaleTimeString('fr-FR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      timeZone: 'Europe/Paris',
-                    });
-                    lastMap[userId] = { status: isActive ? 'active' : 'offline', lastClockIn: lastIn };
-                } else {
-                    lastMap[userId] = { status: 'offline', lastClockIn: '-' };
-                }
+            // Overlap Logic
+            const userShifts = shiftsByEmployee[userId] || [];
+            userShifts.forEach(shift => {
+              const shiftStart = new Date(shift.startAt);
+              const shiftEnd = new Date(shift.endAt);
+              const shiftDuration = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
 
-            } catch (err) {
-                console.warn(`Error stats member ${userId}`, err);
+              let overlap = 0;
+              clocks.forEach(c => {
+                const clockIn = new Date(c.clockIn);
+                const clockOut = c.clockOut ? new Date(c.clockOut) : now;
+                const oStart = new Date(Math.max(shiftStart, clockIn));
+                const oEnd = new Date(Math.min(shiftEnd, clockOut));
+                if (oEnd > oStart) overlap += Math.round((oEnd - oStart) / 60000);
+              });
+
+              const effective = Math.min(overlap, shiftDuration);
+              totalOverlapMinutes += effective;
+              const dayKey = toParis(shiftStart).toISOString().split('T')[0];
+              dailyOverlapMap[dayKey] = (dailyOverlapMap[dayKey] || 0) + effective;
+            });
+
+            // Last clock info
+            if (lastClock) {
+              const isActive = !lastClock.clockOut;
+              const lastIn = toParis(new Date(lastClock.clockIn)).toLocaleTimeString('fr-FR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: 'Europe/Paris',
+              });
+              lastMap[userId] = { status: isActive ? 'active' : 'offline', lastClockIn: lastIn };
+            } else {
+              lastMap[userId] = { status: 'offline', lastClockIn: '-' };
             }
+
+          } catch (err) {
+            console.warn(`Error stats member ${userId}`, err);
+          }
         }));
 
         // 3. Build Data for Charts
-        
+
         // A. Hours Area Chart
         const hoursPerPeriod = periodBoundaries.map(period => {
           let totalMin = 0;
@@ -335,41 +337,41 @@ export default function TeamDetail() {
 
         // B. Adherence Chart (Overlap)
         const adherencePerPeriod = periodBoundaries.map(period => {
-            let overlap = 0;
-            let scheduled = 0;
-            Object.entries(dailyOverlapMap).forEach(([dayKey, minutes]) => {
-                const dayDate = new Date(dayKey);
-                if (dayDate >= period.startDate && dayDate <= period.endDate) overlap += minutes;
-            });
-            Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
-                const dayDate = new Date(dayKey);
-                if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
-            });
-            const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : (overlap > 0 ? 100 : 0);
-            return { date: period.label, value: rate };
+          let overlap = 0;
+          let scheduled = 0;
+          Object.entries(dailyOverlapMap).forEach(([dayKey, minutes]) => {
+            const dayDate = new Date(dayKey);
+            if (dayDate >= period.startDate && dayDate <= period.endDate) overlap += minutes;
+          });
+          Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
+            const dayDate = new Date(dayKey);
+            if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
+          });
+          const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : (overlap > 0 ? 100 : 0);
+          return { date: period.label, value: rate };
         });
-        const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value })); 
+        const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value }));
         const adherenceSeries = buildChartSeries(adherenceForChart, 12, selectedPeriod);
-        
-        const globalAdherenceRate = totalScheduledMinutes > 0 
-            ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100) 
-            : 0;
+
+        const globalAdherenceRate = totalScheduledMinutes > 0
+          ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100)
+          : 0;
 
         // C. Member Comparison Bar Chart
         const memberCompData = members.map(m => {
-            const uid = m.user?.id ?? m.userId;
-            return {
-                name: m.user ? `${m.user.firstName} ${m.user.lastName}` : 'Unknown',
-                value: Math.round((memberMinutesMap[uid] || 0) / 60 * 10) / 10
-            };
+          const uid = m.user?.id ?? m.userId;
+          return {
+            name: m.user ? `${m.user.firstName} ${m.user.lastName}` : 'Unknown',
+            value: Math.round((memberMinutesMap[uid] || 0) / 60 * 10) / 10
+          };
         }).sort((a, b) => b.value - a.value);
 
         // D. Totals & Evolution
         const singleCurrentHours = singleCurrentMinutes / 60;
         const singlePreviousHours = singlePreviousMinutes / 60;
-        const evolutionRate = singlePreviousHours > 0 
-            ? ((singleCurrentHours - singlePreviousHours) / singlePreviousHours) * 100 
-            : 0;
+        const evolutionRate = singlePreviousHours > 0
+          ? ((singleCurrentHours - singlePreviousHours) / singlePreviousHours) * 100
+          : 0;
 
         let evolutionLabel = "vs période précédente";
         if (selectedGranularity === 'week') evolutionLabel = "vs semaine précédente";
@@ -380,16 +382,16 @@ export default function TeamDetail() {
         setHoursChartSeries(hoursData);
         setMemberComparisonData(memberCompData);
         setAdherenceData({
-            rate: globalAdherenceRate,
-            scheduledHours: Math.round(totalScheduledMinutes / 60),
-            chartSeries: adherenceSeries
+          rate: globalAdherenceRate,
+          scheduledHours: Math.round(totalScheduledMinutes / 60),
+          chartSeries: adherenceSeries
         });
         setHoursTotals({
-            current: Math.round(totalCurrentMinutes / 60 * 100) / 100,
-            evolutionRate,
-            evolutionLabel
+          current: Math.round(totalCurrentMinutes / 60 * 100) / 100,
+          evolutionRate,
+          evolutionLabel
         });
-        
+
         setHoursByMember(memberMinutesMap);
         setLastByMember(lastMap);
 
@@ -425,7 +427,7 @@ export default function TeamDetail() {
 
   // ====== DELETE TEAM ======
   const [confirmDeleteTeam, setConfirmDeleteTeam] = useState(false);
-  
+
   const handleDeleteTeam = async () => {
     try {
       const { deleteTeam } = await import('../api/teamApi');
@@ -434,6 +436,19 @@ export default function TeamDetail() {
     } catch (e) {
       alert(e?.message || 'Échec de la suppression');
     }
+  };
+
+  // ====== SCHEDULE CONFIG ======
+  const handleOpenScheduleConfig = async () => {
+    if (!teamId) return;
+    try {
+      const active = await scheduleTemplatesApi.getActiveForTeam(teamId);
+      setScheduleForConfig(active || null);
+    } catch (e) {
+      console.error('Erreur chargement planning actif:', e);
+      setScheduleForConfig(null);
+    }
+    setIsScheduleModalOpen(true);
   };
 
   // ====== MEMBERS ADD / REMOVE ======
@@ -518,7 +533,7 @@ export default function TeamDetail() {
     alert(`🚧 Export PDF backend à brancher : /api/teams/${teamId}/export?period=${selectedPeriod}&format=pdf`);
   };
 
-    const getStatusBadge = (status) => {
+  const getStatusBadge = (status) => {
     switch (status) {
       case 'active':
         return <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">Actif</span>;
@@ -599,7 +614,7 @@ export default function TeamDetail() {
                   {/* Configurer horaires (Manager et CEO) */}
                   {(user?.role === 'MANAGER' || user?.role === 'CEO') && (
                     <Button
-                      onClick={() => setIsScheduleModalOpen(true)}
+                      onClick={handleOpenScheduleConfig}
                       variant="outline"
                       size="sm"
                     >
@@ -650,7 +665,7 @@ export default function TeamDetail() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    
+
                     {/* Volume de Travail */}
                     <Card>
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -661,12 +676,12 @@ export default function TeamDetail() {
                       </CardHeader>
                       <CardContent>
                         <div className="flex items-end gap-2">
-                            <div className="text-2xl font-bold">
+                          <div className="text-2xl font-bold">
                             {Math.floor(hoursTotals.current)}h {Math.round((hoursTotals.current % 1) * 60)}m
-                            </div>
-                            <div className={`text-sm mb-1 font-medium ${hoursTotals.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {hoursTotals.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(hoursTotals.evolutionRate).toFixed(1)}%
-                            </div>
+                          </div>
+                          <div className={`text-sm mb-1 font-medium ${hoursTotals.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {hoursTotals.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(hoursTotals.evolutionRate).toFixed(1)}%
+                          </div>
                         </div>
                         <p className="text-xs text-gray-500 mt-2">{hoursTotals.evolutionLabel}</p>
                         <div className="h-[120px] mt-4">
@@ -700,7 +715,7 @@ export default function TeamDetail() {
                       <CardContent>
                         <div className="text-2xl font-bold">{adherenceData.rate.toFixed(1)}%</div>
                         <p className="text-xs text-gray-500 mt-2">
-                            {adherenceData.scheduledHours}h planifiées
+                          {adherenceData.scheduledHours}h planifiées
                         </p>
                         <div className="h-[120px] mt-4">
                           <ResponsiveContainer width="100%" height="100%">
@@ -732,7 +747,7 @@ export default function TeamDetail() {
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold">
-                            {memberComparisonData.length > 0 ? memberComparisonData[0]?.name : 'Aucune donnée'}
+                          {memberComparisonData.length > 0 ? memberComparisonData[0]?.name : 'Aucune donnée'}
                         </div>
                         <p className="text-xs text-gray-500 mt-2">Membre le plus actif</p>
                         <div className="h-[120px] mt-4">
@@ -744,7 +759,7 @@ export default function TeamDetail() {
                               <RechartsTooltip content={<CustomTooltip type="members" />} cursor={false} />
                               <Bar dataKey="value" fill="var(--color-desktop)" radius={[4, 4, 0, 0]}>
                                 {memberComparisonData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={index === 0 ? '#2563eb' : '#94a3b8'} />
+                                  <Cell key={`cell-${index}`} fill={index === 0 ? '#2563eb' : '#94a3b8'} />
                                 ))}
                               </Bar>
                             </BarChart>
@@ -784,92 +799,91 @@ export default function TeamDetail() {
             </CardHeader>
             <CardContent>
 
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Nom</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Rôle</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Arrivé le</th>
-                    {(user?.role === 'MANAGER' || user?.role === 'CEO') && (
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
-                        Heures ({selectedPeriod}j)
-                      </th>
-                    )}
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Dernier pointage</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Statut</th>
-                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {enrichedMembers.map((m) => (
-                    <tr key={m.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">
-                              {m.firstName?.charAt(0)}
-                              {m.lastName?.charAt(0)}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Nom</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Rôle</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Arrivé le</th>
+                      {(user?.role === 'MANAGER' || user?.role === 'CEO') && (
+                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
+                          Heures ({selectedPeriod}j)
+                        </th>
+                      )}
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Dernier pointage</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Statut</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {enrichedMembers.map((m) => (
+                      <tr key={m.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                              <span className="text-white text-xs font-bold">
+                                {m.firstName?.charAt(0)}
+                                {m.lastName?.charAt(0)}
+                              </span>
+                            </div>
+                            <span className="text-sm font-medium text-gray-700">
+                              {m.firstName} {m.lastName}
                             </span>
                           </div>
-                          <span className="text-sm font-medium text-gray-700">
-                            {m.firstName} {m.lastName}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`px-2 py-1 text-xs font-medium rounded ${ 
-                            m.role === 'MANAGER'
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded ${m.role === 'MANAGER'
                               ? 'bg-blue-100 text-blue-700'
                               : 'bg-gray-100 text-gray-700'
-                          }`}
-                        >
-                          {m.role === 'MANAGER' ? 'Manager' : 'Employé'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-600">
-                        {m.joinedAt ? new Date(m.joinedAt).toLocaleDateString('fr-FR') : '—'}
-                      </td>
-                      {(user?.role === 'MANAGER' || user?.role === 'CEO') && (
-                        <td className="py-3 px-4 text-sm text-gray-700 font-medium">{m.hoursInPeriod}</td>
-                      )}
-                      <td className="py-3 px-4 text-sm text-gray-600">{m.lastClockIn}</td>
-                      <td className="py-3 px-4">{getStatusBadge(m.status)}</td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => navigate(`/employee/${m.id}/dashboard`)}
-                            className="text-blue-600 hover:text-blue-800"
-                            title="Voir le dashboard"
+                              }`}
                           >
-                            <Clock className="w-4 h-4" />
-                          </button>
-                          {m.role !== 'MANAGER' && (user?.role === 'CEO' || user?.id === team?.managerId) && (
+                            {m.role === 'MANAGER' ? 'Manager' : 'Employé'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-600">
+                          {m.joinedAt ? new Date(m.joinedAt).toLocaleDateString('fr-FR') : '—'}
+                        </td>
+                        {(user?.role === 'MANAGER' || user?.role === 'CEO') && (
+                          <td className="py-3 px-4 text-sm text-gray-700 font-medium">{m.hoursInPeriod}</td>
+                        )}
+                        <td className="py-3 px-4 text-sm text-gray-600">{m.lastClockIn}</td>
+                        <td className="py-3 px-4">{getStatusBadge(m.status)}</td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
                             <button
-                              onClick={() => handleRemoveAsk({ user: { id: m.id, firstName: m.firstName, lastName: m.lastName } })}
-                              className="text-red-600 hover:text-red-800"
-                              title="Retirer du groupe"
+                              onClick={() => navigate(`/employee/${m.id}/dashboard`)}
+                              className="text-blue-600 hover:text-blue-800"
+                              title="Voir le dashboard"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Clock className="w-4 h-4" />
                             </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {!enrichedMembers.length && (
-                    <tr>
-                      <td className="py-6 px-4 text-sm text-gray-500" colSpan={7}>
-                        Aucun membre pour cette équipe.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                            {m.role !== 'MANAGER' && (user?.role === 'CEO' || user?.id === team?.managerId) && (
+                              <button
+                                onClick={() => handleRemoveAsk({ user: { id: m.id, firstName: m.firstName, lastName: m.lastName } })}
+                                className="text-red-600 hover:text-red-800"
+                                title="Retirer du groupe"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {!enrichedMembers.length && (
+                      <tr>
+                        <td className="py-6 px-4 text-sm text-gray-500" colSpan={7}>
+                          Aucun membre pour cette équipe.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -928,8 +942,9 @@ export default function TeamDetail() {
         onClose={() => setIsScheduleModalOpen(false)}
         teamId={team?.id}
         teamName={team?.name}
+        schedule={scheduleForConfig}
         onSave={() => {
-          // Recharger le schedule après sauvegarde
+          setIsScheduleModalOpen(false);
           loadAll();
         }}
       />
