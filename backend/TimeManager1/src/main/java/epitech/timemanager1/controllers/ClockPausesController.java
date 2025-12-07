@@ -21,7 +21,7 @@ public class ClockPausesController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ClockPause create(@PathVariable Long clockId,
-                             @RequestBody CreateRequest body) {
+            @RequestBody CreateRequest body) {
         return service.create(clockId, body.startAt(), body.endAt(), body.note());
     }
 
@@ -32,8 +32,8 @@ public class ClockPausesController {
 
     @PatchMapping("/{pauseId}")
     public ClockPause update(@PathVariable Long clockId,
-                             @PathVariable Long pauseId,
-                             @RequestBody UpdateRequest body) {
+            @PathVariable Long pauseId,
+            @RequestBody UpdateRequest body) {
         return service.update(pauseId, body.startAt(), body.endAt(), body.note());
     }
 
@@ -46,12 +46,13 @@ public class ClockPausesController {
     // --- DTOs ---
     public record CreateRequest(
             @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startAt,
-            @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endAt,
-            String note
-    ) {}
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endAt,
+            String note) {
+    }
+
     public record UpdateRequest(
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startAt,
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endAt,
-            String note
-    ) {}
+            String note) {
+    }
 }

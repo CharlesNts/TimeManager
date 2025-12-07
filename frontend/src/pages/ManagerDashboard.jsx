@@ -12,8 +12,10 @@ import {
   Plus,
   CalendarCheck, // Changed Icon
   CalendarClock,
+  AlertCircle,
 } from 'lucide-react';
 import api from '../api/client';
+import reportsApi from '../api/reportsApi';
 import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
 import TeamFormModal from '../components/manager/TeamFormModal';
 import WorkScheduleConfigurator from '../components/manager/WorkScheduleConfigurator';
@@ -98,6 +100,7 @@ export default function ManagerDashboard() {
   const [teamComparisonData, setTeamComparisonData] = useState([]); // New state for Team Comparison
 
   const [adherenceData, setAdherenceData] = useState({ rate: 0, scheduledHours: 0, chartSeries: [] });
+  const [latenessData, setLatenessData] = useState({ rate: 0, lateDays: 0, totalDays: 0, chartSeries: [], evolutionRate: 0 });
 
   // Chart modal state
   const [chartModal, setChartModal] = useState({ open: false, type: null, title: '', subtitle: '', data: [], chartType: 'area', config: {} });
@@ -269,7 +272,7 @@ export default function ManagerDashboard() {
         });
 
         // 1. Parallel Fetch: Clocks for all users AND Schedule Templates for all teams
-        const [clocksResults, scheduleResults] = await Promise.all([
+        const allResults = await Promise.all([
           // Fetch Clocks for all users
           Promise.all(uniqueMemberIds.map(async (userId) => {
             try {
@@ -285,8 +288,39 @@ export default function ManagerDashboard() {
               const schedule = await scheduleTemplatesApi.getActiveForTeam(team.id);
               return { teamId: team.id, schedule };
             } catch (e) { return { teamId: team.id, schedule: null }; }
+          })),
+          // Fetch Lateness Rate for all users (Current Month)
+          Promise.all(uniqueMemberIds.map(async (userId) => {
+            const currentMonthStr = startOfCurrentPeriod.toISOString().substring(0, 7); // YYYY-MM
+            try {
+              return await reportsApi.getUserLatenessRate(userId, currentMonthStr);
+            } catch (e) { return { totalDaysWithClock: 0, lateDays: 0 }; }
           }))
         ]);
+
+        const clocksResults = allResults[0];
+        const scheduleResults = allResults[1];
+        const latenessResults = allResults[2];
+
+        // --- Calculate Aggregated Lateness ---
+        const totalLatenessStats = latenessResults.reduce((acc, curr) => {
+          return {
+            totalDays: acc.totalDays + (curr.totalDaysWithClock || 0),
+            lateDays: acc.lateDays + (curr.lateDays || 0)
+          };
+        }, { totalDays: 0, lateDays: 0 });
+
+        const aggregatedLatenessRate = totalLatenessStats.totalDays > 0
+          ? (totalLatenessStats.lateDays / totalLatenessStats.totalDays) * 100
+          : 0;
+
+        setLatenessData({
+          rate: aggregatedLatenessRate,
+          lateDays: totalLatenessStats.lateDays,
+          totalDays: totalLatenessStats.totalDays,
+          chartSeries: [], // TODO: Calculate monthly series for manager view
+          evolutionRate: 0 // TODO: Calculate evolution vs previous period
+        });
 
         // 2. Process Clocks (Actual Volume)
         clocksResults.forEach(({ userId, clocks }) => {
@@ -647,7 +681,7 @@ export default function ManagerDashboard() {
                 {/* Colonne droite : Statistiques globales (67%) */}
                 <div className="lg:col-span-2">
                   {/* Info rapide sur les équipes - KPIs simples */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
                     <KPICard
                       title="Mes Équipes"
                       value={stats.totalTeams}
@@ -667,6 +701,14 @@ export default function ManagerDashboard() {
                       title="Cette semaine"
                       value={`${stats.totalHoursThisWeek}h`}
                       icon={Clock}
+                    />
+                    <KPICard
+                      title="Taux de retard"
+                      value={`${latenessData.rate.toFixed(1)}%`}
+                      icon={AlertCircle}
+                      trend={latenessData.lateDays > 0 ? `${latenessData.lateDays} jour(s) en retard` : "Aucun retard"}
+                      // trendUp={false} // Force red if supported
+                      color="text-amber-600"
                     />
                   </div>
 
@@ -824,6 +866,27 @@ export default function ManagerDashboard() {
                               </ResponsiveContainer>
                             </div>
                             <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
+                          </CardContent>
+                        </Card>
+
+                        {/* Taux de retard */}
+                        <Card>
+                          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-gray-500">
+                              Taux de retard de l'équipe
+                            </CardTitle>
+                            <AlertCircle className="h-4 w-4 text-amber-500" />
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold text-amber-600">{latenessData.rate.toFixed(1)}%</div>
+                            <p className="text-xs text-gray-500 mt-2">
+                              {latenessData.lateDays} jour(s) en retard • {latenessData.totalDays} jours travaillés
+                            </p>
+                            <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                              <p className="text-xs text-amber-700">
+                                Taux agrégé pour tous les membres de vos équipes sur le mois en cours.
+                              </p>
+                            </div>
                           </CardContent>
                         </Card>
 

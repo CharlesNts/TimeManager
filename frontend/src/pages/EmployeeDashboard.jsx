@@ -10,8 +10,9 @@ import ClockActions from '../components/employee/ClockActions';
 import ClockCalendarView from '../components/employee/ClockCalendarView';
 import RequestLeaveModal from '../components/employee/RequestLeaveModal';
 import PeriodSelector from '../components/manager/PeriodSelector';
-import { Clock, AlertTriangle, Briefcase, ArrowLeft, Calendar, CalendarCheck } from 'lucide-react';
+import { Clock, AlertTriangle, Briefcase, ArrowLeft, Calendar, CalendarCheck, AlertCircle, TrendingUp } from 'lucide-react';
 import api from '../api/client';
+import reportsApi from '../api/reportsApi';
 import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
 import { buildChartSeries } from '../api/statsApi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
@@ -54,6 +55,9 @@ function CustomTooltip({ active, payload, type = 'hours' }) {
   if (type === 'adherence') {
     title = 'Adhérence'
     formattedValue = `${Math.round(value)}%`
+  } else if (type === 'lateness') {
+    title = 'Taux de retard'
+    formattedValue = `${value.toFixed(1)}%`
   } else if (type === 'avg') {
     title = 'Moyenne'
     formattedValue = fmtMinutes(Math.round(value))
@@ -175,10 +179,12 @@ export default function EmployeeDashboard() {
   const [adherenceData, setAdherenceData] = useState({ rate: 0, scheduledHours: 0, chartSeries: [], evolutionRate: 0 });
   const [stats, setStats] = useState({
     hoursCurrent: 0,
+    minutesCurrent: 0,
     evolutionRate: 0,
     evolutionLabel: '',
     avgCurrent: 0
   });
+  const [latenessData, setLatenessData] = useState({ rate: 0, lateDays: 0, totalDays: 0, chartSeries: [], evolutionRate: 0 });
 
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
@@ -252,8 +258,85 @@ export default function EmployeeDashboard() {
         }
 
         // Fetch Clocks
-        const clocks = await fetchClocksRange(targetUserId, startOfCurrentPeriod, endOfCurrentPeriod);
-        setRecentClocks(clocks.slice(0, 20));
+        const clocksRange = await fetchClocksRange(targetUserId, startOfCurrentPeriod, endOfCurrentPeriod);
+
+        // Fetch Lateness Rate with Chart Series based on granularity
+        let latenessChartSeries = [];
+        let currentLatenessRate = 0;
+        let previousLatenessRate = 0;
+        let totalLateDays = 0;
+        let totalDaysWithClock = 0;
+
+        const monthLabels = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+
+        if (selectedGranularity === 'year') {
+          // Fetch lateness for each of the last 12 months
+          const now = new Date();
+          const monthPromises = [];
+          for (let i = 11; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            monthPromises.push(
+              reportsApi.getUserLatenessRate(targetUserId, yearMonth)
+                .then(r => ({ yearMonth, label: monthLabels[d.getMonth()], ...r }))
+                .catch(() => ({ yearMonth, label: monthLabels[d.getMonth()], rate: 0, lateDays: 0, totalDaysWithClock: 0 }))
+            );
+          }
+          const results = await Promise.all(monthPromises);
+          latenessChartSeries = results.map(r => ({ label: r.label, value: (r.rate || 0) * 100 }));
+          const current = results[results.length - 1];
+          const previous = results[results.length - 2];
+          currentLatenessRate = (current?.rate || 0) * 100;
+          previousLatenessRate = (previous?.rate || 0) * 100;
+          totalLateDays = results.reduce((sum, r) => sum + (r.lateDays || 0), 0);
+          totalDaysWithClock = results.reduce((sum, r) => sum + (r.totalDaysWithClock || 0), 0);
+        } else if (selectedGranularity === 'month') {
+          // Fetch lateness for the last 4 months (one point per month)
+          const now = new Date();
+          const monthPromises = [];
+          for (let i = 3; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            monthPromises.push(
+              reportsApi.getUserLatenessRate(targetUserId, yearMonth)
+                .then(r => ({ yearMonth, label: monthLabels[d.getMonth()], ...r }))
+                .catch(() => ({ yearMonth, label: monthLabels[d.getMonth()], rate: 0, lateDays: 0, totalDaysWithClock: 0 }))
+            );
+          }
+          const results = await Promise.all(monthPromises);
+          latenessChartSeries = results.map(r => ({ label: r.label, value: (r.rate || 0) * 100 }));
+          const current = results[results.length - 1];
+          const previous = results[results.length - 2];
+          currentLatenessRate = (current?.rate || 0) * 100;
+          previousLatenessRate = (previous?.rate || 0) * 100;
+          totalLateDays = current?.lateDays || 0;
+          totalDaysWithClock = current?.totalDaysWithClock || 0;
+        } else {
+          // Week: fetch current month only (single value)
+          const currentMonthStr = startOfCurrentPeriod.toISOString().substring(0, 7);
+          const lateness = await reportsApi.getUserLatenessRate(targetUserId, currentMonthStr)
+            .catch(() => ({ rate: 0, lateDays: 0, totalDaysWithClock: 0 }));
+          currentLatenessRate = (lateness.rate || 0) * 100;
+          totalLateDays = lateness.lateDays || 0;
+          totalDaysWithClock = lateness.totalDaysWithClock || 0;
+          latenessChartSeries = [{ label: 'Ce mois', value: currentLatenessRate }];
+        }
+
+        const latenessEvolution = previousLatenessRate > 0
+          ? ((currentLatenessRate - previousLatenessRate) / previousLatenessRate) * 100
+          : 0;
+
+        setLatenessData({
+          rate: currentLatenessRate,
+          lateDays: totalLateDays,
+          totalDays: totalDaysWithClock,
+          chartSeries: latenessChartSeries,
+          evolutionRate: latenessEvolution
+        });
+
+        // Filter clocks for the relevant period only for KPIs (not graph)
+        const relevantClocks = clocksRange.filter(c => new Date(c.clockIn) >= startOfCurrentPeriod && new Date(c.clockIn) <= endOfCurrentPeriod);
+        setRecentClocks(relevantClocks.slice(0, 20));
 
         let totalCurrentMinutes = 0;
         let singleCurrentMinutes = 0;
@@ -263,7 +346,7 @@ export default function EmployeeDashboard() {
         let dailyScheduledMap = {};
         let totalScheduledMinutes = 0;
 
-        clocks.forEach(c => {
+        relevantClocks.forEach(c => {
           const inD = new Date(c.clockIn);
           const outD = c.clockOut ? new Date(c.clockOut) : now;
           const minutes = Math.max(0, Math.round((outD - inD) / 60000));
@@ -402,6 +485,7 @@ export default function EmployeeDashboard() {
       hoursChartSeries,
       adherenceChartSeries: adherenceData.chartSeries,
       adherenceRate: adherenceData.rate,
+      latenessRate: latenessData.rate
     };
     const granularityLabel = getPeriodInfo(selectedGranularity).label;
     exportEmployeeDashboardPDF(targetUser || user, stats, recentClocks, chartData, granularityLabel);
@@ -411,6 +495,7 @@ export default function EmployeeDashboard() {
     const chartData = {
       hoursChartSeries,
       adherenceRate: adherenceData.rate,
+      latenessRate: latenessData.rate
     };
     const granularityLabel = getPeriodInfo(selectedGranularity).label;
     exportEmployeeDashboardCSV(targetUser || user, stats, recentClocks, chartData, granularityLabel);
@@ -588,6 +673,7 @@ export default function EmployeeDashboard() {
 
             {/* Right Column: Charts */}
             <div className={!isViewingOtherEmployee ? "lg:col-span-2" : "lg:col-span-3"}>
+
               <Card className="mb-6">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -621,7 +707,7 @@ export default function EmployeeDashboard() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {/* Heures */}
                     <Card
                       className="cursor-pointer hover:shadow-md transition-shadow"
@@ -715,6 +801,27 @@ export default function EmployeeDashboard() {
                           </ResponsiveContainer>
                         </div>
                         <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Taux de retard - KPI Simple */}
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">
+                          Taux de retard
+                        </CardTitle>
+                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-amber-600">{latenessData.rate.toFixed(1)}%</div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          {latenessData.lateDays} jour(s) en retard sur {latenessData.totalDays} jours travaillés
+                        </p>
+                        <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                          <p className="text-xs text-amber-700">
+                            Taux calculé sur le mois en cours.
+                          </p>
+                        </div>
                       </CardContent>
                     </Card>
 
