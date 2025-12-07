@@ -91,7 +91,7 @@ public class UserController {
      * @return {@code 200 OK} upon successful approval
      */
     @PreAuthorize("hasRole('CEO')")
-    @PutMapping("/users/{id}/approve")
+    @PutMapping("/{id}/approve")
     public ResponseEntity<Void> approveUser(@PathVariable Long id) {
         userService.approveUser(id);
         return ResponseEntity.ok().build();
@@ -104,7 +104,7 @@ public class UserController {
      * @return {@code 200 OK} upon successful rejection
      */
     @PreAuthorize("hasRole('CEO')")
-    @PutMapping("/users/{id}/reject")
+    @PutMapping("/{id}/reject")
     public ResponseEntity<Void> rejectUser(@PathVariable Long id) {
         userService.rejectUser(id);
         return ResponseEntity.ok().build();
@@ -117,7 +117,7 @@ public class UserController {
      * @return list of pending {@link UserDTO} accounts
      */
     @PreAuthorize("hasRole('CEO')")
-    @GetMapping("/users/pending")
+    @GetMapping("/pending")
     public ResponseEntity<List<UserDTO>> listPendingUsers() {
         List<UserDTO> pending = userService.findAllPending();
         return ResponseEntity.ok(pending);

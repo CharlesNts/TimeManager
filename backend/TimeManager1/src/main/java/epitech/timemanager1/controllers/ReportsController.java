@@ -3,7 +3,6 @@ package epitech.timemanager1.controllers;
 import epitech.timemanager1.dto.ReportsDTO;
 import epitech.timemanager1.dto.TeamAvgHoursDTO;
 import epitech.timemanager1.entities.Clock;
-import epitech.timemanager1.entities.ClockPause;
 import epitech.timemanager1.repositories.ClockPauseRepository;
 import epitech.timemanager1.services.ClockService;
 import epitech.timemanager1.services.ReportsService;
@@ -125,30 +124,36 @@ public class ReportsController {
         // Pull clocks; we’ll load pauses per clock explicitly to avoid fetch-join surprises
         List<Clock> clocks = clockService.listForUserBetween(userId, from, to);
 
-        double hours = clocks.stream()
-                .mapToDouble(c -> {
-                    LocalDateTime start = max(c.getClockIn(), from);
-                    LocalDateTime end   = min(c.getClockOut() != null ? c.getClockOut() : to, to);
-                    if (end.isBefore(start)) return 0.0;
+        double totalGrossMin = 0.0;
+        double totalPauseMin = 0.0;
 
-                    long grossMin = Duration.between(start, end).toMinutes();
+        for (Clock c : clocks) {
+            LocalDateTime start = max(c.getClockIn(), from);
+            LocalDateTime end   = min(c.getClockOut() != null ? c.getClockOut() : to, to);
+            if (end.isBefore(start)) continue;
 
-                    // Query pauses for this clock and subtract the overlap with [start, end]
-                    long pauseMin = pauseRepo.findByClockIdOrderByStartAtAsc(c.getId())
-                            .stream()
-                            .mapToLong(p -> {
-                                LocalDateTime ps = max(p.getStartAt(), start);
-                                LocalDateTime pe = min(p.getEndAt(),   end);
-                                return pe.isAfter(ps) ? Duration.between(ps, pe).toMinutes() : 0L;
-                            })
-                            .sum();
+            long grossMin = Duration.between(start, end).toMinutes();
 
-                    long netMin = Math.max(0, grossMin - pauseMin);
-                    return netMin / 60d;
-                })
-                .sum();
+            long pauseMin = pauseRepo.findByClockIdOrderByStartAtAsc(c.getId())
+                    .stream()
+                    .mapToLong(p -> {
+                        LocalDateTime ps = max(p.getStartAt(), start);
+                        LocalDateTime pe = min(p.getEndAt(),   end);
+                        return pe.isAfter(ps) ? Duration.between(ps, pe).toMinutes() : 0L;
+                    })
+                    .sum();
 
-        return ResponseEntity.ok(new UserHoursResponse(userId, from, to, hours));
+            totalGrossMin += grossMin;
+            totalPauseMin += Math.min(grossMin, pauseMin); // safety clamp
+        }
+
+        double grossHours = totalGrossMin / 60d;
+        double pauseHours = totalPauseMin / 60d;
+        double netHours   = Math.max(0, grossHours - pauseHours);
+
+        return ResponseEntity.ok(
+                new UserHoursResponse(userId, from, to, grossHours, pauseHours, netHours)
+        );
     }
 
     // ------------ helpers / tiny response records -----------------
@@ -187,6 +192,8 @@ public class ReportsController {
             long userId,
             LocalDateTime from,
             LocalDateTime to,
-            double hours
+            double grossHours,
+            double pauseHours,
+            double netHours
     ) {}
 }
