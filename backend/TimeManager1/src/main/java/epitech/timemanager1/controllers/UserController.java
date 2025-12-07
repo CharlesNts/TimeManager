@@ -23,6 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserController {
 
+
     /** Service responsible for user management and business logic. */
     private final UserService userService;
 
@@ -80,6 +81,7 @@ public class UserController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
+
         userService.delete(id);
         return ResponseEntity.noContent().build();
     }
