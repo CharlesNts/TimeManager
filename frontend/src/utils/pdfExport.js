@@ -30,8 +30,8 @@ export const exportEmployeeDashboardPDF = (user, stats, recentClocks = [], chart
 
   // KPIs
   let currentY = 52;
-  const kpiWidth = 85;
-  const kpiGap = 8;
+  const kpiWidth = 58;
+  const kpiGap = 4;
   const kpiStartX = 14;
 
   // KPI 1: Heures travaillées
@@ -40,7 +40,7 @@ export const exportEmployeeDashboardPDF = (user, stats, recentClocks = [], chart
   doc.setFontSize(8);
   doc.setTextColor(100);
   doc.text('Heures travaillées', kpiStartX + 4, currentY + 10);
-  doc.setFontSize(16);
+  doc.setFontSize(14);
   doc.setTextColor(0);
   doc.setFont(undefined, 'bold');
   const hours = stats.hoursCurrent || 0;
@@ -55,11 +55,25 @@ export const exportEmployeeDashboardPDF = (user, stats, recentClocks = [], chart
   doc.setFontSize(8);
   doc.setTextColor(100);
   doc.text('Adhérence planning', kpi2X + 4, currentY + 10);
-  doc.setFontSize(16);
+  doc.setFontSize(14);
   doc.setTextColor(0);
   doc.setFont(undefined, 'bold');
   doc.text(`${(chartData.adherenceRate || 0).toFixed(0)}%`, kpi2X + 4, currentY + 22);
   doc.setFont(undefined, 'normal');
+
+  // KPI 3: Taux de retard
+  const kpi3X = kpi2X + kpiWidth + kpiGap;
+  doc.setFillColor(255, 251, 235); // amber-50 background
+  doc.roundedRect(kpi3X, currentY, kpiWidth, 28, 2, 2, 'F');
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text('Taux retard', kpi3X + 4, currentY + 10);
+  doc.setFontSize(14);
+  doc.setTextColor(217, 119, 6); // amber-600
+  doc.setFont(undefined, 'bold');
+  doc.text(`${(chartData.latenessRate || 0).toFixed(1)}%`, kpi3X + 4, currentY + 22);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(0);
 
   currentY += 32;
 
@@ -69,6 +83,8 @@ export const exportEmployeeDashboardPDF = (user, stats, recentClocks = [], chart
   doc.text('> Heures travaillees : Total des heures pointees sur la periode selectionnee', kpiStartX, currentY);
   currentY += 4;
   doc.text('> Adherence : Pourcentage de respect du planning prevu', kpiStartX, currentY);
+  currentY += 4;
+  doc.text('> Taux retard : Pourcentage de jours avec arrivee tardive', kpiStartX, currentY);
   currentY += 8;
   doc.setTextColor(0);
 
@@ -157,8 +173,9 @@ export const exportManagerDashboardPDF = (user, stats, teams = [], chartData = {
   let currentY = 52;
 
   // Ligne de KPIs
-  const kpiWidth = 42;
-  const kpiGap = 4;
+  // Ligne de KPIs
+  const kpiWidth = 34;
+  const kpiGap = 3;
   const kpiStartX = 14;
 
   // KPI 1: Équipes
@@ -166,11 +183,11 @@ export const exportManagerDashboardPDF = (user, stats, teams = [], chartData = {
   doc.roundedRect(kpiStartX, currentY, kpiWidth, 28, 2, 2, 'F');
   doc.setFontSize(8);
   doc.setTextColor(100);
-  doc.text('Mes équipes', kpiStartX + 4, currentY + 10);
-  doc.setFontSize(16);
+  doc.text('Mes équipes', kpiStartX + 3, currentY + 10);
+  doc.setFontSize(14);
   doc.setTextColor(0);
   doc.setFont(undefined, 'bold');
-  doc.text(stats.totalTeams?.toString() || '0', kpiStartX + 4, currentY + 22);
+  doc.text(stats.totalTeams?.toString() || '0', kpiStartX + 3, currentY + 22);
   doc.setFont(undefined, 'normal');
 
   // KPI 2: Membres
@@ -179,11 +196,11 @@ export const exportManagerDashboardPDF = (user, stats, teams = [], chartData = {
   doc.roundedRect(kpi2X, currentY, kpiWidth, 28, 2, 2, 'F');
   doc.setFontSize(8);
   doc.setTextColor(100);
-  doc.text('Total membres', kpi2X + 4, currentY + 10);
-  doc.setFontSize(16);
+  doc.text('Total membres', kpi2X + 3, currentY + 10);
+  doc.setFontSize(14);
   doc.setTextColor(0);
   doc.setFont(undefined, 'bold');
-  doc.text(stats.totalMembers?.toString() || '0', kpi2X + 4, currentY + 22);
+  doc.text(stats.totalMembers?.toString() || '0', kpi2X + 3, currentY + 22);
   doc.setFont(undefined, 'normal');
 
   // KPI 3: Heures moyennes
@@ -192,13 +209,13 @@ export const exportManagerDashboardPDF = (user, stats, teams = [], chartData = {
   doc.roundedRect(kpi3X, currentY, kpiWidth, 28, 2, 2, 'F');
   doc.setFontSize(8);
   doc.setTextColor(100);
-  doc.text('Heures moy./période', kpi3X + 4, currentY + 10);
-  doc.setFontSize(16);
+  doc.text('Heures moy.', kpi3X + 3, currentY + 10);
+  doc.setFontSize(14);
   doc.setTextColor(0);
   doc.setFont(undefined, 'bold');
   const hoursAvg = chartData.hoursTotals?.current || 0;
   const hoursText = `${Math.floor(hoursAvg)}h${Math.round((hoursAvg % 1) * 60).toString().padStart(2, '0')}`;
-  doc.text(hoursText, kpi3X + 4, currentY + 22);
+  doc.text(hoursText, kpi3X + 3, currentY + 22);
   doc.setFont(undefined, 'normal');
 
   // KPI 4: Adhérence
@@ -207,11 +224,24 @@ export const exportManagerDashboardPDF = (user, stats, teams = [], chartData = {
   doc.roundedRect(kpi4X, currentY, kpiWidth, 28, 2, 2, 'F');
   doc.setFontSize(8);
   doc.setTextColor(100);
-  doc.text('Adhérence moy.', kpi4X + 4, currentY + 10);
-  doc.setFontSize(16);
+  doc.text('Adhérence moy.', kpi4X + 3, currentY + 10);
+  doc.setFontSize(14);
   doc.setTextColor(0);
   doc.setFont(undefined, 'bold');
-  doc.text(`${(chartData.adherenceRate || 0).toFixed(0)}%`, kpi4X + 4, currentY + 22);
+  doc.text(`${(chartData.adherenceRate || 0).toFixed(0)}%`, kpi4X + 3, currentY + 22);
+  doc.setFont(undefined, 'normal');
+
+  // KPI 5: Taux de retard
+  const kpi5X = kpi4X + kpiWidth + kpiGap;
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(kpi5X, currentY, kpiWidth, 28, 2, 2, 'F');
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text('Taux retard', kpi5X + 3, currentY + 10);
+  doc.setFontSize(14);
+  doc.setTextColor(0);
+  doc.setFont(undefined, 'bold');
+  doc.text(`${(chartData.latenessRate || 0).toFixed(1)}%`, kpi5X + 3, currentY + 22);
   doc.setFont(undefined, 'normal');
 
   currentY += 32;
@@ -309,10 +339,12 @@ export const exportCEODashboardPDF = (user, stats) => {
   const statsData = [
     ['Total employés', stats.totalUsers?.toString() || '0'],
     ['Utilisateurs approuvés', stats.approvedUsers?.toString() || '0'],
-    ['En attente d\'approbation', stats.pendingUsers?.toString() || '0'],
+    ["En attente d'approbation", stats.pendingUsers?.toString() || '0'],
     ['Total équipes', stats.totalTeams?.toString() || '0'],
     ['Managers', stats.totalManagers?.toString() || '0'],
     ['Employés actifs', stats.activeEmployees?.toString() || '0'],
+    ['Taux de retard', `${(stats.latenessRate || 0).toFixed(1)}%`],
+    ['Jours en retard', `${stats.lateDays || 0} jour(s)`],
   ];
 
   autoTable(doc, {
@@ -613,8 +645,8 @@ export const exportTeamDetailPDF = (team, members = [], chartData = {}, granular
 
   // KPIs
   let currentY = 52;
-  const kpiWidth = 58;
-  const kpiGap = 6;
+  const kpiWidth = 43;
+  const kpiGap = 4;
   const kpiStartX = 14;
 
   // KPI 1: Membres
@@ -622,11 +654,11 @@ export const exportTeamDetailPDF = (team, members = [], chartData = {}, granular
   doc.roundedRect(kpiStartX, currentY, kpiWidth, 28, 2, 2, 'F');
   doc.setFontSize(8);
   doc.setTextColor(100);
-  doc.text('Membres', kpiStartX + 4, currentY + 10);
-  doc.setFontSize(16);
+  doc.text('Membres', kpiStartX + 3, currentY + 10);
+  doc.setFontSize(14);
   doc.setTextColor(0);
   doc.setFont(undefined, 'bold');
-  doc.text(members.length.toString(), kpiStartX + 4, currentY + 22);
+  doc.text(members.length.toString(), kpiStartX + 3, currentY + 22);
   doc.setFont(undefined, 'normal');
 
   // KPI 2: Heures moyennes
@@ -635,13 +667,13 @@ export const exportTeamDetailPDF = (team, members = [], chartData = {}, granular
   doc.roundedRect(kpi2X, currentY, kpiWidth, 28, 2, 2, 'F');
   doc.setFontSize(8);
   doc.setTextColor(100);
-  doc.text('Heures moy./période', kpi2X + 4, currentY + 10);
-  doc.setFontSize(16);
+  doc.text('Heures moy.', kpi2X + 3, currentY + 10);
+  doc.setFontSize(14);
   doc.setTextColor(0);
   doc.setFont(undefined, 'bold');
   const hoursAvg = chartData.hoursTotals?.current || 0;
   const hoursText = `${Math.floor(hoursAvg)}h${Math.round((hoursAvg % 1) * 60).toString().padStart(2, '0')}`;
-  doc.text(hoursText, kpi2X + 4, currentY + 22);
+  doc.text(hoursText, kpi2X + 3, currentY + 22);
   doc.setFont(undefined, 'normal');
 
   // KPI 3: Adhérence
@@ -650,21 +682,37 @@ export const exportTeamDetailPDF = (team, members = [], chartData = {}, granular
   doc.roundedRect(kpi3X, currentY, kpiWidth, 28, 2, 2, 'F');
   doc.setFontSize(8);
   doc.setTextColor(100);
-  doc.text('Adhérence moyenne', kpi3X + 4, currentY + 10);
-  doc.setFontSize(16);
+  doc.text('Adhérence', kpi3X + 3, currentY + 10);
+  doc.setFontSize(14);
   doc.setTextColor(0);
   doc.setFont(undefined, 'bold');
-  doc.text(`${(chartData.adherenceRate || 0).toFixed(0)}%`, kpi3X + 4, currentY + 22);
+  doc.text(`${(chartData.adherenceRate || 0).toFixed(0)}%`, kpi3X + 3, currentY + 22);
   doc.setFont(undefined, 'normal');
+
+  // KPI 4: Taux de retard
+  const kpi4X = kpi3X + kpiWidth + kpiGap;
+  doc.setFillColor(255, 251, 235);
+  doc.roundedRect(kpi4X, currentY, kpiWidth, 28, 2, 2, 'F');
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text('Taux retard', kpi4X + 3, currentY + 10);
+  doc.setFontSize(14);
+  doc.setTextColor(217, 119, 6);
+  doc.setFont(undefined, 'bold');
+  doc.text(`${(chartData.latenessRate || 0).toFixed(1)}%`, kpi4X + 3, currentY + 22);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(0);
 
   currentY += 32;
 
   // Helper tips
   doc.setFontSize(7);
   doc.setTextColor(128);
-  doc.text('> Heures moy. : Moyenne des heures travaillees par l\'equipe sur chaque periode du graphique', kpiStartX, currentY);
+  doc.text('> Heures moy. : Moyenne des heures travaillees par periode', kpiStartX, currentY);
   currentY += 4;
-  doc.text('> Adherence : Pourcentage moyen de respect des plannings par l\'equipe', kpiStartX, currentY);
+  doc.text('> Adherence : Pourcentage moyen de respect des plannings', kpiStartX, currentY);
+  currentY += 4;
+  doc.text('> Taux retard : Pourcentage de jours avec arrivee tardive', kpiStartX, currentY);
   currentY += 8;
   doc.setTextColor(0);
 

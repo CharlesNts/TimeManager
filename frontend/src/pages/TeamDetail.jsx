@@ -24,6 +24,7 @@ import {
   Edit,
   Trash2,
   UserPlus,
+  AlertCircle,
 } from 'lucide-react';
 
 import api from '../api/client';
@@ -36,6 +37,7 @@ import {
   removeMember,
 } from '../api/teamMembersApi';
 import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
+import reportsApi from '../api/reportsApi';
 import { buildChartSeries } from '../api/statsApi';
 import { getDisplayPeriodBoundaries } from '../utils/granularityUtils';
 import { calculateScheduledMinutesFromTemplate } from '../utils/scheduleUtils';
@@ -66,6 +68,9 @@ const CustomTooltip = ({ active, payload, type = 'hours' }) => {
   if (type === 'adherence') {
     title = 'Adhérence'
     formattedValue = `${value}%`
+  } else if (type === 'lateness') {
+    title = 'Taux de retard'
+    formattedValue = `${value.toFixed(1)}%`
   } else if (type === 'members') {
     title = 'Par Membre'
     formattedValue = fmtMinutes(value)
@@ -143,6 +148,7 @@ export default function TeamDetail() {
   const [hoursChartSeries, setHoursChartSeries] = useState([]);
   const [memberComparisonData, setMemberComparisonData] = useState([]);
   const [adherenceData, setAdherenceData] = useState({ rate: 0, scheduledHours: 0, chartSeries: [], evolutionRate: 0 });
+  const [latenessData, setLatenessData] = useState({ rate: 0, lateDays: 0, totalDays: 0, chartSeries: [], evolutionRate: 0 });
   const [hoursTotals, setHoursTotals] = useState({ current: 0, evolutionRate: 0, evolutionLabel: '' });
 
   // For Table
@@ -405,6 +411,68 @@ export default function TeamDetail() {
             : 0;
         }
 
+        // E. Fetch Lateness Data for all members
+        const currentMonthStr = now.toISOString().substring(0, 7); // YYYY-MM
+        const monthLabels = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+
+        let latenessChartSeries = [];
+        let totalLateDays = 0;
+        let totalDaysWithClock = 0;
+        let currentLatenessRate = 0;
+        let previousLatenessRate = 0;
+
+        // Fetch lateness for current month for all members
+        const latenessPromises = allMemberIds.map(uid =>
+          reportsApi.getUserLatenessRate(uid, currentMonthStr)
+            .catch(() => ({ rate: 0, lateDays: 0, totalDaysWithClock: 0 }))
+        );
+        const latenessResults = await Promise.all(latenessPromises);
+
+        // Aggregate lateness stats
+        latenessResults.forEach(r => {
+          totalLateDays += r.lateDays || 0;
+          totalDaysWithClock += r.totalDaysWithClock || 0;
+        });
+        currentLatenessRate = totalDaysWithClock > 0
+          ? (totalLateDays / totalDaysWithClock) * 100
+          : 0;
+
+        // Optional: Calculate previous month for evolution
+        const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const prevMonthStr = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
+        const prevLatenessPromises = allMemberIds.map(uid =>
+          reportsApi.getUserLatenessRate(uid, prevMonthStr)
+            .catch(() => ({ rate: 0, lateDays: 0, totalDaysWithClock: 0 }))
+        );
+        const prevLatenessResults = await Promise.all(prevLatenessPromises);
+        let prevTotalLateDays = 0;
+        let prevTotalDaysWithClock = 0;
+        prevLatenessResults.forEach(r => {
+          prevTotalLateDays += r.lateDays || 0;
+          prevTotalDaysWithClock += r.totalDaysWithClock || 0;
+        });
+        previousLatenessRate = prevTotalDaysWithClock > 0
+          ? (prevTotalLateDays / prevTotalDaysWithClock) * 100
+          : 0;
+
+        const latenessEvolution = previousLatenessRate > 0
+          ? ((currentLatenessRate - previousLatenessRate) / previousLatenessRate) * 100
+          : 0;
+
+        // Build chart series (current and previous month)
+        latenessChartSeries = [
+          { label: monthLabels[prevMonth.getMonth()], value: previousLatenessRate },
+          { label: monthLabels[now.getMonth()], value: currentLatenessRate }
+        ];
+
+        setLatenessData({
+          rate: currentLatenessRate,
+          lateDays: totalLateDays,
+          totalDays: totalDaysWithClock,
+          chartSeries: latenessChartSeries,
+          evolutionRate: latenessEvolution
+        });
+
         setAdherenceData({
           rate: avgAdherenceRate,
           scheduledHours: Math.round(totalScheduledMinutes / 60),
@@ -560,6 +628,8 @@ export default function TeamDetail() {
       hoursChartSeries,
       memberComparisonData,
       adherenceRate: adherenceData.rate,
+      latenessRate: latenessData.rate,
+      lateDays: latenessData.lateDays,
     };
     const granularityLabel = getPeriodInfo(selectedGranularity).label;
     exportTeamDetailPDF(team, members, chartData, granularityLabel);
@@ -696,7 +766,7 @@ export default function TeamDetail() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
 
                     {/* Volume de Travail */}
                     <Card
@@ -833,6 +903,27 @@ export default function TeamDetail() {
                           </ResponsiveContainer>
                         </div>
                         <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Taux de retard - KPI Simple */}
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">
+                          Taux de retard
+                        </CardTitle>
+                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-amber-600">{latenessData.rate.toFixed(1)}%</div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          {latenessData.lateDays} jour(s) en retard sur {latenessData.totalDays} jours travaillés
+                        </p>
+                        <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                          <p className="text-xs text-amber-700">
+                            Taux agrégé pour tous les membres sur le mois en cours.
+                          </p>
+                        </div>
                       </CardContent>
                     </Card>
 
