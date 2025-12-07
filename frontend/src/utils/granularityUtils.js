@@ -12,10 +12,12 @@ import { toParis, startOfDay, startOfWeekMon, addDays } from './dateUtils';
  */
 export const getPeriodInfo = (granularity) => {
   const info = {
-    day: { periodCount: 7, displayCount: 7, label: '7 derniers jours', format: 'YYYY-MM-DD', groupBy: 'day' },
-    week: { periodCount: 8, displayCount: 8, label: '8 dernières semaines', format: 'Sem {week}', groupBy: 'week' },
-    month: { periodCount: 12, displayCount: 12, label: '12 derniers mois', format: 'MMM', groupBy: 'month' },
-    year: { periodCount: 5, displayCount: 5, label: '5 dernières années', format: 'YYYY', groupBy: 'year' }
+    // Semaine : 7 derniers jours, 1 point par jour
+    week: { periodCount: 7, displayCount: 7, label: 'Cette semaine', format: 'YYYY-MM-DD', groupBy: 'day' },
+    // Mois : 4 dernières semaines, 1 point par semaine
+    month: { periodCount: 4, displayCount: 4, label: 'Ce mois', format: 'Sem {week}', groupBy: 'week' },
+    // Année : 12 derniers mois, 1 point par mois
+    year: { periodCount: 12, displayCount: 12, label: 'Cette année', format: 'MMM', groupBy: 'month' }
   };
   return info[granularity] || info.week;
 };
@@ -169,8 +171,8 @@ export const getDisplayPeriodBoundaries = (granularity) => {
   const displayCount = info.displayCount;
   const periods = [];
 
-  if (granularity === 'day') {
-    // Last 7 days
+  if (granularity === 'week') {
+    // Semaine : 7 derniers jours (granularité par jour)
     for (let i = displayCount - 1; i >= 0; i--) {
       const date = addDays(now, -i);
       const dayStart = startOfDay(date);
@@ -179,22 +181,22 @@ export const getDisplayPeriodBoundaries = (granularity) => {
       periods.push({
         startDate: dayStart,
         endDate: dayEnd,
-        label: date.toLocaleDateString('fr-FR', { weekday: 'short', month: 'short', day: 'numeric' })
+        label: date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' })
       });
     }
     return periods;
   }
 
-  if (granularity === 'week') {
-    // Last 8 weeks
+  if (granularity === 'month') {
+    // Mois : 4 dernières semaines (granularité par semaine)
     let weekDate = startOfWeekMon(now);
     for (let i = displayCount - 1; i >= 0; i--) {
       const wStart = startOfWeekMon(addDays(weekDate, -(i * 7)));
       const wEnd = new Date(wStart);
       wEnd.setDate(wEnd.getDate() + 6);
       wEnd.setHours(23, 59, 59, 999);
-      // Display week date range: "20 jan - 26 jan"
-      const label = `${wStart.getDate()} - ${wEnd.getDate()} ${wEnd.toLocaleDateString('fr-FR', { month: 'short' })}`;
+      // Display week date range: "2-8 déc"
+      const label = `${wStart.getDate()}-${wEnd.getDate()} ${wEnd.toLocaleDateString('fr-FR', { month: 'short' })}`;
       periods.push({
         startDate: wStart,
         endDate: wEnd,
@@ -204,8 +206,8 @@ export const getDisplayPeriodBoundaries = (granularity) => {
     return periods;
   }
 
-  if (granularity === 'month') {
-    // Last 12 months
+  if (granularity === 'year') {
+    // Année : 12 derniers mois (granularité par mois)
     const monthsFr = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
     for (let i = displayCount - 1; i >= 0; i--) {
       const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -214,28 +216,10 @@ export const getDisplayPeriodBoundaries = (granularity) => {
       const mEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
       mEnd.setHours(23, 59, 59, 999);
       const monthName = monthsFr[mStart.getMonth()];
-      const year = mStart.getFullYear().toString().slice(-2);
       periods.push({
         startDate: mStart,
         endDate: mEnd,
-        label: `${monthName}-${year}`
-      });
-    }
-    return periods;
-  }
-
-  if (granularity === 'year') {
-    // Last 5 years
-    for (let i = displayCount - 1; i >= 0; i--) {
-      const yearDate = new Date(now.getFullYear() - i, 0, 1);
-      const yStart = new Date(yearDate.getFullYear(), 0, 1);
-      yStart.setHours(0, 0, 0, 0);
-      const yEnd = new Date(yearDate.getFullYear(), 11, 31);
-      yEnd.setHours(23, 59, 59, 999);
-      periods.push({
-        startDate: yStart,
-        endDate: yEnd,
-        label: yStart.getFullYear().toString()
+        label: monthName
       });
     }
     return periods;

@@ -30,6 +30,7 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as
 import { getPeriodInfo, getDisplayPeriodBoundaries } from '../utils/granularityUtils';
 import { calculateScheduledMinutesFromTemplate } from '../utils/scheduleUtils';
 import { toParis } from '../utils/dateUtils';
+import ChartModal from '../components/ui/ChartModal';
 
 // Helper pour afficher le rôle côté UI (CEO -> ADMIN)
 function displayRole(role) {
@@ -97,6 +98,9 @@ export default function ManagerDashboard() {
   const [teamComparisonData, setTeamComparisonData] = useState([]); // New state for Team Comparison
 
   const [adherenceData, setAdherenceData] = useState({ rate: 0, scheduledHours: 0, chartSeries: [] });
+
+  // Chart modal state
+  const [chartModal, setChartModal] = useState({ open: false, type: null, title: '', subtitle: '', data: [], chartType: 'area', config: {} });
 
   // extract loadDashboard so it can be called after team creation
   const loadDashboard = useCallback(async () => {
@@ -395,7 +399,17 @@ export default function ManagerDashboard() {
         const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value }));
         const adherenceSeries = buildChartSeries(adherenceForChart, 12, selectedPeriod);
 
-        const hoursCurrentDisplay = Math.round(totalCurrentMinutes / 60 * 100) / 100;
+        // Calcul de la moyenne des heures par période (au lieu du total)
+        const avgMinutesPerPeriod = hoursPerPeriod.length > 0
+          ? hoursPerPeriod.reduce((sum, p) => sum + p.minutesWorked, 0) / hoursPerPeriod.length
+          : 0;
+        const hoursAverageDisplay = Math.round(avgMinutesPerPeriod / 60 * 100) / 100;
+
+        // Calcul de la moyenne d'adhérence (moyenne des points du graphique)
+        const avgAdherenceRate = adherencePerPeriod.length > 0
+          ? adherencePerPeriod.reduce((sum, p) => sum + p.value, 0) / adherencePerPeriod.length
+          : 0;
+
         const scheduledHoursDisplay = Math.round(totalScheduledMinutes / 60);
 
         // Evolution logic
@@ -406,21 +420,20 @@ export default function ManagerDashboard() {
           : 0;
 
         let evolutionLabel = "vs période précédente";
-        if (selectedGranularity === 'week') evolutionLabel = "vs semaine précédente";
-        if (selectedGranularity === 'day') evolutionLabel = "vs hier";
-        if (selectedGranularity === 'month') evolutionLabel = "vs mois précédent";
-        if (selectedGranularity === 'year') evolutionLabel = "vs année précédente";
+        if (selectedGranularity === 'week') evolutionLabel = "vs jour précédent";
+        if (selectedGranularity === 'month') evolutionLabel = "vs semaine précédente";
+        if (selectedGranularity === 'year') evolutionLabel = "vs mois précédent";
 
         setHoursTotals({
-          current: hoursCurrentDisplay,
-          currentMinutes: totalCurrentMinutes,
+          current: hoursAverageDisplay,
+          currentMinutes: avgMinutesPerPeriod,
           evolutionRate: evolutionRate,
           evolutionLabel: evolutionLabel
         });
 
         setHoursChartSeries(hoursData);
         setAdherenceData({
-          rate: globalAdherenceRate,
+          rate: avgAdherenceRate,
           scheduledHours: scheduledHoursDisplay,
           chartSeries: adherenceSeries
         });
@@ -664,11 +677,21 @@ export default function ManagerDashboard() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-6">
-                        {/* Heures totales + Evolution (Merged) */}
-                        <Card>
+                        {/* Heures moyennes par période */}
+                        <Card
+                          className="cursor-pointer hover:shadow-md transition-shadow"
+                          onClick={() => setChartModal({
+                            open: true,
+                            title: 'Heures moyennes par période',
+                            subtitle: getPeriodInfo(selectedGranularity).label,
+                            data: hoursChartSeries,
+                            chartType: 'area',
+                            config: { color: 'var(--color-desktop)', gradientId: 'hoursModalFill', tooltipType: 'hours' }
+                          })}
+                        >
                           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-gray-500">
-                              Volume de Travail Global
+                              Heures moyennes par période
                             </CardTitle>
                             <Clock className="h-4 w-4 text-gray-400" />
                           </CardHeader>
@@ -681,7 +704,7 @@ export default function ManagerDashboard() {
                                 {hoursTotals.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(hoursTotals.evolutionRate).toFixed(1)}%
                               </div>
                             </div>
-                            <p className="text-xs text-gray-500 mt-2">{hoursTotals.evolutionLabel || "vs période précédente"}</p>
+                            <p className="text-xs text-gray-500 mt-2">Moyenne • {hoursTotals.evolutionLabel || "vs période précédente"}</p>
                             <div className="h-[120px] mt-4">
                               <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={hoursChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
@@ -699,21 +722,32 @@ export default function ManagerDashboard() {
                                 </AreaChart>
                               </ResponsiveContainer>
                             </div>
+                            <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
                           </CardContent>
                         </Card>
 
                         {/* Adhérence Planning */}
-                        <Card>
+                        <Card
+                          className="cursor-pointer hover:shadow-md transition-shadow"
+                          onClick={() => setChartModal({
+                            open: true,
+                            title: 'Adhérence moyenne',
+                            subtitle: getPeriodInfo(selectedGranularity).label,
+                            data: adherenceData.chartSeries,
+                            chartType: 'area',
+                            config: { color: '#10b981', gradientId: 'adhModalFill', tooltipType: 'adherence' }
+                          })}
+                        >
                           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-gray-500">
-                              Respect du Planning
+                              Adhérence moyenne
                             </CardTitle>
                             <CalendarCheck className="h-4 w-4 text-gray-400" />
                           </CardHeader>
                           <CardContent>
                             <div className="text-2xl font-bold">{adherenceData.rate.toFixed(1)}%</div>
                             <p className="text-xs text-gray-500 mt-2">
-                              {adherenceData.scheduledHours}h planifiées sur la période
+                              Moyenne • {adherenceData.scheduledHours}h planifiées
                             </p>
                             <div className="h-[120px] mt-4">
                               <ResponsiveContainer width="100%" height="100%">
@@ -732,11 +766,22 @@ export default function ManagerDashboard() {
                                 </AreaChart>
                               </ResponsiveContainer>
                             </div>
+                            <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
                           </CardContent>
                         </Card>
 
                         {/* Comparaison des Équipes */}
-                        <Card>
+                        <Card
+                          className="cursor-pointer hover:shadow-md transition-shadow"
+                          onClick={() => setChartModal({
+                            open: true,
+                            title: 'Comparaison des Équipes',
+                            subtitle: `Heures travaillées - ${getPeriodInfo(selectedGranularity).label}`,
+                            data: teamComparisonData,
+                            chartType: 'bar',
+                            config: { tooltipType: 'teams', barColors: ['#2563eb', '#94a3b8'] }
+                          })}
+                        >
                           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-gray-500">
                               Comparaison des Équipes
@@ -763,6 +808,7 @@ export default function ManagerDashboard() {
                                 </BarChart>
                               </ResponsiveContainer>
                             </div>
+                            <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
                           </CardContent>
                         </Card>
 
@@ -803,6 +849,18 @@ export default function ManagerDashboard() {
           setIsScheduleModalOpen(false);
           loadDashboard();
         }}
+      />
+
+      {/* Chart modal for enlarged view */}
+      <ChartModal
+        open={chartModal.open}
+        onClose={() => setChartModal({ ...chartModal, open: false })}
+        title={chartModal.title}
+        subtitle={chartModal.subtitle}
+        data={chartModal.data}
+        type={chartModal.chartType}
+        chartConfig={chartModal.config}
+        CustomTooltip={CustomTooltip}
       />
     </Layout>
   );

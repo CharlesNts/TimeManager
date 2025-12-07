@@ -20,6 +20,7 @@ import { exportEmployeeDashboardCSV } from '../utils/csvExport';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/Badge';
+import ChartModal from '../components/ui/ChartModal';
 import ExportMenu from '../components/ui/ExportMenu';
 
 import {
@@ -94,6 +95,9 @@ export default function EmployeeDashboard() {
   const [selectedGranularity, setSelectedGranularity] = useState('week');
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Chart modal state
+  const [chartModal, setChartModal] = useState({ open: false, type: null, title: '', subtitle: '', data: [], chartType: 'area', config: {} });
 
   // Load viewed employee
   useEffect(() => {
@@ -242,8 +246,8 @@ export default function EmployeeDashboard() {
           singlePreviousEnd = prev.endDate;
         } else {
           singlePreviousStart = new Date(singleCurrentStart);
-          if (selectedGranularity === 'day') singlePreviousStart.setDate(singlePreviousStart.getDate() - 1);
-          else if (selectedGranularity === 'week') singlePreviousStart.setDate(singlePreviousStart.getDate() - 7);
+          if (selectedGranularity === 'week') singlePreviousStart.setDate(singlePreviousStart.getDate() - 1);
+          else if (selectedGranularity === 'month') singlePreviousStart.setDate(singlePreviousStart.getDate() - 7);
           singlePreviousEnd = new Date(singleCurrentStart);
         }
 
@@ -344,10 +348,9 @@ export default function EmployeeDashboard() {
           : 0;
 
         let evolutionLabel = "vs période précédente";
-        if (selectedGranularity === 'week') evolutionLabel = "vs semaine précédente";
-        if (selectedGranularity === 'day') evolutionLabel = "vs hier";
-        if (selectedGranularity === 'month') evolutionLabel = "vs mois précédent";
-        if (selectedGranularity === 'year') evolutionLabel = "vs année précédente";
+        if (selectedGranularity === 'week') evolutionLabel = "vs jour précédent";
+        if (selectedGranularity === 'month') evolutionLabel = "vs semaine précédente";
+        if (selectedGranularity === 'year') evolutionLabel = "vs mois précédent";
 
         // Global adherence: total worked capped at scheduled / total scheduled
         const totalWorkedMinutes = Object.values(dailyHoursMap).reduce((a, b) => a + b, 0);
@@ -607,7 +610,17 @@ export default function EmployeeDashboard() {
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Heures */}
-                    <Card>
+                    <Card
+                      className="cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setChartModal({
+                        open: true,
+                        title: 'Heures travaillées',
+                        subtitle: getPeriodInfo(selectedGranularity).label,
+                        data: hoursChartSeries,
+                        chartType: 'area',
+                        config: { color: 'var(--color-desktop)', gradientId: 'hoursModalFill', tooltipType: 'hours' }
+                      })}
+                    >
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium text-gray-500">
                           Heures travaillées
@@ -641,11 +654,22 @@ export default function EmployeeDashboard() {
                             </AreaChart>
                           </ResponsiveContainer>
                         </div>
+                        <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
                       </CardContent>
                     </Card>
 
                     {/* Adhérence */}
-                    <Card>
+                    <Card
+                      className="cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setChartModal({
+                        open: true,
+                        title: 'Adhérence Planning',
+                        subtitle: getPeriodInfo(selectedGranularity).label,
+                        data: adherenceData.chartSeries,
+                        chartType: 'area',
+                        config: { color: '#10b981', gradientId: 'adhModalFill', tooltipType: 'adherence' }
+                      })}
+                    >
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium text-gray-500">
                           Adhérence Planning
@@ -674,39 +698,10 @@ export default function EmployeeDashboard() {
                             </AreaChart>
                           </ResponsiveContainer>
                         </div>
+                        <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
                       </CardContent>
                     </Card>
 
-                    {/* Moyenne */}
-                    <Card className="md:col-span-2">
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-500">
-                          Moyenne quotidienne
-                        </CardTitle>
-                        <Briefcase className="h-4 w-4 text-gray-400" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">{stats.avgCurrent}h</div>
-                        <p className="text-xs text-gray-500 mt-2">Moyenne par unité de temps</p>
-                        <div className="h-[120px] mt-4">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={avgChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
-                              <defs>
-                                <linearGradient id="avgFill" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="6%" stopColor="var(--color-mobile)" stopOpacity={0.16} />
-                                  <stop offset="95%" stopColor="var(--color-mobile)" stopOpacity={0.03} />
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
-                              <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
-                              <YAxis hide />
-                              <RechartsTooltip content={<CustomTooltip type="avg" />} cursor={false} />
-                              <Area type="monotone" dataKey="value" stroke="var(--color-mobile)" fill="url(#avgFill)" strokeWidth={2} dot={false} />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </CardContent>
-                    </Card>
                   </div>
                 </CardContent>
               </Card>
@@ -734,6 +729,18 @@ export default function EmployeeDashboard() {
           setRefreshKey((k) => k + 1);
         }}
       />
-    </Layout>
+
+      {/* Chart modal for enlarged view */}
+      <ChartModal
+        open={chartModal.open}
+        onClose={() => setChartModal({ ...chartModal, open: false })}
+        title={chartModal.title}
+        subtitle={chartModal.subtitle}
+        data={chartModal.data}
+        type={chartModal.chartType}
+        chartConfig={chartModal.config}
+        CustomTooltip={CustomTooltip}
+      />
+    </Layout >
   );
 }
