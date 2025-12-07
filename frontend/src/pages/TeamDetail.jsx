@@ -180,15 +180,34 @@ export default function TeamDetail() {
 
   // ====== LOAD STATS & CHARTS ======
   useEffect(() => {
-    if (!members.length || !teamId) return;
+    if (!members.length || !teamId || !team) return;
 
     const loadTeamStats = async () => {
       try {
         const now = new Date();
-        const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
+        const allPeriodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
 
-        // Chart Range
-        const startOfCurrentPeriod = periodBoundaries[0].startDate;
+        // Filter periods to only include those on or after the team's creation date
+        const teamCreationDate = team.createdAt ? new Date(team.createdAt) : null;
+        const periodBoundaries = teamCreationDate
+          ? allPeriodBoundaries.filter(period => period.endDate >= teamCreationDate)
+          : allPeriodBoundaries;
+
+        // If no periods remain after filtering, don't load stats
+        if (periodBoundaries.length === 0) {
+          setHoursChartSeries([]);
+          setMemberComparisonData([]);
+          setAdherenceData({ rate: 0, scheduledHours: 0, chartSeries: [] });
+          setHoursTotals({ current: 0, evolutionRate: 0, evolutionLabel: '' });
+          setHoursByMember({});
+          setLastByMember({});
+          return;
+        }
+
+        // Chart Range - use the maximum of the first period's start and team creation date
+        const startOfCurrentPeriod = teamCreationDate && periodBoundaries[0].startDate < teamCreationDate
+          ? teamCreationDate
+          : periodBoundaries[0].startDate;
         const endOfCurrentPeriod = now;
 
         // Single Period Evolution
@@ -401,7 +420,7 @@ export default function TeamDetail() {
     };
 
     loadTeamStats();
-  }, [members, teamId, selectedGranularity, selectedPeriod]);
+  }, [members, teamId, selectedGranularity, selectedPeriod, team]);
 
   const handleBack = () => navigate(-1);
 
