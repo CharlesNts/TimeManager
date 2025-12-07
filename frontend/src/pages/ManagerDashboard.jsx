@@ -161,26 +161,33 @@ export default function ManagerDashboard() {
               activeMembersCount++;
             }
 
-            // Calculer les heures de cette semaine
+            // Calculer les heures de cette semaine (NET HOURS)
             const now = new Date();
             const startOfWeek = new Date(now);
             startOfWeek.setDate(now.getDate() - 6);
             startOfWeek.setHours(0, 0, 0, 0);
 
-            const { data: weekClocks } = await api.get(`/api/users/${userId}/clocks/range`, {
-              params: {
-                from: startOfWeek.toISOString(),
-                to: now.toISOString()
-              }
-            });
-
-            if (Array.isArray(weekClocks)) {
-              weekClocks.forEach(clock => {
-                const clockIn = new Date(clock.clockIn);
-                const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
-                const minutes = Math.round((clockOut - clockIn) / 60000);
-                minutesForUser += Math.max(0, minutes);
+            try {
+              const hoursData = await reportsApi.getUserHours(
+                userId,
+                startOfWeek.toISOString(),
+                now.toISOString()
+              );
+              minutesForUser = Math.round((hoursData.netHours || 0) * 60);
+            } catch (e) {
+              console.warn(`[ManagerDashboard] Erreur getUserHours pour ${userId}:`, e);
+              // Fallback au calcul manuel si endpoint échoue (ex: ancienne version API cache)
+              const { data: weekClocks } = await api.get(`/api/users/${userId}/clocks/range`, {
+                params: { from: startOfWeek.toISOString(), to: now.toISOString() }
               });
+              if (Array.isArray(weekClocks)) {
+                weekClocks.forEach(clock => {
+                  const clockIn = new Date(clock.clockIn);
+                  const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
+                  const minutes = Math.round((clockOut - clockIn) / 60000);
+                  minutesForUser += Math.max(0, minutes);
+                });
+              }
             }
 
             memberMinutesMap[userId] = minutesForUser;

@@ -278,27 +278,35 @@ export default function TeamDetail() {
           if (!userId) return;
 
           try {
-            const [clocks, lastClock] = await Promise.all([
+            const [clocks, lastClock, hoursData] = await Promise.all([
               fetchClocksRange(userId, startOfCurrentPeriod, endOfCurrentPeriod),
-              fetchLastClock(userId).catch(() => null)
+              fetchLastClock(userId).catch(() => null),
+              reportsApi.getUserHours(userId, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString()).catch(() => ({ netHours: 0 }))
             ]);
 
-            let userTotal = 0;
+            let userTotal = Math.round((hoursData.netHours || 0) * 60);
+
+            // Get net hours for single periods (evolution) - optional optimization could be needed for large teams
+            // For now, we use gross from clocks for single period evolution to save API calls
+            // Or we could do extra calls here. Let's stick to clocks for evolution details to avoid +2N API calls.
+
             clocks.forEach(c => {
               const inD = toParis(new Date(c.clockIn));
-              const outD = c.clockOut ? toParis(new Date(c.clockOut)) : toParis(new Date());
+              const clockOutDate = c.clockOut ? new Date(c.clockOut) : new Date();
+              const outD = toParis(clockOutDate);
               const minutes = minutesBetween(inD, outD);
-              userTotal += minutes;
 
-              // Global stats
-              totalCurrentMinutes += minutes;
+              // Only use clocks for daily distribution (graph) and approximate evolution
               if (inD >= singleCurrentStart && inD <= singleCurrentEnd) singleCurrentMinutes += minutes;
               else if (inD >= singlePreviousStart && inD <= singlePreviousEnd) singlePreviousMinutes += minutes;
 
-              // Daily map for worked hours
+              // Daily map for worked hours (Gross for graph)
               const dayKey = inD.toISOString().split('T')[0];
               dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
             });
+
+            // Override global total with precise net total
+            totalCurrentMinutes += userTotal;
 
             memberMinutesMap[userId] = userTotal;
 
