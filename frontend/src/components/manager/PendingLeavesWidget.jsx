@@ -12,7 +12,7 @@ export default function PendingLeavesWidget() {
   const [processingId, setProcessingId] = useState(null);
   const [showRejectNote, setShowRejectNote] = useState(null);
   const [rejectNote, setRejectNote] = useState('');
-  const [backendNotConfigured] = useState(true); // Backend bug: ByteBuddyInterceptor serialization error - needs @JsonIgnoreProperties fix
+  const [backendNotConfigured] = useState(false); // Backend bug fixed in #70
 
   useEffect(() => {
     loadPendingLeaves();
@@ -62,8 +62,39 @@ export default function PendingLeavesWidget() {
     }
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case 'PENDING': return 'En attente';
+      case 'APPROVED': return 'Approuvée';
+      case 'REJECTED': return 'Rejetée';
+      case 'CANCELLED': return 'Annulée';
+      default: return status;
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'PENDING': return 'bg-yellow-100 text-yellow-800';
+      case 'APPROVED': return 'bg-green-100 text-green-800';
+      case 'REJECTED': return 'bg-red-100 text-red-800';
+      case 'CANCELLED': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const formatDate = (dateVal) => {
+    if (!dateVal) return '-';
+
+    let date;
+    // Handle array format [yyyy, mm, dd] sometimes returned by Jackson for LocalDate
+    if (Array.isArray(dateVal)) {
+      date = new Date(dateVal[0], dateVal[1] - 1, dateVal[2]);
+    } else {
+      date = new Date(dateVal);
+    }
+
+    if (isNaN(date.getTime())) return 'Date invalide';
+
     return new Intl.DateTimeFormat('fr-FR', {
       year: 'numeric',
       month: 'short',
@@ -172,15 +203,26 @@ export default function PendingLeavesWidget() {
             <div key={leave.id} className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
-                  <p className="font-semibold text-sm text-gray-900">
-                    {leave.employeeName || `Employé #${leave.employeeId}`}
-                  </p>
+                  <div className="flex justify-between items-start mb-1">
+                    <div className="font-medium text-sm text-gray-900" title={JSON.stringify(leave)}>
+                      {leave.employee && leave.employee.firstName
+                        ? `${leave.employee.firstName} ${leave.employee.lastName}`
+                        : (leave.employee && leave.employee.id
+                          ? `Employé #${leave.employee.id}`
+                          : `Demande #${leave.id}`)}
+                    </div>
+                    {leave.status && (
+                      <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(leave.status)}`}>
+                        {getStatusLabel(leave.status)}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex gap-2 mt-1">
                     <Badge variant="outline" className="text-xs">
                       {getLeaveTypeLabel(leave.type)}
                     </Badge>
                     <Badge variant="secondary" className="text-xs">
-                      {formatDate(leave.startAt)} à {formatDate(leave.endAt)}
+                      {formatDate(leave.startDate || leave.startAt)} à {formatDate(leave.endDate || leave.endAt)}
                     </Badge>
                   </div>
                 </div>
