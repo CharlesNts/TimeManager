@@ -24,15 +24,13 @@ import Header from './Header';
  *   <div>Contenu de ma page ici</div>
  * </Layout>
  */
-export default function Layout({ 
-  children, 
-  sidebarItems = [], 
+export default function Layout({
+  children,
+  sidebarItems = [],
   pageTitle = "Dashboard",
   userName = "Utilisateur",
   userRole = null,
-  userAvatar = null,
-  notifications = [],
-  onMarkNotificationRead = null
+  userAvatar = null
 }) {
   return (
     <div className="flex h-screen bg-gray-50">
@@ -42,13 +40,11 @@ export default function Layout({
       {/* Zone principale (Header + Contenu) */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header en haut */}
-        <Header 
+        <Header
           title={pageTitle}
           userName={userName}
           userRole={userRole}
           userAvatar={userAvatar}
-          notifications={notifications}
-          onMarkNotificationRead={onMarkNotificationRead}
         />
 
         {/* Contenu scrollable */}
