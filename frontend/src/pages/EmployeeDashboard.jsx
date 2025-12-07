@@ -260,6 +260,37 @@ export default function EmployeeDashboard() {
         // Fetch Clocks
         const clocksRange = await fetchClocksRange(targetUserId, startOfCurrentPeriod, endOfCurrentPeriod);
 
+        // Fetch Net Hours from API (grossHours - pauseHours)
+        let totalNetMinutes = 0;
+        let currentPeriodNetMinutes = 0;
+        let previousPeriodNetMinutes = 0;
+        try {
+          const hoursData = await reportsApi.getUserHours(
+            targetUserId,
+            startOfCurrentPeriod.toISOString(),
+            endOfCurrentPeriod.toISOString()
+          );
+          totalNetMinutes = Math.round((hoursData.netHours || 0) * 60);
+
+          // Get net hours for current single period (for evolution)
+          const currentPeriodHours = await reportsApi.getUserHours(
+            targetUserId,
+            singleCurrentStart.toISOString(),
+            singleCurrentEnd.toISOString()
+          );
+          currentPeriodNetMinutes = Math.round((currentPeriodHours.netHours || 0) * 60);
+
+          // Get net hours for previous single period (for evolution)
+          const previousPeriodHours = await reportsApi.getUserHours(
+            targetUserId,
+            singlePreviousStart.toISOString(),
+            singlePreviousEnd.toISOString()
+          );
+          previousPeriodNetMinutes = Math.round((previousPeriodHours.netHours || 0) * 60);
+        } catch (e) {
+          console.warn('[Dashboard] Error fetching net hours, falling back to gross:', e);
+        }
+
         // Fetch Lateness Rate with Chart Series based on granularity
         let latenessChartSeries = [];
         let currentLatenessRate = 0;
@@ -423,11 +454,11 @@ export default function EmployeeDashboard() {
         const avgStats = hoursPerPeriod.map(hp => ({ date: hp.date, minutesWorked: hp.minutesWorked / divisor }));
         const avgChart = buildChartSeries(avgStats, 12, periodCount);
 
-        // Final Stats
-        const singleCurrentHours = singleCurrentMinutes / 60;
-        const singlePreviousHours = singlePreviousMinutes / 60;
-        const evolutionRate = singlePreviousHours > 0
-          ? ((singleCurrentHours - singlePreviousHours) / singlePreviousHours) * 100
+        // Final Stats using Net Hours (gross - pauses)
+        const netCurrentHours = (totalNetMinutes > 0 ? currentPeriodNetMinutes : singleCurrentMinutes) / 60;
+        const netPreviousHours = (totalNetMinutes > 0 ? previousPeriodNetMinutes : singlePreviousMinutes) / 60;
+        const evolutionRate = netPreviousHours > 0
+          ? ((netCurrentHours - netPreviousHours) / netPreviousHours) * 100
           : 0;
 
         let evolutionLabel = "vs période précédente";
@@ -435,9 +466,13 @@ export default function EmployeeDashboard() {
         if (selectedGranularity === 'month') evolutionLabel = "vs semaine précédente";
         if (selectedGranularity === 'year') evolutionLabel = "vs mois précédent";
 
-        // Global adherence: total worked capped at scheduled / total scheduled
-        const totalWorkedMinutes = Object.values(dailyHoursMap).reduce((a, b) => a + b, 0);
-        const totalOverlapMinutes = Math.min(totalWorkedMinutes, totalScheduledMinutes);
+        // Use netHours for the main KPI (hours with pauses subtracted)
+        const displayMinutes = totalNetMinutes > 0 ? totalNetMinutes : totalCurrentMinutes;
+
+        // Global adherence: total worked (NET) capped at scheduled / total scheduled
+        // Note: adherence is calculated globally on the period, not day-by-day sum of overlaps
+        // Using displayMinutes ensures consistency with the main KPI (Net Hours)
+        const totalOverlapMinutes = Math.min(displayMinutes, totalScheduledMinutes);
         const globalAdherenceRate = totalScheduledMinutes > 0
           ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100)
           : 0;
@@ -460,12 +495,13 @@ export default function EmployeeDashboard() {
           chartSeries: adherenceSeries,
           evolutionRate: adherenceEvolution
         });
+
         setStats({
-          hoursCurrent: Math.floor(totalCurrentMinutes / 60),
-          minutesCurrent: totalCurrentMinutes % 60,
+          hoursCurrent: Math.floor(displayMinutes / 60),
+          minutesCurrent: displayMinutes % 60,
           evolutionRate,
           evolutionLabel,
-          avgCurrent: Math.round(totalCurrentMinutes / periodCount / 60 * 10) / 10
+          avgCurrent: Math.round(displayMinutes / periodCount / 60 * 10) / 10
         });
 
       } catch (e) {
@@ -729,7 +765,8 @@ export default function EmployeeDashboard() {
                       <CardContent>
                         <div className="flex items-end gap-2">
                           <div className="text-2xl font-bold">
-                            {stats.hoursCurrent}h {String(stats.minutesCurrent).padStart(2, '0')}m
+                            {/* Affichage de la moyenne plutôt que du total */}
+                            {Math.floor(stats.avgCurrent)}h {String(Math.round((stats.avgCurrent % 1) * 60)).padStart(2, '0')}m
                           </div>
                           <div className={`text-sm mb-1 font-medium ${stats.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {stats.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(stats.evolutionRate).toFixed(1)}%
