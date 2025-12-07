@@ -1,13 +1,11 @@
 package epitech.timemanager1.services;
 
 import epitech.timemanager1.dto.UserDTO;
-import epitech.timemanager1.entities.Role;
 import epitech.timemanager1.entities.User;
 import epitech.timemanager1.exception.ConflictException;
 import epitech.timemanager1.exception.NotFoundException;
 import epitech.timemanager1.mapper.UserMapper;
 import epitech.timemanager1.repositories.TeamMemberRepository;
-import epitech.timemanager1.repositories.TeamRepository;
 import epitech.timemanager1.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;

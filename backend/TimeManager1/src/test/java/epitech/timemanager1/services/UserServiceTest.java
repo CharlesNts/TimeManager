@@ -6,6 +6,7 @@ import epitech.timemanager1.entities.User;
 import epitech.timemanager1.exception.ConflictException;
 import epitech.timemanager1.exception.NotFoundException;
 import epitech.timemanager1.mapper.UserMapper;
+import epitech.timemanager1.repositories.TeamMemberRepository;
 import epitech.timemanager1.repositories.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,10 +36,16 @@ class UserServiceTest {
 
     private UserService userService;
 
+    private final TeamMemberRepository teamMemberRepository;
+
+    UserServiceTest(TeamMemberRepository teamMemberRepository) {
+        this.teamMemberRepository = teamMemberRepository;
+    }
+
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        userService = new UserService(userRepository, userMapper, passwordEncoder);
+        userService = new UserService(userRepository, userMapper, passwordEncoder, teamMemberRepository);
     }
 
     private UserDTO getSampleUserDTO() {

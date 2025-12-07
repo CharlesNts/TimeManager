@@ -11,6 +11,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 
@@ -77,4 +78,45 @@ public class LeavesController {
     public ResponseEntity<List<LeaveRequest>> listPending() {
         return ResponseEntity.ok(leaves.listPendingForApprover());
     }
+
+    @GetMapping("/window")
+    public ResponseEntity<List<LeaveRequest>> listForEmployeeInWindow(
+            @RequestParam Long employeeId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+    ) {
+        return ResponseEntity.ok(leaves.listForEmployeeInWindow(employeeId, from, to));
+    }
+
+    @PutMapping("/{leaveId}")
+    public ResponseEntity<LeaveRequest> update(
+            @PathVariable Long leaveId,
+            @RequestParam Long employeeId,
+            @Valid @RequestBody LeaveRequestCreateDTO body,
+            @RequestParam(defaultValue = "UTC") String zone
+    ) {
+        var z = ZoneId.of(zone);
+        var start = body.getStartAt().atZone(ZoneId.systemDefault()).withZoneSameInstant(z).toLocalDate();
+        var end   = body.getEndAt().atZone(ZoneId.systemDefault()).withZoneSameInstant(z).toLocalDate();
+
+        var updated = leaves.updateLeave(
+                employeeId,
+                leaveId,
+                body.getType(),
+                start,
+                end,
+                body.getReason()
+        );
+        return ResponseEntity.ok(updated);
+    }
+
+    @DeleteMapping("/{leaveId}")
+    public ResponseEntity<Void> delete(
+            @PathVariable Long leaveId,
+            @RequestParam Long employeeId
+    ) {
+        leaves.delete(employeeId, leaveId);
+        return ResponseEntity.noContent().build();
+    }
+
 }
