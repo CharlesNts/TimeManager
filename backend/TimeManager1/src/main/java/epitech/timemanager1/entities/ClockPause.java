@@ -22,7 +22,7 @@ public class ClockPause {
     @Column(nullable = false)
     private LocalDateTime startAt;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private LocalDateTime endAt;
 
     @Column(length = 300)

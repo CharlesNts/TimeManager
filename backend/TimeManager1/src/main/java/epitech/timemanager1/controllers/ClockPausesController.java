@@ -46,7 +46,7 @@ public class ClockPausesController {
     // --- DTOs ---
     public record CreateRequest(
             @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startAt,
-            @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endAt,
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endAt,
             String note
     ) {}
     public record UpdateRequest(

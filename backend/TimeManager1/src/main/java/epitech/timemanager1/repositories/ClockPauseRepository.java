@@ -19,4 +19,7 @@ public interface ClockPauseRepository extends JpaRepository<ClockPause, Long> {
              and p.endAt   > :startAt
            """)
     boolean existsOverlap(Long clockId, LocalDateTime startAt, LocalDateTime endAt);
+
+    boolean existsByClockIdAndEndAtIsNull(Long clockId);
+
 }
