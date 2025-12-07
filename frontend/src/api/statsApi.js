@@ -125,8 +125,17 @@ export function buildChartSeries(dailyStats, maxPoints = 12, period = 7) {
 
     let label = '';
     // If date is already a label (not ISO format), use it directly
-    // Labels look like: "S43", "janv.-25", "2025", "lun. 23 oct.", "20 - 26 jan"
-    const isLabel = stat.date && (stat.date.includes('S') || stat.date.includes('-') || stat.date.includes('.') || /^\d{4}$/.test(stat.date) || stat.date.match(/\d{2}\s\w/) || stat.date.match(/\d{2}\s\d{2}\s\w/));
+    // Labels look like: "S43", "janv.-25", "2025", "lun. 23 oct.", "20 - 26 jan", "janv.", "févr.", etc.
+    // French month abbreviations: janv., févr., mars, avr., mai, juin, juil., août, sept., oct., nov., déc.
+    const frenchMonthAbbrev = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+    const isLabel = stat.date && (
+      frenchMonthAbbrev.includes(stat.date) ||  // French month abbreviations
+      stat.date.includes('S') ||                 // Week format like "S43"
+      stat.date.includes(' - ') ||              // Date range like "20 - 26 jan"
+      /^\d{4}$/.test(stat.date) ||               // Year like "2025"
+      stat.date.match(/\d{1,2}\s\w/) ||          // Date format like "23 oct."
+      stat.date.match(/^[a-zéû]+\.\s\d{1,2}/)   // Day format like "lun. 23"
+    );
     if (isLabel) {
       label = stat.date;
     } else if (stat.date) {

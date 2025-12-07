@@ -7,13 +7,12 @@ import { Button } from '../ui/button';
  * PeriodSelector - Sélecteur de granularité pour les statistiques
  *
  * Permet de filtrer les données par granularité :
- * - Jour: 7 derniers jours (1 point par jour)
- * - Semaine: 4 dernières semaines (1 point par semaine)
- * - Mois: 12 derniers mois (1 point par mois)
- * - Année: 5 dernières années (1 point par année)
+ * - Semaine: 7 derniers jours (1 point par jour)
+ * - Mois: 4 dernières semaines (1 point par semaine)
+ * - Année: 12 derniers mois (1 point par mois)
  *
  * Props:
- * - selectedGranularity: 'day' | 'week' | 'month' | 'year'
+ * - selectedGranularity: 'week' | 'month' | 'year'
  * - onGranularityChange: Callback appelée quand la granularité change
  *
  * Usage:
@@ -24,7 +23,6 @@ import { Button } from '../ui/button';
  */
 const PeriodSelector = ({ selectedGranularity = 'week', onGranularityChange }) => {
   const granularities = [
-    { type: 'day', label: 'Jour' },
     { type: 'week', label: 'Semaine' },
     { type: 'month', label: 'Mois' },
     { type: 'year', label: 'Année' }

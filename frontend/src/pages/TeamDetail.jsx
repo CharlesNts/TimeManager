@@ -43,6 +43,7 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as
 // shadcn components
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import ChartModal from '../components/ui/ChartModal';
 
 // Helper function to format minutes
 function fmtMinutes(v) {
@@ -153,6 +154,9 @@ export default function TeamDetail() {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [scheduleForConfig, setScheduleForConfig] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, member: null });
+
+  // Chart modal state
+  const [chartModal, setChartModal] = useState({ open: false, type: null, title: '', subtitle: '', data: [], chartType: 'area', config: {} });
 
   // ====== LOAD TEAM + MEMBERS ======
   const loadAll = async () => {
@@ -364,7 +368,18 @@ export default function TeamDetail() {
           };
         }).sort((a, b) => b.value - a.value);
 
-        // D. Totals & Evolution
+        // D. Moyennes & Evolution
+        // Calcul de la moyenne des heures par période (au lieu du total)
+        const avgMinutesPerPeriod = hoursPerPeriod.length > 0
+          ? hoursPerPeriod.reduce((sum, p) => sum + p.minutesWorked, 0) / hoursPerPeriod.length
+          : 0;
+        const hoursAverageDisplay = Math.round(avgMinutesPerPeriod / 60 * 100) / 100;
+
+        // Calcul de la moyenne d'adhérence (moyenne des points du graphique)
+        const avgAdherenceRate = adherencePerPeriod.length > 0
+          ? adherencePerPeriod.reduce((sum, p) => sum + p.value, 0) / adherencePerPeriod.length
+          : 0;
+
         const singleCurrentHours = singleCurrentMinutes / 60;
         const singlePreviousHours = singlePreviousMinutes / 60;
         const evolutionRate = singlePreviousHours > 0
@@ -372,20 +387,19 @@ export default function TeamDetail() {
           : 0;
 
         let evolutionLabel = "vs période précédente";
-        if (selectedGranularity === 'week') evolutionLabel = "vs semaine précédente";
-        if (selectedGranularity === 'day') evolutionLabel = "vs hier";
-        if (selectedGranularity === 'month') evolutionLabel = "vs mois précédent";
-        if (selectedGranularity === 'year') evolutionLabel = "vs année précédente";
+        if (selectedGranularity === 'week') evolutionLabel = "vs jour précédent";
+        if (selectedGranularity === 'month') evolutionLabel = "vs semaine précédente";
+        if (selectedGranularity === 'year') evolutionLabel = "vs mois précédent";
 
         setHoursChartSeries(hoursData);
         setMemberComparisonData(memberCompData);
         setAdherenceData({
-          rate: globalAdherenceRate,
+          rate: avgAdherenceRate,
           scheduledHours: Math.round(totalScheduledMinutes / 60),
           chartSeries: adherenceSeries
         });
         setHoursTotals({
-          current: Math.round(totalCurrentMinutes / 60 * 100) / 100,
+          current: hoursAverageDisplay,
           evolutionRate,
           evolutionLabel
         });
@@ -665,10 +679,20 @@ export default function TeamDetail() {
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                     {/* Volume de Travail */}
-                    <Card>
+                    <Card
+                      className="cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setChartModal({
+                        open: true,
+                        title: 'Heures moyennes par période',
+                        subtitle: getPeriodInfo(selectedGranularity).label,
+                        data: hoursChartSeries,
+                        chartType: 'area',
+                        config: { color: 'var(--color-desktop)', gradientId: 'hoursModalFill', tooltipType: 'hours' }
+                      })}
+                    >
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium text-gray-500">
-                          Volume de Travail Équipe
+                          Heures moyennes par période
                         </CardTitle>
                         <Clock className="h-4 w-4 text-gray-400" />
                       </CardHeader>
@@ -681,7 +705,7 @@ export default function TeamDetail() {
                             {hoursTotals.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(hoursTotals.evolutionRate).toFixed(1)}%
                           </div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">{hoursTotals.evolutionLabel}</p>
+                        <p className="text-xs text-gray-500 mt-2">Moyenne • {hoursTotals.evolutionLabel}</p>
                         <div className="h-[120px] mt-4">
                           <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={hoursChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
@@ -699,21 +723,32 @@ export default function TeamDetail() {
                             </AreaChart>
                           </ResponsiveContainer>
                         </div>
+                        <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
                       </CardContent>
                     </Card>
 
                     {/* Adhérence */}
-                    <Card>
+                    <Card
+                      className="cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setChartModal({
+                        open: true,
+                        title: 'Adhérence moyenne',
+                        subtitle: getPeriodInfo(selectedGranularity).label,
+                        data: adherenceData.chartSeries,
+                        chartType: 'area',
+                        config: { color: '#10b981', gradientId: 'adhModalFill', tooltipType: 'adherence' }
+                      })}
+                    >
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium text-gray-500">
-                          Respect du Planning
+                          Adhérence moyenne
                         </CardTitle>
                         <CalendarCheck className="h-4 w-4 text-gray-400" />
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold">{adherenceData.rate.toFixed(1)}%</div>
                         <p className="text-xs text-gray-500 mt-2">
-                          {adherenceData.scheduledHours}h planifiées
+                          Moyenne • {adherenceData.scheduledHours}h planifiées
                         </p>
                         <div className="h-[120px] mt-4">
                           <ResponsiveContainer width="100%" height="100%">
@@ -732,11 +767,22 @@ export default function TeamDetail() {
                             </AreaChart>
                           </ResponsiveContainer>
                         </div>
+                        <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
                       </CardContent>
                     </Card>
 
                     {/* Comparaison Membres */}
-                    <Card>
+                    <Card
+                      className="cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setChartModal({
+                        open: true,
+                        title: 'Comparaison des Membres',
+                        subtitle: `Heures travaillées - ${getPeriodInfo(selectedGranularity).label}`,
+                        data: memberComparisonData,
+                        chartType: 'bar',
+                        config: { tooltipType: 'members', barColors: ['#2563eb', '#94a3b8'] }
+                      })}
+                    >
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium text-gray-500">
                           Comparaison des Membres
@@ -763,6 +809,7 @@ export default function TeamDetail() {
                             </BarChart>
                           </ResponsiveContainer>
                         </div>
+                        <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
                       </CardContent>
                     </Card>
 
@@ -945,6 +992,18 @@ export default function TeamDetail() {
           setIsScheduleModalOpen(false);
           loadAll();
         }}
+      />
+
+      {/* Chart modal for enlarged view */}
+      <ChartModal
+        open={chartModal.open}
+        onClose={() => setChartModal({ ...chartModal, open: false })}
+        title={chartModal.title}
+        subtitle={chartModal.subtitle}
+        data={chartModal.data}
+        type={chartModal.chartType}
+        chartConfig={chartModal.config}
+        CustomTooltip={CustomTooltip}
       />
     </Layout>
   );
