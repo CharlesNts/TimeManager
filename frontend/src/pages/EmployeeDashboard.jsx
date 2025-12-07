@@ -521,24 +521,21 @@ export default function EmployeeDashboard() {
                     </CardContent>
                   </Card>
 
-                  <Card className="mt-6 border-yellow-200 bg-yellow-50">
+                  <Card className="mt-6">
                     <CardHeader>
                       <CardTitle className="text-lg flex items-center gap-2">
                         <Calendar className="w-5 h-5" />
                         Congés
                       </CardTitle>
                       <CardDescription>
-                        Fonctionnalité en configuration
+                        Demandez des jours de congé
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="p-3 bg-yellow-100 border border-yellow-300 rounded-lg mb-3">
-                        <p className="text-xs text-yellow-800 font-semibold mb-1">⚠️ Non disponible</p>
-                        <p className="text-xs text-yellow-700">
-                          Le backend doit être configuré pour filtrer les demandes de congés par manager.
-                        </p>
-                      </div>
-                      <Button disabled className="w-full opacity-50 cursor-not-allowed">
+                      <Button
+                        onClick={() => setIsLeaveModalOpen(true)}
+                        className="w-full"
+                      >
                         <Calendar className="w-4 h-4 mr-2" />
                         Demander un congé
                       </Button>

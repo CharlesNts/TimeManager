@@ -133,6 +133,61 @@ export const getPendingLeaves = async () => {
 };
 
 /**
+ * Récupérer les congés dans une fenêtre de dates
+ * GET /api/leaves/window?employeeId={employeeId}&from={from}&to={to}
+ * @param {number} employeeId - ID de l'employé
+ * @param {string} from - Date de début (YYYY-MM-DD)
+ * @param {string} to - Date de fin (YYYY-MM-DD)
+ */
+export const getLeavesInWindow = async (employeeId, from, to) => {
+  try {
+    const { data } = await api.get('/api/leaves/window', {
+      params: { employeeId, from, to }
+    });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('[leavesApi] getLeavesInWindow error:', error?.message || error);
+    throw error;
+  }
+};
+
+/**
+ * Modifier une demande de congé (si PENDING)
+ * PUT /api/leaves/{leaveId}
+ * @param {number} leaveId - ID de la demande
+ * @param {object} leaveData - { type, startAt, endAt, reason }
+ */
+export const updateLeave = async (leaveId, leaveData) => {
+  try {
+    const { data } = await api.put(`/api/leaves/${leaveId}`, {
+      type: leaveData.type,
+      startAt: leaveData.startAt,
+      endAt: leaveData.endAt,
+      reason: leaveData.reason,
+    });
+    return data;
+  } catch (error) {
+    console.error('[leavesApi] updateLeave error:', error?.message || error);
+    throw error;
+  }
+};
+
+/**
+ * Supprimer une demande de congé (si PENDING)
+ * DELETE /api/leaves/{leaveId}
+ * @param {number} leaveId - ID de la demande
+ */
+export const deleteLeave = async (leaveId) => {
+  try {
+    await api.delete(`/api/leaves/${leaveId}`);
+    return true;
+  } catch (error) {
+    console.error('[leavesApi] deleteLeave error:', error?.message || error);
+    throw error;
+  }
+};
+
+/**
  * Utilitaires
  */
 
@@ -175,6 +230,9 @@ export default {
   rejectLeave,
   getEmployeeLeaves,
   getPendingLeaves,
+  getLeavesInWindow,
+  updateLeave,
+  deleteLeave,
   getLeaveTypeLabel,
   getLeaveStatusLabel,
   calculateLeaveDays,
