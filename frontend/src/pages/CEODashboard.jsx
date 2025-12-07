@@ -151,7 +151,7 @@ export default function CEODashboard() {
   return (
     <Layout
       sidebarItems={sidebarItems}
-      pageTitle="Dashboard CEO"
+      pageTitle="Dashboard Admin"
       userName={`${user?.firstName} ${user?.lastName}`}
       userRole={user?.role}
     >
@@ -162,7 +162,7 @@ export default function CEODashboard() {
           <div className="mb-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard CEO</h1>
+                <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard Admin</h1>
                 <p className="text-gray-500 mt-1">
                   Vue d&apos;ensemble globale des statistiques et indicateurs clés de l&apos;entreprise
                 </p>

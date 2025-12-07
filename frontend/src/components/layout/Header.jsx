@@ -69,11 +69,15 @@ export default function Header({
   };
 
   const getRoleLabel = (role) => {
-    switch(role?.toUpperCase()) {
-      case 'CEO': return 'CEO';
-      case 'MANAGER': return 'Manager';
-      case 'EMPLOYEE': return 'Employé';
-      default: return role;
+    switch (role?.toUpperCase()) {
+      case 'CEO':
+        return 'Admin'; // Affichage visuel pour le rôle CEO
+      case 'MANAGER':
+        return 'Manager';
+      case 'EMPLOYEE':
+        return 'Employé';
+      default:
+        return role;
     }
   };
 

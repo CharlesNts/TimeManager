@@ -106,7 +106,10 @@ export default function RegisterPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div
+        className="min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center p-4"
+        style={{ backgroundImage: "url('/images/BG-register-login.png')" }}
+      >
         <Card className="max-w-md w-full">
           <CardContent className="pt-6 text-center">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -119,7 +122,7 @@ export default function RegisterPage() {
               Bienvenue chez PrimeBank, {formData.firstName} !
             </p>
             <p className="text-xs text-gray-500">
-              ℹ️ Votre compte doit être approuvé par le CEO avant la connexion.
+              ℹ️ Votre compte doit être approuvé par un administrateur avant la connexion.
             </p>
             <p className="text-sm text-gray-500 mt-2">
               Redirection vers la connexion...
@@ -131,7 +134,10 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div
+      className="min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center p-4"
+      style={{ backgroundImage: "url('/images/RegisterBG.png')" }}
+    >
       <Card className="max-w-2xl w-full">
         <CardHeader>
           <CardTitle className="text-center">Créer un compte</CardTitle>

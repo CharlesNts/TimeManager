@@ -162,9 +162,10 @@ export default function UsersListPage() {
 
   // Badges
   const getRoleBadge = (role) => {
+    const label = role === 'CEO' ? 'Admin' : role;
     return (
       <Badge variant={role === 'CEO' ? 'default' : role === 'MANAGER' ? 'secondary' : 'outline'}>
-        {role}
+        {label}
       </Badge>
     );
   };
@@ -227,7 +228,7 @@ export default function UsersListPage() {
                 <option value="ALL">Tous les rôles</option>
                 <option value="EMPLOYEE">Employés</option>
                 <option value="MANAGER">Managers</option>
-                <option value="CEO">CEO</option>
+                <option value="CEO">Admin</option>
               </select>
 
               <select
