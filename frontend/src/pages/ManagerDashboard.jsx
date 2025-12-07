@@ -6,19 +6,18 @@ import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import {
   Users,
-  User,
   Clock,
   TrendingUp,
   Building2,
   Plus,
-  AlertCircle,
+  CalendarCheck, // Changed Icon
   CalendarClock,
 } from 'lucide-react';
 import api from '../api/client';
+import workShiftsApi from '../api/workShiftsApi'; // Added import
 import TeamFormModal from '../components/manager/TeamFormModal';
 import WorkScheduleConfigurator from '../components/manager/WorkScheduleConfigurator';
 import PendingLeavesWidget from '../components/manager/PendingLeavesWidget';
-import { createTeam } from '../api/teamApi';
 import { exportManagerDashboardPDF } from '../utils/pdfExport';
 import { exportManagerDashboardCSV } from '../utils/csvExport';
 import { Button } from '../components/ui/button';
@@ -27,8 +26,8 @@ import KPICard from '../components/dashboard/KPICard';
 import PeriodSelector from '../components/manager/PeriodSelector';
 import ExportMenu from '../components/ui/ExportMenu';
 import { buildChartSeries } from '../api/statsApi';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
-import { getPeriodInfo, getDisplayPeriodBoundaries, getDisplayPeriodBoundariesShifted } from '../utils/granularityUtils';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
+import { getPeriodInfo, getDisplayPeriodBoundaries } from '../utils/granularityUtils';
 import { toParis } from '../utils/dateUtils';
 
 // Helper function to format minutes
@@ -43,19 +42,19 @@ function fmtMinutes(v) {
 const CustomTooltip = ({ active, payload, type = 'hours' }) => {
   if (!active || !payload || payload.length === 0) return null
   const value = payload[0].value
-  const label = payload[0].payload?.label || 'N/A'
+  const label = payload[0].payload?.label || payload[0].payload?.name || 'N/A'
 
   let title = 'Heures travaillées'
   let formattedValue = fmtMinutes(value)
 
-  if (type === 'lateness') {
-    title = 'Jours en retard'
-    formattedValue = value > 0 ? '✓ Retard' : 'À l\'heure'
-  } else if (type === 'avg') {
-    title = 'Moyenne'
+  if (type === 'adherence') {
+    title = 'Adhérence'
+    formattedValue = `${value}%`
+  } else if (type === 'teams') {
+    title = 'Par Équipe'
     formattedValue = fmtMinutes(value)
   } else if (type === 'comparison') {
-    title = 'Comparaison'
+    title = 'Évolution'
     formattedValue = `${value >= 0 ? '+' : ''}${value}%`
   }
 
@@ -84,12 +83,13 @@ export default function ManagerDashboard() {
   
   // KPI states avec charts
   const [selectedGranularity, setSelectedGranularity] = useState('week');
-  const selectedPeriod = getPeriodInfo(selectedGranularity).periodCount; // For backward compatibility
+  const selectedPeriod = getPeriodInfo(selectedGranularity).periodCount;
   const [hoursTotals, setHoursTotals] = useState({ current: 0, previous: 0 });
-  const [avgTotals, setAvgTotals] = useState({ current: 0, previous: 0 });
   const [hoursChartSeries, setHoursChartSeries] = useState([]);
-  const [avgChartSeries, setAvgChartSeries] = useState([]);
-  const [latenessData, setLatenessData] = useState({ totalDays: 0, lateDays: 0, rate: 0, lateDaysChartSeries: [] });
+  
+  const [teamComparisonData, setTeamComparisonData] = useState([]); // New state for Team Comparison
+
+  const [adherenceData, setAdherenceData] = useState({ rate: 0, scheduledHours: 0, chartSeries: [] });
 
   // extract loadDashboard so it can be called after team creation
   const loadDashboard = useCallback(async () => {
@@ -120,20 +120,21 @@ export default function ManagerDashboard() {
           })
         );
 
-        // Calculer les stats globales
-        const totalMembers = teamsWithMembers.reduce((sum, t) => sum + t.memberCount, 0);
+        // Calculer les stats globales (Unique users)
+        const allMembers = teamsWithMembers.flatMap(t => t.members);
+        const uniqueMemberIds = [...new Set(allMembers.map(m => m.user?.id || m.userId).filter(Boolean))];
+        const totalMembers = uniqueMemberIds.length;
         
         // Calculer les membres actifs (ceux qui ont une session ouverte)
-        const allMembers = teamsWithMembers.flatMap(t => t.members);
         let activeMembersCount = 0;
         let totalMinutesThisWeek = 0;
+        const memberMinutesMap = {}; // Store minutes per user
         
-        // Pour chaque membre, vérifier son dernier clock
+        // Pour chaque membre UNIQUE, vérifier son dernier clock
         await Promise.all(
-          allMembers.map(async (member) => {
-            const userId = member.user?.id ?? member.userId;
-            if (!userId) return;
-            
+          uniqueMemberIds.map(async (userId) => {
+            let minutesForUser = 0;
+
             try {
               // Récupérer le dernier clock
               const { data: clocks } = await api.get(`/api/users/${userId}/clocks`, {
@@ -149,7 +150,7 @@ export default function ManagerDashboard() {
               // Calculer les heures de cette semaine
               const now = new Date();
               const startOfWeek = new Date(now);
-              startOfWeek.setDate(now.getDate() - 6); // 7 derniers jours
+              startOfWeek.setDate(now.getDate() - 6); 
               startOfWeek.setHours(0, 0, 0, 0);
               
               const { data: weekClocks } = await api.get(`/api/users/${userId}/clocks/range`, {
@@ -164,20 +165,33 @@ export default function ManagerDashboard() {
                   const clockIn = new Date(clock.clockIn);
                   const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
                   const minutes = Math.round((clockOut - clockIn) / 60000);
-                  totalMinutesThisWeek += Math.max(0, minutes);
+                  minutesForUser += Math.max(0, minutes);
                 });
               }
+              
+              memberMinutesMap[userId] = minutesForUser;
+              totalMinutesThisWeek += minutesForUser;
+
             } catch (err) {
               console.warn(`[ManagerDashboard] Erreur pour membre ${userId}:`, err);
             }
           })
         );
         
+        // Re-map teams to include their total minutes (Summing distinct member contributions per team)
+        const teamsWithStats = teamsWithMembers.map(team => {
+             const teamMinutes = team.members.reduce((acc, member) => {
+                 const userId = member.user?.id ?? member.userId;
+                 return acc + (memberMinutesMap[userId] || 0);
+             }, 0);
+             return { ...team, minutesThisWeek: teamMinutes };
+        });
+        
         const totalHours = Math.floor(totalMinutesThisWeek / 60);
         
-        setTeams(teamsWithMembers);
+        setTeams(teamsWithStats);
         setStats({
-          totalTeams: teamsWithMembers.length,
+          totalTeams: teamsWithStats.length,
           totalMembers,
           activeMembers: activeMembersCount,
           totalHoursThisWeek: totalHours,
@@ -195,166 +209,236 @@ export default function ManagerDashboard() {
   // Charger les vraies statistiques avec charts
   useEffect(() => {
     if (!stats.totalMembers || !user) return;
-    // loadDashboard(); // Removed to prevent infinite loop
     
     const loadRealStats = async () => {
       try {
         const now = new Date();
-
-        // Utiliser les vraies périodes d'affichage pour la granularité sélectionnée
         const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
-        const previousBoundaries = getDisplayPeriodBoundariesShifted(selectedGranularity, 1);
-
-        // La période actuelle commence au début de la première période d'affichage
+        
         const startOfCurrentPeriod = periodBoundaries[0].startDate;
         const endOfCurrentPeriod = now;
+        
+        // Single Period for Evolution
+        const latestPeriod = periodBoundaries[periodBoundaries.length - 1];
+        const singleCurrentStart = latestPeriod.startDate;
+        const singleCurrentEnd = latestPeriod.endDate; 
+        
+        let singlePreviousStart, singlePreviousEnd;
+        if (periodBoundaries.length >= 2) {
+            const prev = periodBoundaries[periodBoundaries.length - 2];
+            singlePreviousStart = prev.startDate;
+            singlePreviousEnd = prev.endDate;
+        } else {
+            singlePreviousStart = new Date(singleCurrentStart);
+            if (selectedGranularity === 'day') singlePreviousStart.setDate(singlePreviousStart.getDate() - 1);
+            else if (selectedGranularity === 'week') singlePreviousStart.setDate(singlePreviousStart.getDate() - 7);
+            singlePreviousEnd = new Date(singleCurrentStart); 
+        }
 
-        // La période précédente
-        const startOfPreviousPeriod = previousBoundaries[0].startDate;
-        const endOfPreviousPeriod = startOfCurrentPeriod;
+        let totalCurrentMinutes = 0; 
+        let singleCurrentMinutes = 0; 
+        let singlePreviousMinutes = 0; 
 
-        // Récupérer tous les membres de toutes les équipes
+        const dailyHoursMap = {}; // Actual hours
+        const dailyScheduledMap = {}; // Scheduled hours
+        const dailyOverlapMap = {}; // Overlap (Adherence)
+        
+        let totalScheduledMinutes = 0;
+        let totalOverlapMinutes = 0;
+
+        // Extract Unique Users
         const allMemberIds = teams.flatMap(team => 
           team.members.map(member => member.user?.id || member.userId)
         ).filter(Boolean);
-        
-        let totalCurrentMinutes = 0;
-        let totalPreviousMinutes = 0;
-        let totalLateDays = 0;
-        let totalWorkedDays = 0;
-        const dailyHoursMap = {};
-        const dailyLateMap = {}; // Ajouter un map pour les retards par jour
-        
-        // Pour chaque membre, récupérer les heures travaillées
-        await Promise.all(
-          allMemberIds.map(async (userId) => {
-            try {
-              // Période actuelle
-              const { data: currentClocks } = await api.get(`/api/users/${userId}/clocks/range`, {
-                params: {
-                  from: startOfCurrentPeriod.toISOString(),
-                  to: endOfCurrentPeriod.toISOString()
+        const uniqueMemberIds = [...new Set(allMemberIds)];
+
+        const userStatsMap = {}; // { userId: { totalMin: 0, clocks: [], shifts: [] } }
+
+        // 1. Parallel Fetch: Clocks AND Shifts for all users/teams
+        // We fetch shifts by team, but we need to map them to users
+        const [clocksResults, shiftsResults] = await Promise.all([
+            // Fetch Clocks for all users
+            Promise.all(uniqueMemberIds.map(async (userId) => {
+                try {
+                    const { data } = await api.get(`/api/users/${userId}/clocks/range`, {
+                        params: { from: startOfCurrentPeriod.toISOString(), to: endOfCurrentPeriod.toISOString() }
+                    });
+                    return { userId, clocks: Array.isArray(data) ? data : [] };
+                } catch (e) { return { userId, clocks: [] }; }
+            })),
+            // Fetch Shifts for all teams
+            Promise.all(teams.map(async (team) => {
+                try {
+                    const data = await workShiftsApi.listForTeam(team.id, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString());
+                    return Array.isArray(data) ? data : [];
+                } catch (e) { return []; }
+            }))
+        ]);
+
+        // 2. Process Clocks (Actual Volume)
+        clocksResults.forEach(({ userId, clocks }) => {
+            userStatsMap[userId] = { totalMin: 0, clocks }; // Store clocks for overlap calc
+            
+            clocks.forEach(clock => {
+                const clockIn = new Date(clock.clockIn);
+                const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
+                const minutes = Math.max(0, Math.round((clockOut - clockIn) / 60000));
+                
+                // Global Stats
+                totalCurrentMinutes += minutes;
+                userStatsMap[userId].totalMin += minutes;
+
+                if (clockIn >= singleCurrentStart && clockIn <= singleCurrentEnd) {
+                    singleCurrentMinutes += minutes;
+                } else if (clockIn >= singlePreviousStart && clockIn <= singlePreviousEnd) {
+                    singlePreviousMinutes += minutes;
                 }
-              });
 
-              // Période précédente
-              const { data: previousClocks } = await api.get(`/api/users/${userId}/clocks/range`, {
-                params: {
-                  from: startOfPreviousPeriod.toISOString(),
-                  to: endOfPreviousPeriod.toISOString()
-                }
-              });
-              
-              // Calculer les minutes pour la période actuelle
-              if (Array.isArray(currentClocks)) {
-                currentClocks.forEach(clock => {
-                  const clockIn = new Date(clock.clockIn);
-                  const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
-                  const minutes = Math.round((clockOut - clockIn) / 60000);
-                  totalCurrentMinutes += Math.max(0, minutes);
+                // Daily Map (Actual)
+                const dayKey = toParis(clockIn).toISOString().split('T')[0];
+                dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
+            });
+        });
 
-                  // Regrouper par jour pour le graphique (utiliser l'heure de Paris pour la clé du jour)
-                  const clockInParis = toParis(clockIn);
-                  const yearStr = clockInParis.getFullYear();
-                  const monthStr = String(clockInParis.getMonth() + 1).padStart(2, '0');
-                  const dayStr = String(clockInParis.getDate()).padStart(2, '0');
-                  const dayKey = `${yearStr}-${monthStr}-${dayStr}`;
-                  dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
+        // 3. Process Shifts & Calculate Overlap (True Adherence)
+        const allShifts = shiftsResults.flat();
+        
+        // Map team -> members for team shifts
+        const teamMembersMap = {};
+        teams.forEach(t => {
+            teamMembersMap[t.id] = t.members.map(m => m.user?.id || m.userId).filter(Boolean);
+        });
+        
+        allShifts.forEach(shift => {
+            const shiftStart = new Date(shift.startAt);
+            const shiftEnd = new Date(shift.endAt);
+            const shiftDuration = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
+            const dayKey = toParis(shiftStart).toISOString().split('T')[0];
 
-                  // Vérifier si c'est un retard (après 9h30 heure de Paris)
-                  if (clockInParis.getHours() > 9 || (clockInParis.getHours() === 9 && clockInParis.getMinutes() >= 30)) {
-                    totalLateDays++;
-                    dailyLateMap[dayKey] = (dailyLateMap[dayKey] || 0) + 1;
-                  }
-                });
-                totalWorkedDays += currentClocks.length;
-              }
-              
-              // Calculer les minutes pour la période précédente
-              if (Array.isArray(previousClocks)) {
-                previousClocks.forEach(clock => {
-                  const clockIn = new Date(clock.clockIn);
-                  const clockOut = clock.clockOut ? new Date(clock.clockOut) : startOfCurrentPeriod;
-                  const minutes = Math.round((clockOut - clockIn) / 60000);
-                  totalPreviousMinutes += Math.max(0, minutes);
-                });
-              }
-            } catch (err) {
-              console.warn(`[ManagerDashboard] Erreur stats pour utilisateur ${userId}:`, err);
+            // Determine target users for this shift
+            let targetUserIds = [];
+            if (shift.employeeId) {
+                targetUserIds = [shift.employeeId];
+            } else if (shift.teamId && teamMembersMap[shift.teamId]) {
+                targetUserIds = teamMembersMap[shift.teamId];
             }
-          })
-        );
-        
-        // Calculer les moyennes
-        const avgCurrentMinutes = allMemberIds.length > 0 ? totalCurrentMinutes / allMemberIds.length : 0;
-        const avgPreviousMinutes = allMemberIds.length > 0 ? totalPreviousMinutes / allMemberIds.length : 0;
 
-        // Aggreger les heures par période
+            // Process for each target user
+            targetUserIds.forEach(userId => {
+                totalScheduledMinutes += shiftDuration;
+                dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + shiftDuration;
+
+                // Calculate Overlap
+                if (userStatsMap[userId]) {
+                    const userClocks = userStatsMap[userId].clocks;
+                    let minutesCovered = 0;
+
+                    userClocks.forEach(clock => {
+                        const clockIn = new Date(clock.clockIn);
+                        const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
+
+                        const overlapStart = new Date(Math.max(shiftStart, clockIn));
+                        const overlapEnd = new Date(Math.min(shiftEnd, clockOut));
+                        
+                        if (overlapEnd > overlapStart) {
+                            minutesCovered += Math.round((overlapEnd - overlapStart) / 60000);
+                        }
+                    });
+
+                    const effectiveOverlap = Math.min(minutesCovered, shiftDuration);
+                    totalOverlapMinutes += effectiveOverlap;
+                    dailyOverlapMap[dayKey] = (dailyOverlapMap[dayKey] || 0) + effectiveOverlap;
+                }
+            });
+        });
+
+        // 4. Aggregate Per Team (using processed user stats)
+        const teamMinutesMap = {};
+        teams.forEach(team => {
+            let teamTotalMinutes = 0;
+            team.members.forEach(member => {
+                const userId = member.user?.id || member.userId;
+                if (userStatsMap[userId]) {
+                    teamTotalMinutes += userStatsMap[userId].totalMin;
+                }
+            });
+            teamMinutesMap[team.id] = { name: team.name, minutes: teamTotalMinutes };
+        });
+        
+        // Build Team Comparison Data
+        const comparisonData = Object.values(teamMinutesMap)
+            .map(t => ({ name: t.name, value: Math.round(t.minutes / 60 * 10) / 10 })) 
+            .sort((a, b) => b.value - a.value); 
+
+        setTeamComparisonData(comparisonData);
+
+        // Chart Data: Hours
         const hoursPerPeriod = periodBoundaries.map(period => {
           let totalMin = 0;
           Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
-            const dayDate = new Date(dayKey + 'T00:00:00');
-            if (dayDate >= period.startDate && dayDate <= period.endDate) {
-              totalMin += minutes;
-            }
+            const dayDate = new Date(dayKey);
+            if (dayDate >= period.startDate && dayDate <= period.endDate) totalMin += minutes;
           });
           return { date: period.label, minutesWorked: totalMin };
         });
 
-        // Aggreger les retards par période
-        const latePerPeriod = periodBoundaries.map(period => {
-          let lateCount = 0;
-          Object.entries(dailyLateMap).forEach(([dayKey, count]) => {
-            const dayDate = new Date(dayKey + 'T00:00:00');
-            if (dayDate >= period.startDate && dayDate <= period.endDate) {
-              lateCount += count;
-            }
-          });
-          return { date: period.label, minutesWorked: lateCount > 0 ? 1 : 0 };
+        // Chart Data: Adherence (Using Overlap)
+        const adherencePerPeriod = periodBoundaries.map(period => {
+            let overlap = 0;
+            let scheduled = 0;
+            Object.entries(dailyOverlapMap).forEach(([dayKey, minutes]) => {
+                const dayDate = new Date(dayKey);
+                if (dayDate >= period.startDate && dayDate <= period.endDate) overlap += minutes;
+            });
+            Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
+                const dayDate = new Date(dayKey);
+                if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
+            });
+            
+            // Adherence = Overlap / Scheduled
+            const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : (overlap > 0 ? 100 : 0);
+            // Note: If overlap > 0 but scheduled = 0 (unscheduled work), we could decide it's 100% or N/A. 
+            // Standard adherence usually penalizes unscheduled work, but here we treat "Presence" as good.
+            
+            return { date: period.label, value: rate };
         });
 
-        // Moyenne par période
-        const periodsWithWork = periodBoundaries.filter(p =>
-          hoursPerPeriod.find(h => h.date === p.label && h.minutesWorked > 0)
-        ).length || 1;
-        const avgPeriodicMin = Math.round(totalCurrentMinutes / periodsWithWork);
-        const avgData = hoursPerPeriod.map(hp => ({ date: hp.date, minutesWorked: avgPeriodicMin }));
-
-        // Calculer le taux de retard
-        const latenessRate = totalWorkedDays > 0 ? (totalLateDays / totalWorkedDays) * 100 : 0;
+        const globalAdherenceRate = totalScheduledMinutes > 0 
+            ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100) 
+            : 0; // If nothing scheduled, 0% adherence to planning? Or 100? Let's say 0 if no plan exists.
 
         const hoursData = buildChartSeries(hoursPerPeriod, 12, selectedPeriod);
-        const avgChartData = buildChartSeries(avgData, 12, selectedPeriod);
-        const latenessSeries = buildChartSeries(latePerPeriod, 12, selectedPeriod);
+        const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value })); 
+        const adherenceSeries = buildChartSeries(adherenceForChart, 12, selectedPeriod);
 
-        // Convertir les minutes en heures pour l'affichage
-        const hoursCurrentDisplay = Math.round(totalCurrentMinutes / 60 * 100) / 100; // 2 décimales
-        const hoursPreviousDisplay = Math.round(totalPreviousMinutes / 60 * 100) / 100;
-        const avgCurrentDisplay = Math.round(avgCurrentMinutes / 60 * 100) / 100;
-        const avgPreviousDisplay = Math.round(avgPreviousMinutes / 60 * 100) / 100;
+        const hoursCurrentDisplay = Math.round(totalCurrentMinutes / 60 * 100) / 100;
+        const scheduledHoursDisplay = Math.round(totalScheduledMinutes / 60);
+        
+        // Evolution logic
+        const singleCurrentHours = singleCurrentMinutes / 60;
+        const singlePreviousHours = singlePreviousMinutes / 60;
+        const evolutionRate = singlePreviousHours > 0 
+            ? ((singleCurrentHours - singlePreviousHours) / singlePreviousHours) * 100 
+            : 0;
+            
+        let evolutionLabel = "vs période précédente";
+        if (selectedGranularity === 'week') evolutionLabel = "vs semaine précédente";
+        if (selectedGranularity === 'day') evolutionLabel = "vs hier";
+        if (selectedGranularity === 'month') evolutionLabel = "vs mois précédent";
+        if (selectedGranularity === 'year') evolutionLabel = "vs année précédente";
         
         setHoursTotals({
           current: hoursCurrentDisplay,
-          previous: hoursPreviousDisplay,
           currentMinutes: totalCurrentMinutes,
-          previousMinutes: totalPreviousMinutes
-        });
-        
-        setAvgTotals({
-          current: avgCurrentDisplay,
-          previous: avgPreviousDisplay,
-          currentMinutes: avgCurrentMinutes,
-          previousMinutes: avgPreviousMinutes
+          evolutionRate: evolutionRate,
+          evolutionLabel: evolutionLabel
         });
         
         setHoursChartSeries(hoursData);
-        setAvgChartSeries(avgChartData);
-        
-        setLatenessData({
-          totalDays: totalWorkedDays,
-          lateDays: totalLateDays,
-          rate: latenessRate,
-          lateDaysChartSeries: latenessSeries
+        setAdherenceData({
+          rate: globalAdherenceRate,
+          scheduledHours: scheduledHoursDisplay,
+          chartSeries: adherenceSeries
         });
         
       } catch (err) {
@@ -505,6 +589,9 @@ export default function ManagerDashboard() {
                                     <div className="flex items-center mt-2 text-xs text-gray-600">
                                       <Users className="w-3 h-3 mr-1" />
                                       {team.memberCount} {team.memberCount > 1 ? 'membres' : 'membre'}
+                                      <span className="mx-2">•</span>
+                                      <Clock className="w-3 h-3 mr-1" />
+                                      {Math.round((team.minutesThisWeek || 0) / 60)}h
                                     </div>
                                   </div>
                                   <Button
@@ -585,19 +672,24 @@ export default function ManagerDashboard() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-6">
-                        {/* Heures totales */}
+                        {/* Heures totales + Evolution (Merged) */}
                         <Card>
                           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-gray-500">
-                              Heures totales équipes
+                              Volume de Travail Global
                             </CardTitle>
                             <Clock className="h-4 w-4 text-gray-400" />
                           </CardHeader>
                           <CardContent>
-                            <div className="text-2xl font-bold">
-                              {Math.floor(hoursTotals.current)}h {Math.round((hoursTotals.current % 1) * 60)}m
+                            <div className="flex items-end gap-2">
+                                <div className="text-2xl font-bold">
+                                {Math.floor(hoursTotals.current)}h {Math.round((hoursTotals.current % 1) * 60)}m
+                                </div>
+                                <div className={`text-sm mb-1 font-medium ${hoursTotals.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {hoursTotals.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(hoursTotals.evolutionRate).toFixed(1)}%
+                                </div>
                             </div>
-                            <p className="text-xs text-gray-500 mt-2">{getPeriodInfo(selectedGranularity).label}</p>
+                            <p className="text-xs text-gray-500 mt-2">{hoursTotals.evolutionLabel || "vs période précédente"}</p>
                             <div className="h-[120px] mt-4">
                               <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={hoursChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
@@ -618,104 +710,70 @@ export default function ManagerDashboard() {
                           </CardContent>
                         </Card>
 
-                        {/* Taux de retard */}
+                        {/* Adhérence Planning */}
                         <Card>
                           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-gray-500">
-                              Taux de retard
+                              Respect du Planning
                             </CardTitle>
-                            <AlertCircle className="h-4 w-4 text-gray-400" />
+                            <CalendarCheck className="h-4 w-4 text-gray-400" />
                           </CardHeader>
                           <CardContent>
-                            <div className="text-2xl font-bold">{latenessData.rate.toFixed(1)}%</div>
-                            <p className="text-xs text-gray-500 mt-2">{latenessData.lateDays} jours en retard sur {latenessData.totalDays} jours travaillés</p>
+                            <div className="text-2xl font-bold">{adherenceData.rate.toFixed(1)}%</div>
+                            <p className="text-xs text-gray-500 mt-2">
+                                {adherenceData.scheduledHours}h planifiées sur la période
+                            </p>
                             <div className="h-[120px] mt-4">
                               <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={latenessData.lateDaysChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
+                                <AreaChart data={adherenceData.chartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
                                   <defs>
-                                    <linearGradient id="lateFill" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="6%" stopColor="var(--color-mobile)" stopOpacity={0.16} />
-                                      <stop offset="95%" stopColor="var(--color-mobile)" stopOpacity={0.03} />
+                                    <linearGradient id="adhFill" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="6%" stopColor="#10b981" stopOpacity={0.16} />
+                                      <stop offset="95%" stopColor="#10b981" stopOpacity={0.03} />
                                     </linearGradient>
                                   </defs>
                                   <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
                                   <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
                                   <YAxis hide />
-                                  <RechartsTooltip content={<CustomTooltip type="lateness" />} cursor={false} />
-                                  <Area type="monotone" dataKey="value" stroke="var(--color-mobile)" fill="url(#lateFill)" strokeWidth={2} dot={false} />
+                                  <RechartsTooltip content={<CustomTooltip type="adherence" />} cursor={false} />
+                                  <Area type="monotone" dataKey="value" stroke="#10b981" fill="url(#adhFill)" strokeWidth={2} dot={false} />
                                 </AreaChart>
                               </ResponsiveContainer>
                             </div>
                           </CardContent>
                         </Card>
 
-                        {/* Moyenne par membre */}
+                        {/* Comparaison des Équipes */}
                         <Card>
                           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-gray-500">
-                              Moyenne par membre
+                              Comparaison des Équipes
                             </CardTitle>
-                            <User className="h-4 w-4 text-gray-400" />
+                            <Users className="h-4 w-4 text-gray-400" />
                           </CardHeader>
                           <CardContent>
                             <div className="text-2xl font-bold">
-                              {Math.floor(avgTotals.current)}h {Math.round((avgTotals.current % 1) * 60)}m
+                                {teamComparisonData.length > 0 ? teamComparisonData[0]?.name : 'Aucune donnée'}
                             </div>
-                            <p className="text-xs text-gray-500 mt-2">Moyenne par {selectedGranularity === 'day' ? 'jour' : selectedGranularity === 'week' ? 'semaine' : selectedGranularity === 'month' ? 'mois' : 'année'}</p>
+                            <p className="text-xs text-gray-500 mt-2">Équipe la plus active sur la période</p>
                             <div className="h-[120px] mt-4">
                               <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={avgChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
-                                  <defs>
-                                    <linearGradient id="avgFill" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="6%" stopColor="var(--color-mobile)" stopOpacity={0.16} />
-                                      <stop offset="95%" stopColor="var(--color-mobile)" stopOpacity={0.03} />
-                                    </linearGradient>
-                                  </defs>
+                                <BarChart data={teamComparisonData} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
                                   <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
-                                  <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
+                                  <XAxis dataKey="name" axisLine={false} tick={{ fontSize: 12 }} interval={0} />
                                   <YAxis hide />
-                                  <RechartsTooltip content={<CustomTooltip type="avg" />} cursor={false} />
-                                  <Area type="monotone" dataKey="value" stroke="var(--color-mobile)" fill="url(#avgFill)" strokeWidth={2} dot={false} />
-                                </AreaChart>
+                                  <RechartsTooltip content={<CustomTooltip type="teams" />} cursor={false} />
+                                  <Bar dataKey="value" fill="var(--color-desktop)" radius={[4, 4, 0, 0]}>
+                                    {teamComparisonData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={index === 0 ? '#2563eb' : '#94a3b8'} />
+                                    ))}
+                                  </Bar>
+                                </BarChart>
                               </ResponsiveContainer>
                             </div>
                           </CardContent>
                         </Card>
 
-                        {/* Comparaison */}
-                        <Card>
-                          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-gray-500">
-                              Comparaison
-                            </CardTitle>
-                            <TrendingUp className="h-4 w-4 text-gray-400" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="text-2xl font-bold">
-                              {hoursTotals.currentMinutes >= hoursTotals.previousMinutes ? "↗" : "↘"} 
-                              {" "}
-                              {hoursTotals.previousMinutes > 0 ? Math.abs(((hoursTotals.currentMinutes - hoursTotals.previousMinutes) / hoursTotals.previousMinutes * 100).toFixed(1)) : '0'}%
-                            </div>
-                            <p className="text-xs text-gray-500 mt-2">vs période précédente</p>
-                            <div className="h-[120px] mt-4">
-                              <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={hoursChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
-                                  <defs>
-                                    <linearGradient id="compFill" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="6%" stopColor="var(--color-desktop)" stopOpacity={0.16} />
-                                      <stop offset="95%" stopColor="var(--color-desktop)" stopOpacity={0.03} />
-                                    </linearGradient>
-                                  </defs>
-                                  <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
-                                  <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
-                                  <YAxis hide />
-                                  <RechartsTooltip content={<CustomTooltip type="comparison" />} cursor={false} />
-                                  <Area type="monotone" dataKey="value" stroke="var(--color-desktop)" fill="url(#compFill)" strokeWidth={2} dot={false} />
-                                </AreaChart>
-                              </ResponsiveContainer>
-                            </div>
-                          </CardContent>
-                        </Card>
                       </div>
                     </CardContent>
                   </Card>
