@@ -11,6 +11,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 
@@ -28,11 +29,17 @@ public class LeavesController {
             @Valid @RequestBody LeaveRequestCreateDTO body,
             @RequestParam(defaultValue = "UTC") String zone // if frontend sends local datetimes
     ) {
-        var z = ZoneId.of(zone);
-        var start = body.getStartAt().atZone(ZoneId.systemDefault()).withZoneSameInstant(z).toLocalDate();
-        var end   = body.getEndAt().atZone(ZoneId.systemDefault()).withZoneSameInstant(z).toLocalDate();
+        ZoneId z = ZoneId.of(zone);
+        LocalDate start = body.getStartAt()
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(z)
+                .toLocalDate();
+        LocalDate end = body.getEndAt()
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(z)
+                .toLocalDate();
 
-        var created = leaves.requestLeave(
+        LeaveRequest created = leaves.requestLeave(
                 employeeId,
                 body.getType(),
                 start,
@@ -76,5 +83,59 @@ public class LeavesController {
     @GetMapping("/pending")
     public ResponseEntity<List<LeaveRequest>> listPending() {
         return ResponseEntity.ok(leaves.listPendingForApprover());
+    }
+
+    /**
+     * List all leave requests for an employee between two dates (inclusive).
+     * Example:
+     * GET /api/leaves/window?employeeId=1&from=2025-12-01&to=2026-03-31
+     */
+    @GetMapping("/window")
+    public ResponseEntity<List<LeaveRequest>> listForEmployeeInWindow(
+            @RequestParam Long employeeId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+    ) {
+        return ResponseEntity.ok(leaves.listForEmployeeInWindow(employeeId, from, to));
+    }
+
+    /**
+     * Update an existing leave request (only if PENDING).
+     * Dates are interpreted similarly to creation: the frontend sends datetimes,
+     * we convert them to dates in the requested zone.
+     */
+    @PutMapping("/{leaveId}")
+    public ResponseEntity<LeaveRequest> updateLeave(
+            @PathVariable Long leaveId,
+            @Valid @RequestBody LeaveRequestCreateDTO body,
+            @RequestParam(defaultValue = "UTC") String zone
+    ) {
+        ZoneId z = ZoneId.of(zone);
+        LocalDate start = body.getStartAt()
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(z)
+                .toLocalDate();
+        LocalDate end = body.getEndAt()
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(z)
+                .toLocalDate();
+
+        LeaveRequest updated = leaves.update(
+                leaveId,
+                body.getType(),
+                start,
+                end,
+                body.getReason()
+        );
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * Delete a leave request (only if PENDING).
+     */
+    @DeleteMapping("/{leaveId}")
+    public ResponseEntity<Void> deleteLeave(@PathVariable Long leaveId) {
+        leaves.delete(leaveId);
+        return ResponseEntity.noContent().build();
     }
 }
