@@ -12,14 +12,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -32,15 +30,12 @@ class UserServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
-    private UserMapper userMapper = Mappers.getMapper(UserMapper.class);
+    @Mock
+    private TeamMemberRepository teamMemberRepository;
+
+    private final UserMapper userMapper = Mappers.getMapper(UserMapper.class);
 
     private UserService userService;
-
-    private final TeamMemberRepository teamMemberRepository;
-
-    UserServiceTest(TeamMemberRepository teamMemberRepository) {
-        this.teamMemberRepository = teamMemberRepository;
-    }
 
     @BeforeEach
     void setUp() {

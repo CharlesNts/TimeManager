@@ -29,11 +29,17 @@ public class LeavesController {
             @Valid @RequestBody LeaveRequestCreateDTO body,
             @RequestParam(defaultValue = "UTC") String zone // if frontend sends local datetimes
     ) {
-        var z = ZoneId.of(zone);
-        var start = body.getStartAt().atZone(ZoneId.systemDefault()).withZoneSameInstant(z).toLocalDate();
-        var end   = body.getEndAt().atZone(ZoneId.systemDefault()).withZoneSameInstant(z).toLocalDate();
+        ZoneId z = ZoneId.of(zone);
+        LocalDate start = body.getStartAt()
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(z)
+                .toLocalDate();
+        LocalDate end = body.getEndAt()
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(z)
+                .toLocalDate();
 
-        var created = leaves.requestLeave(
+        LeaveRequest created = leaves.requestLeave(
                 employeeId,
                 body.getType(),
                 start,
@@ -79,6 +85,11 @@ public class LeavesController {
         return ResponseEntity.ok(leaves.listPendingForApprover());
     }
 
+    /**
+     * List all leave requests for an employee between two dates (inclusive).
+     * Example:
+     * GET /api/leaves/window?employeeId=1&from=2025-12-01&to=2026-03-31
+     */
     @GetMapping("/window")
     public ResponseEntity<List<LeaveRequest>> listForEmployeeInWindow(
             @RequestParam Long employeeId,
@@ -88,19 +99,28 @@ public class LeavesController {
         return ResponseEntity.ok(leaves.listForEmployeeInWindow(employeeId, from, to));
     }
 
+    /**
+     * Update an existing leave request (only if PENDING).
+     * Dates are interpreted similarly to creation: the frontend sends datetimes,
+     * we convert them to dates in the requested zone.
+     */
     @PutMapping("/{leaveId}")
-    public ResponseEntity<LeaveRequest> update(
+    public ResponseEntity<LeaveRequest> updateLeave(
             @PathVariable Long leaveId,
-            @RequestParam Long employeeId,
             @Valid @RequestBody LeaveRequestCreateDTO body,
             @RequestParam(defaultValue = "UTC") String zone
     ) {
-        var z = ZoneId.of(zone);
-        var start = body.getStartAt().atZone(ZoneId.systemDefault()).withZoneSameInstant(z).toLocalDate();
-        var end   = body.getEndAt().atZone(ZoneId.systemDefault()).withZoneSameInstant(z).toLocalDate();
+        ZoneId z = ZoneId.of(zone);
+        LocalDate start = body.getStartAt()
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(z)
+                .toLocalDate();
+        LocalDate end = body.getEndAt()
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(z)
+                .toLocalDate();
 
-        var updated = leaves.updateLeave(
-                employeeId,
+        LeaveRequest updated = leaves.update(
                 leaveId,
                 body.getType(),
                 start,
@@ -110,13 +130,12 @@ public class LeavesController {
         return ResponseEntity.ok(updated);
     }
 
+    /**
+     * Delete a leave request (only if PENDING).
+     */
     @DeleteMapping("/{leaveId}")
-    public ResponseEntity<Void> delete(
-            @PathVariable Long leaveId,
-            @RequestParam Long employeeId
-    ) {
-        leaves.delete(employeeId, leaveId);
+    public ResponseEntity<Void> deleteLeave(@PathVariable Long leaveId) {
+        leaves.delete(leaveId);
         return ResponseEntity.noContent().build();
     }
-
 }

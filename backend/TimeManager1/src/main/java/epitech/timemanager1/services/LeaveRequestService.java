@@ -79,12 +79,11 @@ public class LeaveRequestService {
             throw new ConflictException("Only PENDING leaves can be approved");
         }
 
-        boolean overlapsApproved = leaves.existsOverlappingApprovedOrPending(
+        boolean overlapsApprovedOrPending = leaves.existsOverlappingApprovedOrPending(
                 lr.getEmployee().getId(), lr.getStartDate(), lr.getEndDate());
 
         // If overlap exists and it’s the same record, it’s fine; otherwise block.
-        if (overlapsApproved) {
-            // A light re-check via list + id filter if you want to be strict:
+        if (overlapsApprovedOrPending) {
             boolean conflicts = leaves.findByEmployeeIdOrderByStartDateAsc(lr.getEmployee().getId())
                     .stream()
                     .filter(other -> !other.getId().equals(lr.getId()))
@@ -92,7 +91,9 @@ public class LeaveRequestService {
                             other.getStatus() == LeaveStatus.APPROVED &&
                                     !(lr.getEndDate().isBefore(other.getStartDate()) ||
                                             lr.getStartDate().isAfter(other.getEndDate())));
-            if (conflicts) throw new ConflictException("Conflicts with an already APPROVED leave");
+            if (conflicts) {
+                throw new ConflictException("Conflicts with an already APPROVED leave");
+            }
         }
 
         lr.setStatus(LeaveStatus.APPROVED);
@@ -126,59 +127,69 @@ public class LeaveRequestService {
     public List<LeaveRequest> listPendingForApprover() {
         return leaves.findByStatusOrderByStartDateAsc(LeaveStatus.PENDING);
     }
+
     /** Simple month (or any window) view for a user. */
     @Transactional
     public List<LeaveRequest> listForEmployeeInWindow(Long employeeId, LocalDate from, LocalDate to) {
         return leaves.findForEmployeeInWindow(employeeId, from, to);
     }
 
-    public LeaveRequest updateLeave(Long employeeId,
-                                    Long leaveId,
-                                    LeaveType type,
-                                    LocalDate startDate,
-                                    LocalDate endDate,
-                                    String reason) {
+    /** Update a PENDING leave request. */
+    public LeaveRequest update(Long leaveId,
+                               LeaveType type,
+                               LocalDate startDate,
+                               LocalDate endDate,
+                               String reason) {
 
-        if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
+        LeaveRequest lr = leaves.findById(leaveId)
+                .orElseThrow(() -> new NotFoundException("Leave not found: " + leaveId));
+
+        if (lr.getStatus() != LeaveStatus.PENDING) {
+            throw new ConflictException("Only PENDING leaves can be updated");
+        }
+
+        LocalDate newStart = (startDate != null) ? startDate : lr.getStartDate();
+        LocalDate newEnd   = (endDate   != null) ? endDate   : lr.getEndDate();
+
+        if (newStart == null || newEnd == null || newStart.isAfter(newEnd)) {
             throw new ConflictException("Invalid date range");
         }
 
-        LeaveRequest lr = leaves.findById(leaveId)
-                .orElseThrow(() -> new NotFoundException("Leave not found: " + leaveId));
+        Long employeeId = lr.getEmployee().getId();
 
-        if (!lr.getEmployee().getId().equals(employeeId)) {
-            throw new ConflictException("Cannot modify another user's leave");
+        // Same overlap rule as creation, but exclude current leave id.
+        boolean overlaps = leaves.existsOverlappingApprovedOrPending(employeeId, newStart, newEnd);
+        if (overlaps) {
+            boolean conflicts = leaves.findByEmployeeIdOrderByStartDateAsc(employeeId)
+                    .stream()
+                    .filter(other -> !other.getId().equals(lr.getId()))
+                    .anyMatch(other ->
+                            (other.getStatus() == LeaveStatus.APPROVED ||
+                                    other.getStatus() == LeaveStatus.PENDING) &&
+                                    !(newEnd.isBefore(other.getStartDate()) ||
+                                            newStart.isAfter(other.getEndDate())));
+            if (conflicts) {
+                throw new ConflictException("Overlaps an existing leave (APPROVED or PENDING)");
+            }
         }
-        if (lr.getStatus() != LeaveStatus.PENDING) {
-            throw new ConflictException("Only PENDING leaves can be modified");
+
+        lr.setType(type != null ? type : lr.getType());
+        lr.setStartDate(newStart);
+        lr.setEndDate(newEnd);
+        if (reason != null) {
+            lr.setReason(reason);
         }
-
-        // Check overlap like in requestLeave
-        boolean overlaps = leaves.existsOverlappingApprovedOrPending(employeeId, startDate, endDate);
-        if (overlaps && (!startDate.equals(lr.getStartDate()) || !endDate.equals(lr.getEndDate()))) {
-            throw new ConflictException("Overlaps an existing leave (APPROVED or PENDING)");
-        }
-
-        lr.setType(type);
-        lr.setStartDate(startDate);
-        lr.setEndDate(endDate);
-        lr.setReason(reason);
-
-        return lr;
+        return lr; // managed entity
     }
 
-    public void delete(Long employeeId, Long leaveId) {
+    /** Delete a PENDING leave request. */
+    public void delete(Long leaveId) {
         LeaveRequest lr = leaves.findById(leaveId)
                 .orElseThrow(() -> new NotFoundException("Leave not found: " + leaveId));
 
-        if (!lr.getEmployee().getId().equals(employeeId)) {
-            throw new ConflictException("Cannot delete another user's leave");
+        if (lr.getStatus() != LeaveStatus.PENDING) {
+            throw new ConflictException("Only PENDING leaves can be deleted");
         }
-
-        if (lr.getStatus() == LeaveStatus.APPROVED) {
-            throw new ConflictException("Cannot delete an APPROVED leave");
-        }
-
         leaves.delete(lr);
     }
 }
