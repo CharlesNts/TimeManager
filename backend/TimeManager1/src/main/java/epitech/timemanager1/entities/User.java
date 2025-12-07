@@ -8,14 +8,15 @@ import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.time.LocalDateTime;
 
 @Entity
+@JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 @EntityListeners(AuditingEntityListener.class)
-@Table(name = "users",
-        indexes = {
+@Table(name = "users", indexes = {
                 @Index(name = "ix_users_email", columnList = "email", unique = true)
-        })
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -23,38 +24,38 @@ import java.time.LocalDateTime;
 @Builder
 public class User {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+        @Id
+        @GeneratedValue(strategy = GenerationType.IDENTITY)
+        private Long id;
 
-    @NotBlank
-    @Size(max = 80)
-    private String firstName;
+        @NotBlank
+        @Size(max = 80)
+        private String firstName;
 
-    @NotBlank
-    @Size(max = 80)
-    private String lastName;
+        @NotBlank
+        @Size(max = 80)
+        private String lastName;
 
-    @Email
-    @NotBlank
-    @Size(max = 160)
-    @Column(nullable = false, unique = true, length = 160)
-    private String email;
+        @Email
+        @NotBlank
+        @Size(max = 160)
+        @Column(nullable = false, unique = true, length = 160)
+        private String email;
 
-    @Size(max = 40)
-    private String phoneNumber;
+        @Size(max = 40)
+        private String phoneNumber;
 
-    @Column(nullable = false, length = 60)
-    private String password; // BCrypt hash
+        @Column(nullable = false, length = 60)
+        private String password; // BCrypt hash
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 16)
-    private Role role = Role.EMPLOYEE;
+        @Enumerated(EnumType.STRING)
+        @Column(nullable = false, length = 16)
+        private Role role = Role.EMPLOYEE;
 
-    @CreatedDate
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+        @CreatedDate
+        @Column(nullable = false, updatable = false)
+        private LocalDateTime createdAt;
 
-    @Column(nullable = false)
-    private boolean active = false; // user is inactive by default
+        @Column(nullable = false)
+        private boolean active = false; // user is inactive by default
 }

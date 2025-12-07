@@ -25,10 +25,10 @@ public class LeaveRequestService {
 
     /** Employee submits a PENDING leave request. */
     public LeaveRequest requestLeave(Long employeeId,
-                                     LeaveType type,
-                                     LocalDate startDate,
-                                     LocalDate endDate,
-                                     String reason) {
+            LeaveType type,
+            LocalDate startDate,
+            LocalDate endDate,
+            String reason) {
 
         if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
             throw new ConflictException("Invalid date range");
@@ -87,10 +87,9 @@ public class LeaveRequestService {
             boolean conflicts = leaves.findByEmployeeIdOrderByStartDateAsc(lr.getEmployee().getId())
                     .stream()
                     .filter(other -> !other.getId().equals(lr.getId()))
-                    .anyMatch(other ->
-                            other.getStatus() == LeaveStatus.APPROVED &&
-                                    !(lr.getEndDate().isBefore(other.getStartDate()) ||
-                                            lr.getStartDate().isAfter(other.getEndDate())));
+                    .anyMatch(other -> other.getStatus() == LeaveStatus.APPROVED &&
+                            !(lr.getEndDate().isBefore(other.getStartDate()) ||
+                                    lr.getStartDate().isAfter(other.getEndDate())));
             if (conflicts) {
                 throw new ConflictException("Conflicts with an already APPROVED leave");
             }
@@ -136,10 +135,10 @@ public class LeaveRequestService {
 
     /** Update a PENDING leave request. */
     public LeaveRequest update(Long leaveId,
-                               LeaveType type,
-                               LocalDate startDate,
-                               LocalDate endDate,
-                               String reason) {
+            LeaveType type,
+            LocalDate startDate,
+            LocalDate endDate,
+            String reason) {
 
         LeaveRequest lr = leaves.findById(leaveId)
                 .orElseThrow(() -> new NotFoundException("Leave not found: " + leaveId));
@@ -149,7 +148,7 @@ public class LeaveRequestService {
         }
 
         LocalDate newStart = (startDate != null) ? startDate : lr.getStartDate();
-        LocalDate newEnd   = (endDate   != null) ? endDate   : lr.getEndDate();
+        LocalDate newEnd = (endDate != null) ? endDate : lr.getEndDate();
 
         if (newStart == null || newEnd == null || newStart.isAfter(newEnd)) {
             throw new ConflictException("Invalid date range");
@@ -163,11 +162,10 @@ public class LeaveRequestService {
             boolean conflicts = leaves.findByEmployeeIdOrderByStartDateAsc(employeeId)
                     .stream()
                     .filter(other -> !other.getId().equals(lr.getId()))
-                    .anyMatch(other ->
-                            (other.getStatus() == LeaveStatus.APPROVED ||
-                                    other.getStatus() == LeaveStatus.PENDING) &&
-                                    !(newEnd.isBefore(other.getStartDate()) ||
-                                            newStart.isAfter(other.getEndDate())));
+                    .anyMatch(other -> (other.getStatus() == LeaveStatus.APPROVED ||
+                            other.getStatus() == LeaveStatus.PENDING) &&
+                            !(newEnd.isBefore(other.getStartDate()) ||
+                                    newStart.isAfter(other.getEndDate())));
             if (conflicts) {
                 throw new ConflictException("Overlaps an existing leave (APPROVED or PENDING)");
             }
