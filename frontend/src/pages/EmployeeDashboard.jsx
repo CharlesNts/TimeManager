@@ -387,13 +387,22 @@ export default function EmployeeDashboard() {
   };
 
   const handleExportPDF = () => {
-    // Stats need to be adapted for the PDF function if it expects specific shape, 
-    // or update PDF export. Passing generic stats object.
-    exportEmployeeDashboardPDF(targetUser || user, stats, recentClocks, getPeriodInfo(selectedGranularity).periodCount);
+    const chartData = {
+      hoursChartSeries,
+      adherenceChartSeries: adherenceData.chartSeries,
+      adherenceRate: adherenceData.rate,
+    };
+    const granularityLabel = getPeriodInfo(selectedGranularity).label;
+    exportEmployeeDashboardPDF(targetUser || user, stats, recentClocks, chartData, granularityLabel);
   };
 
   const handleExportCSV = () => {
-    exportEmployeeDashboardCSV(targetUser || user, stats, recentClocks, getPeriodInfo(selectedGranularity).periodCount);
+    const chartData = {
+      hoursChartSeries,
+      adherenceRate: adherenceData.rate,
+    };
+    const granularityLabel = getPeriodInfo(selectedGranularity).label;
+    exportEmployeeDashboardCSV(targetUser || user, stats, recentClocks, chartData, granularityLabel);
   };
 
   if (isViewingOtherEmployee && !viewedEmployee) {

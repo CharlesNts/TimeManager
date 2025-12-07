@@ -12,6 +12,7 @@ import ConfirmModal from '../components/ui/ConfirmModal';
 import PeriodSelector from '../components/manager/PeriodSelector';
 import ExportMenu from '../components/ui/ExportMenu';
 import { getPeriodInfo } from '../utils/granularityUtils';
+import { exportTeamDetailPDF } from '../utils/pdfExport';
 
 import {
   ArrowLeft,
@@ -542,7 +543,14 @@ export default function TeamDetail() {
   };
 
   const handleExportPDF = () => {
-    alert(`🚧 Export PDF backend à brancher : /api/teams/${teamId}/export?period=${selectedPeriod}&format=pdf`);
+    const chartData = {
+      hoursTotals,
+      hoursChartSeries,
+      memberComparisonData,
+      adherenceRate: adherenceData.rate,
+    };
+    const granularityLabel = getPeriodInfo(selectedGranularity).label;
+    exportTeamDetailPDF(team, members, chartData, granularityLabel);
   };
 
   const getStatusBadge = (status) => {

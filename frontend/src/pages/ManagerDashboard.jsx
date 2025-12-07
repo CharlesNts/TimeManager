@@ -493,11 +493,25 @@ export default function ManagerDashboard() {
 
 
   const handleExportPDF = () => {
-    exportManagerDashboardPDF(user, stats, teams);
+    const chartData = {
+      hoursTotals,
+      hoursChartSeries,
+      teamComparisonData,
+      adherenceRate: adherenceData.rate,
+    };
+    const granularityLabel = getPeriodInfo(selectedGranularity).label;
+    exportManagerDashboardPDF(user, stats, teams, chartData, granularityLabel);
   };
 
   const handleExportCSV = () => {
-    exportManagerDashboardCSV(user, stats, teams);
+    const chartData = {
+      hoursTotals,
+      hoursChartSeries,
+      teamComparisonData,
+      adherenceRate: adherenceData.rate,
+    };
+    const granularityLabel = getPeriodInfo(selectedGranularity).label;
+    exportManagerDashboardCSV(user, stats, teams, chartData, granularityLabel);
   };
 
   return (

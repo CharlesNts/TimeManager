@@ -6,7 +6,7 @@
  * @returns {string} - Chaîne CSV
  */
 const arrayToCSV = (data) => {
-  return data.map(row => 
+  return data.map(row =>
     row.map(cell => {
       // Échapper les guillemets et entourer de guillemets si nécessaire
       const cellStr = String(cell ?? '');
@@ -27,11 +27,11 @@ const downloadCSV = (content, filename) => {
   const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
-  
+
   link.setAttribute('href', url);
   link.setAttribute('download', filename);
   link.style.visibility = 'hidden';
-  
+
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -42,29 +42,42 @@ const downloadCSV = (content, filename) => {
  * @param {Object} user - Utilisateur connecté
  * @param {Object} stats - Statistiques du dashboard
  * @param {Array} recentClocks - Historique récent des pointages
- * @param {number} period - Période en jours (7, 30, etc.)
+ * @param {Object} chartData - Données des graphiques
+ * @param {string} granularityLabel - Label de la granularité
  */
-export const exportEmployeeDashboardCSV = (user, stats, recentClocks = [], period = 7) => {
+export const exportEmployeeDashboardCSV = (user, stats, recentClocks = [], chartData = {}, granularityLabel = 'Cette semaine') => {
   const today = new Date().toLocaleDateString('fr-FR');
-  const periodLabel = period === 7 ? 'Semaine' : period === 30 ? 'Mois' : `${period} jours`;
-  
+
   const data = [
     ['TimeManager - Rapport Personnel'],
     [''],
-    ['Employe', `${user.firstName} ${user.lastName}`],
-    ['Periode', periodLabel],
-    ['Date generation', today],
+    ['Employé', `${user.firstName} ${user.lastName}`],
+    ['Période', granularityLabel],
+    ['Date génération', today],
     [''],
     ['=== STATISTIQUES ==='],
     ['Indicateur', 'Valeur'],
-    ['Heures cette semaine', stats.hoursWeek || '0h 00m'],
-    ['Heures ce mois', stats.hoursWeek || '0h 00m'], // Même valeur car basé sur période sélectionnée
-    ['Moyenne quotidienne', stats.avgWeek || '0h 00m'],
-    ['Statut actuel', 'Hors ligne'], // Pas de statut actuel dans les stats
+    ['Heures travaillées', `${stats.hoursCurrent || 0}h${String(stats.minutesCurrent || 0).padStart(2, '0')}`],
+    ['Adhérence planning', `${(chartData.adherenceRate || 0).toFixed(1)}%`],
     [''],
-    ['=== HISTORIQUE RECENT ==='],
-    ['Date', 'Entrée', 'Sortie', 'Durée'],
+    ['> Heures travaillees = Total des heures pointees sur la periode'],
+    ['> Adherence = Pourcentage de respect du planning prevu'],
+    [''],
+    ['=== ÉVOLUTION DES HEURES ==='],
+    ['Période', 'Heures'],
   ];
+
+  // Ajouter les données du graphique d'heures
+  if (chartData.hoursChartSeries && chartData.hoursChartSeries.length > 0) {
+    chartData.hoursChartSeries.forEach(point => {
+      const hours = typeof point.value === 'number' ? (point.value / 60).toFixed(1) + 'h' : '-';
+      data.push([point.label || '-', hours]);
+    });
+  }
+
+  data.push(['']);
+  data.push(['=== HISTORIQUE RÉCENT ===']);
+  data.push(['Date', 'Entrée', 'Sortie', 'Durée']);
 
   recentClocks.slice(0, 20).forEach(c => {
     data.push([
@@ -84,14 +97,25 @@ export const exportEmployeeDashboardCSV = (user, stats, recentClocks = [], perio
  * @param {Object} user - Utilisateur connecté
  * @param {Object} stats - Statistiques du dashboard
  * @param {Array} teams - Liste des équipes
+ * @param {Object} chartData - Données des graphiques
+ * @param {string} granularityLabel - Label de la granularité
  */
-export const exportManagerDashboardCSV = (user, stats, teams = []) => {
+export const exportManagerDashboardCSV = (user, stats, teams = [], chartData = {}, granularityLabel = 'Cette semaine') => {
   const today = new Date().toLocaleDateString('fr-FR');
-  
+
+  // Format hours helper
+  const formatHours = (h) => {
+    if (typeof h !== 'number') return '0h00';
+    const hours = Math.floor(h);
+    const mins = Math.round((h % 1) * 60);
+    return `${hours}h${mins.toString().padStart(2, '0')}`;
+  };
+
   const data = [
     ['TimeManager - Dashboard Manager'],
     [''],
     ['Manager', `${user.firstName} ${user.lastName}`],
+    ['Période', granularityLabel],
     ['Date génération', today],
     [''],
     ['=== VUE D\'ENSEMBLE ==='],
@@ -99,17 +123,41 @@ export const exportManagerDashboardCSV = (user, stats, teams = []) => {
     ['Mes équipes', stats.totalTeams?.toString() || '0'],
     ['Total membres', stats.totalMembers?.toString() || '0'],
     ['Membres actifs', stats.activeMembers?.toString() || '0'],
-    ['Heures cette semaine', `${stats.totalHoursThisWeek || 0}h`],
+    ['Heures moyennes/période', formatHours(chartData.hoursTotals?.current || 0)],
+    ['Adhérence moyenne', `${(chartData.adherenceRate || 0).toFixed(1)}%`],
     [''],
-    ['=== MES EQUIPES ==='],
-    ['Nom', 'Description', 'Membres'],
+    ['=== ÉVOLUTION DES HEURES ==='],
+    ['Période', 'Heures'],
   ];
+
+  // Ajouter les données du graphique d'heures
+  if (chartData.hoursChartSeries && chartData.hoursChartSeries.length > 0) {
+    chartData.hoursChartSeries.forEach(point => {
+      const hours = typeof point.value === 'number' ? (point.value / 60).toFixed(1) + 'h' : '-';
+      data.push([point.label || '-', hours]);
+    });
+  }
+
+  data.push(['']);
+  data.push(['=== COMPARAISON ÉQUIPES ===']);
+  data.push(['Équipe', 'Heures']);
+
+  // Ajouter les données de comparaison
+  if (chartData.teamComparisonData && chartData.teamComparisonData.length > 0) {
+    chartData.teamComparisonData.forEach(item => {
+      data.push([item.name || '-', `${item.value || 0}h`]);
+    });
+  }
+
+  data.push(['']);
+  data.push(['=== MES ÉQUIPES ===']);
+  data.push(['Nom', 'Description', 'Membres']);
 
   teams.forEach(t => {
     data.push([
       t.name,
-      t.description || 'Aucune description',
-      t.memberCount?.toString() || '0',
+      t.description || '-',
+      (t.members?.length || t.memberCount || 0).toString(),
     ]);
   });
 
@@ -126,7 +174,7 @@ export const exportManagerDashboardCSV = (user, stats, teams = []) => {
  */
 export const exportCEODashboardCSV = (user, stats, pendingUsers = [], recentTeams = []) => {
   const today = new Date().toLocaleDateString('fr-FR');
-  
+
   const data = [
     ['TimeManager - Dashboard CEO'],
     [''],
@@ -175,7 +223,7 @@ export const exportCEODashboardCSV = (user, stats, pendingUsers = [], recentTeam
  */
 export const exportUsersListCSV = (users = []) => {
   const today = new Date().toLocaleDateString('fr-FR');
-  
+
   const data = [
     ['TimeManager - Liste des Utilisateurs'],
     [''],
