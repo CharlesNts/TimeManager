@@ -12,7 +12,7 @@ export default function PendingLeavesWidget() {
   const [processingId, setProcessingId] = useState(null);
   const [showRejectNote, setShowRejectNote] = useState(null);
   const [rejectNote, setRejectNote] = useState('');
-  const [backendNotConfigured] = useState(true); // TODO: Remove when backend is fixed
+  const [backendNotConfigured] = useState(true); // Backend bug: ByteBuddyInterceptor serialization error - needs @JsonIgnoreProperties fix
 
   useEffect(() => {
     loadPendingLeaves();
@@ -113,9 +113,9 @@ export default function PendingLeavesWidget() {
             <details className="text-xs text-yellow-700">
               <summary className="cursor-pointer font-semibold mb-2">Détails techniques (cliquer pour voir)</summary>
               <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-left font-mono text-xs space-y-1">
-                <p><strong>Problème:</strong> L&apos;endpoint /api/leaves/pending retourne TOUTES les demandes du système.</p>
-                <p><strong>Solution:</strong> Le controller doit extraire le manager connecté et appeler findPendingForManager(managerId).</p>
-                <p><strong>Fichier:</strong> LeavesController.java (ligne 76-79)</p>
+                <p><strong>Erreur:</strong> ByteBuddyInterceptor serialization error (500)</p>
+                <p><strong>Cause:</strong> L&apos;entité LeaveRequest retourne des proxies Hibernate non sérialisables.</p>
+                <p><strong>Solution:</strong> Ajouter @JsonIgnoreProperties(&quot;hibernateLazyInitializer&quot;, &quot;handler&quot;) sur LeaveRequest.java</p>
                 <p><strong>Status:</strong> En attente de correction backend</p>
               </div>
             </details>

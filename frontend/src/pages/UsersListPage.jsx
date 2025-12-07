@@ -303,8 +303,9 @@ export default function UsersListPage() {
   };
 
   const handleReject = async (userId) => {
+    if (!confirm('Êtes-vous sûr de vouloir rejeter cet utilisateur ? Il sera supprimé du système.')) return;
     try {
-      await rejectUser(userId);
+      await deleteUser(userId);
       await loadAll();
     } catch (e) {
       alert(e?.message || 'Échec du rejet');

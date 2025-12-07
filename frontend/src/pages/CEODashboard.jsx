@@ -39,7 +39,7 @@ export default function CEODashboard() {
         // Charger tous les utilisateurs et utilisateurs en attente
         const [usersRes, pendingRes] = await Promise.all([
           api.get('/api/users'),
-          api.get('/api/users/users/pending')
+          api.get('/api/users/pending')
         ]);
 
         const users = Array.isArray(usersRes.data) ? usersRes.data : [];
