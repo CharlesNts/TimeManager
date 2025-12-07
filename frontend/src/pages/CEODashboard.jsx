@@ -10,6 +10,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import api from '../api/client';
+import reportsApi from '../api/reportsApi';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import KPICard from '../components/dashboard/KPICard';
 import ExportMenu from '../components/ui/ExportMenu';
@@ -28,6 +29,9 @@ export default function CEODashboard() {
     totalTeams: 0,
     totalManagers: 0,
     activeEmployees: 0,
+    latenessRate: 0,
+    lateDays: 0,
+    totalDaysWithClock: 0,
   });
 
   useEffect(() => {
@@ -68,6 +72,23 @@ export default function CEODashboard() {
           new Map(teamsFlat.map(t => [t.id, t])).values()
         );
 
+        // Calculer le taux de retard global (tous les employés)
+        const currentMonthStr = new Date().toISOString().substring(0, 7);
+        const latenessPromises = users.map(u =>
+          reportsApi.getUserLatenessRate(u.id, currentMonthStr)
+            .catch(() => ({ rate: 0, lateDays: 0, totalDaysWithClock: 0 }))
+        );
+        const latenessResults = await Promise.all(latenessPromises);
+        let totalLateDays = 0;
+        let totalDaysWithClock = 0;
+        latenessResults.forEach(r => {
+          totalLateDays += r.lateDays || 0;
+          totalDaysWithClock += r.totalDaysWithClock || 0;
+        });
+        const globalLatenessRate = totalDaysWithClock > 0
+          ? (totalLateDays / totalDaysWithClock) * 100
+          : 0;
+
         setStats({
           totalUsers: approvedCount + pendingList.length,
           pendingUsers: pendingList.length,
@@ -75,6 +96,9 @@ export default function CEODashboard() {
           totalTeams: uniqueTeams.length,
           totalManagers: managers.length,
           activeEmployees: employees.length,
+          latenessRate: globalLatenessRate,
+          lateDays: totalLateDays,
+          totalDaysWithClock: totalDaysWithClock,
         });
 
       } catch (err) {
@@ -167,6 +191,13 @@ export default function CEODashboard() {
                     value={stats.activeEmployees}
                     icon={UserCheck}
                     chartColor="var(--color-mobile)"
+                  />
+                  <KPICard
+                    title="Taux de retard"
+                    value={`${stats.latenessRate.toFixed(1)}%`}
+                    icon={AlertCircle}
+                    chartColor="#f59e0b"
+                    trend={`${stats.lateDays} jour(s) en retard`}
                   />
                 </div>
 
