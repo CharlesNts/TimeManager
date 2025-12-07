@@ -14,7 +14,8 @@ import {
   CalendarClock,
 } from 'lucide-react';
 import api from '../api/client';
-import workShiftsApi from '../api/workShiftsApi'; // Added import
+import workShiftsApi from '../api/workShiftsApi';
+import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
 import TeamFormModal from '../components/manager/TeamFormModal';
 import WorkScheduleConfigurator from '../components/manager/WorkScheduleConfigurator';
 import PendingLeavesWidget from '../components/manager/PendingLeavesWidget';
@@ -86,13 +87,13 @@ export default function ManagerDashboard() {
     activeMembers: 0,
     totalHoursThisWeek: 0,
   });
-  
+
   // KPI states avec charts
   const [selectedGranularity, setSelectedGranularity] = useState('week');
   const selectedPeriod = getPeriodInfo(selectedGranularity).periodCount;
   const [hoursTotals, setHoursTotals] = useState({ current: 0, previous: 0 });
   const [hoursChartSeries, setHoursChartSeries] = useState([]);
-  
+
   const [teamComparisonData, setTeamComparisonData] = useState([]); // New state for Team Comparison
 
   const [adherenceData, setAdherenceData] = useState({ rate: 0, scheduledHours: 0, chartSeries: [] });
@@ -100,108 +101,108 @@ export default function ManagerDashboard() {
   // extract loadDashboard so it can be called after team creation
   const loadDashboard = useCallback(async () => {
     if (!user || user.role !== 'MANAGER') return;
-    
+
     setLoading(true);
     try {
-        // Charger les équipes du manager
-        const { data: myTeams } = await api.get('/api/teams', {
-          params: { managerId: user.id }
-        });
-        
-        const teamsArray = Array.isArray(myTeams) ? myTeams : [];
-        
-        // Pour chaque équipe, charger les membres
-        const teamsWithMembers = await Promise.all(
-          teamsArray.map(async (team) => {
-            try {
-              const { data: members } = await api.get(`/api/teams/${team.id}/members`);
-              return {
-                ...team,
-                members: Array.isArray(members) ? members : [],
-                memberCount: Array.isArray(members) ? members.length : 0,
-              };
-            } catch {
-              return { ...team, members: [], memberCount: 0 };
+      // Charger les équipes du manager
+      const { data: myTeams } = await api.get('/api/teams', {
+        params: { managerId: user.id }
+      });
+
+      const teamsArray = Array.isArray(myTeams) ? myTeams : [];
+
+      // Pour chaque équipe, charger les membres
+      const teamsWithMembers = await Promise.all(
+        teamsArray.map(async (team) => {
+          try {
+            const { data: members } = await api.get(`/api/teams/${team.id}/members`);
+            return {
+              ...team,
+              members: Array.isArray(members) ? members : [],
+              memberCount: Array.isArray(members) ? members.length : 0,
+            };
+          } catch {
+            return { ...team, members: [], memberCount: 0 };
+          }
+        })
+      );
+
+      // Calculer les stats globales (Unique users)
+      const allMembers = teamsWithMembers.flatMap(t => t.members);
+      const uniqueMemberIds = [...new Set(allMembers.map(m => m.user?.id || m.userId).filter(Boolean))];
+      const totalMembers = uniqueMemberIds.length;
+
+      // Calculer les membres actifs (ceux qui ont une session ouverte)
+      let activeMembersCount = 0;
+      let totalMinutesThisWeek = 0;
+      const memberMinutesMap = {}; // Store minutes per user
+
+      // Pour chaque membre UNIQUE, vérifier son dernier clock
+      await Promise.all(
+        uniqueMemberIds.map(async (userId) => {
+          let minutesForUser = 0;
+
+          try {
+            // Récupérer le dernier clock
+            const { data: clocks } = await api.get(`/api/users/${userId}/clocks`, {
+              params: { page: 0, size: 1, sort: 'clockIn,desc' }
+            });
+            const lastClock = clocks?.content?.[0];
+
+            // Si le dernier clock n'a pas de clockOut, l'utilisateur est actif
+            if (lastClock && !lastClock.clockOut) {
+              activeMembersCount++;
             }
-          })
-        );
 
-        // Calculer les stats globales (Unique users)
-        const allMembers = teamsWithMembers.flatMap(t => t.members);
-        const uniqueMemberIds = [...new Set(allMembers.map(m => m.user?.id || m.userId).filter(Boolean))];
-        const totalMembers = uniqueMemberIds.length;
-        
-        // Calculer les membres actifs (ceux qui ont une session ouverte)
-        let activeMembersCount = 0;
-        let totalMinutesThisWeek = 0;
-        const memberMinutesMap = {}; // Store minutes per user
-        
-        // Pour chaque membre UNIQUE, vérifier son dernier clock
-        await Promise.all(
-          uniqueMemberIds.map(async (userId) => {
-            let minutesForUser = 0;
+            // Calculer les heures de cette semaine
+            const now = new Date();
+            const startOfWeek = new Date(now);
+            startOfWeek.setDate(now.getDate() - 6);
+            startOfWeek.setHours(0, 0, 0, 0);
 
-            try {
-              // Récupérer le dernier clock
-              const { data: clocks } = await api.get(`/api/users/${userId}/clocks`, {
-                params: { page: 0, size: 1, sort: 'clockIn,desc' }
-              });
-              const lastClock = clocks?.content?.[0];
-              
-              // Si le dernier clock n'a pas de clockOut, l'utilisateur est actif
-              if (lastClock && !lastClock.clockOut) {
-                activeMembersCount++;
+            const { data: weekClocks } = await api.get(`/api/users/${userId}/clocks/range`, {
+              params: {
+                from: startOfWeek.toISOString(),
+                to: now.toISOString()
               }
-              
-              // Calculer les heures de cette semaine
-              const now = new Date();
-              const startOfWeek = new Date(now);
-              startOfWeek.setDate(now.getDate() - 6); 
-              startOfWeek.setHours(0, 0, 0, 0);
-              
-              const { data: weekClocks } = await api.get(`/api/users/${userId}/clocks/range`, {
-                params: {
-                  from: startOfWeek.toISOString(),
-                  to: now.toISOString()
-                }
-              });
-              
-              if (Array.isArray(weekClocks)) {
-                weekClocks.forEach(clock => {
-                  const clockIn = new Date(clock.clockIn);
-                  const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
-                  const minutes = Math.round((clockOut - clockIn) / 60000);
-                  minutesForUser += Math.max(0, minutes);
-                });
-              }
-              
-              memberMinutesMap[userId] = minutesForUser;
-              totalMinutesThisWeek += minutesForUser;
+            });
 
-            } catch (err) {
-              console.warn(`[ManagerDashboard] Erreur pour membre ${userId}:`, err);
+            if (Array.isArray(weekClocks)) {
+              weekClocks.forEach(clock => {
+                const clockIn = new Date(clock.clockIn);
+                const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
+                const minutes = Math.round((clockOut - clockIn) / 60000);
+                minutesForUser += Math.max(0, minutes);
+              });
             }
-          })
-        );
-        
-        // Re-map teams to include their total minutes (Summing distinct member contributions per team)
-        const teamsWithStats = teamsWithMembers.map(team => {
-             const teamMinutes = team.members.reduce((acc, member) => {
-                 const userId = member.user?.id ?? member.userId;
-                 return acc + (memberMinutesMap[userId] || 0);
-             }, 0);
-             return { ...team, minutesThisWeek: teamMinutes };
-        });
-        
-        const totalHours = Math.floor(totalMinutesThisWeek / 60);
-        
-        setTeams(teamsWithStats);
-        setStats({
-          totalTeams: teamsWithStats.length,
-          totalMembers,
-          activeMembers: activeMembersCount,
-          totalHoursThisWeek: totalHours,
-        });
+
+            memberMinutesMap[userId] = minutesForUser;
+            totalMinutesThisWeek += minutesForUser;
+
+          } catch (err) {
+            console.warn(`[ManagerDashboard] Erreur pour membre ${userId}:`, err);
+          }
+        })
+      );
+
+      // Re-map teams to include their total minutes (Summing distinct member contributions per team)
+      const teamsWithStats = teamsWithMembers.map(team => {
+        const teamMinutes = team.members.reduce((acc, member) => {
+          const userId = member.user?.id ?? member.userId;
+          return acc + (memberMinutesMap[userId] || 0);
+        }, 0);
+        return { ...team, minutesThisWeek: teamMinutes };
+      });
+
+      const totalHours = Math.floor(totalMinutesThisWeek / 60);
+
+      setTeams(teamsWithStats);
+      setStats({
+        totalTeams: teamsWithStats.length,
+        totalMembers,
+        activeMembers: activeMembersCount,
+        totalHoursThisWeek: totalHours,
+      });
 
     } catch (err) {
       console.error('[ManagerDashboard] Erreur chargement:', err);
@@ -211,49 +212,49 @@ export default function ManagerDashboard() {
   }, [user]);
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
-  
+
   // Charger les vraies statistiques avec charts
   useEffect(() => {
     if (!stats.totalMembers || !user) return;
-    
+
     const loadRealStats = async () => {
       try {
         const now = new Date();
         const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
-        
+
         const startOfCurrentPeriod = periodBoundaries[0].startDate;
         const endOfCurrentPeriod = now;
-        
+
         // Single Period for Evolution
         const latestPeriod = periodBoundaries[periodBoundaries.length - 1];
         const singleCurrentStart = latestPeriod.startDate;
-        const singleCurrentEnd = latestPeriod.endDate; 
-        
+        const singleCurrentEnd = latestPeriod.endDate;
+
         let singlePreviousStart, singlePreviousEnd;
         if (periodBoundaries.length >= 2) {
-            const prev = periodBoundaries[periodBoundaries.length - 2];
-            singlePreviousStart = prev.startDate;
-            singlePreviousEnd = prev.endDate;
+          const prev = periodBoundaries[periodBoundaries.length - 2];
+          singlePreviousStart = prev.startDate;
+          singlePreviousEnd = prev.endDate;
         } else {
-            singlePreviousStart = new Date(singleCurrentStart);
-            if (selectedGranularity === 'day') singlePreviousStart.setDate(singlePreviousStart.getDate() - 1);
-            else if (selectedGranularity === 'week') singlePreviousStart.setDate(singlePreviousStart.getDate() - 7);
-            singlePreviousEnd = new Date(singleCurrentStart); 
+          singlePreviousStart = new Date(singleCurrentStart);
+          if (selectedGranularity === 'day') singlePreviousStart.setDate(singlePreviousStart.getDate() - 1);
+          else if (selectedGranularity === 'week') singlePreviousStart.setDate(singlePreviousStart.getDate() - 7);
+          singlePreviousEnd = new Date(singleCurrentStart);
         }
 
-        let totalCurrentMinutes = 0; 
-        let singleCurrentMinutes = 0; 
-        let singlePreviousMinutes = 0; 
+        let totalCurrentMinutes = 0;
+        let singleCurrentMinutes = 0;
+        let singlePreviousMinutes = 0;
 
         const dailyHoursMap = {}; // Actual hours
         const dailyScheduledMap = {}; // Scheduled hours
         const dailyOverlapMap = {}; // Overlap (Adherence)
-        
+
         let totalScheduledMinutes = 0;
         let totalOverlapMinutes = 0;
 
         // Extract Unique Users
-        const allMemberIds = teams.flatMap(team => 
+        const allMemberIds = teams.flatMap(team =>
           team.members.map(member => member.user?.id || member.userId)
         ).filter(Boolean);
         const uniqueMemberIds = [...new Set(allMemberIds)];
@@ -263,118 +264,118 @@ export default function ManagerDashboard() {
         // 1. Parallel Fetch: Clocks AND Shifts for all users/teams
         // We fetch shifts by team, but we need to map them to users
         const [clocksResults, shiftsResults] = await Promise.all([
-            // Fetch Clocks for all users
-            Promise.all(uniqueMemberIds.map(async (userId) => {
-                try {
-                    const { data } = await api.get(`/api/users/${userId}/clocks/range`, {
-                        params: { from: startOfCurrentPeriod.toISOString(), to: endOfCurrentPeriod.toISOString() }
-                    });
-                    return { userId, clocks: Array.isArray(data) ? data : [] };
-                } catch (e) { return { userId, clocks: [] }; }
-            })),
-            // Fetch Shifts for all teams
-            Promise.all(teams.map(async (team) => {
-                try {
-                    const data = await workShiftsApi.listForTeam(team.id, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString());
-                    return Array.isArray(data) ? data : [];
-                } catch (e) { return []; }
-            }))
+          // Fetch Clocks for all users
+          Promise.all(uniqueMemberIds.map(async (userId) => {
+            try {
+              const { data } = await api.get(`/api/users/${userId}/clocks/range`, {
+                params: { from: startOfCurrentPeriod.toISOString(), to: endOfCurrentPeriod.toISOString() }
+              });
+              return { userId, clocks: Array.isArray(data) ? data : [] };
+            } catch (e) { return { userId, clocks: [] }; }
+          })),
+          // Fetch Shifts for all teams
+          Promise.all(teams.map(async (team) => {
+            try {
+              const data = await workShiftsApi.listForTeam(team.id, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString());
+              return Array.isArray(data) ? data : [];
+            } catch (e) { return []; }
+          }))
         ]);
 
         // 2. Process Clocks (Actual Volume)
         clocksResults.forEach(({ userId, clocks }) => {
-            userStatsMap[userId] = { totalMin: 0, clocks }; // Store clocks for overlap calc
-            
-            clocks.forEach(clock => {
-                const clockIn = new Date(clock.clockIn);
-                const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
-                const minutes = Math.max(0, Math.round((clockOut - clockIn) / 60000));
-                
-                // Global Stats
-                totalCurrentMinutes += minutes;
-                userStatsMap[userId].totalMin += minutes;
+          userStatsMap[userId] = { totalMin: 0, clocks }; // Store clocks for overlap calc
 
-                if (clockIn >= singleCurrentStart && clockIn <= singleCurrentEnd) {
-                    singleCurrentMinutes += minutes;
-                } else if (clockIn >= singlePreviousStart && clockIn <= singlePreviousEnd) {
-                    singlePreviousMinutes += minutes;
-                }
+          clocks.forEach(clock => {
+            const clockIn = new Date(clock.clockIn);
+            const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
+            const minutes = Math.max(0, Math.round((clockOut - clockIn) / 60000));
 
-                // Daily Map (Actual)
-                const dayKey = toParis(clockIn).toISOString().split('T')[0];
-                dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
-            });
+            // Global Stats
+            totalCurrentMinutes += minutes;
+            userStatsMap[userId].totalMin += minutes;
+
+            if (clockIn >= singleCurrentStart && clockIn <= singleCurrentEnd) {
+              singleCurrentMinutes += minutes;
+            } else if (clockIn >= singlePreviousStart && clockIn <= singlePreviousEnd) {
+              singlePreviousMinutes += minutes;
+            }
+
+            // Daily Map (Actual)
+            const dayKey = toParis(clockIn).toISOString().split('T')[0];
+            dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
+          });
         });
 
         // 3. Process Shifts & Calculate Overlap (True Adherence)
         const allShifts = shiftsResults.flat();
-        
+
         // Map team -> members for team shifts
         const teamMembersMap = {};
         teams.forEach(t => {
-            teamMembersMap[t.id] = t.members.map(m => m.user?.id || m.userId).filter(Boolean);
+          teamMembersMap[t.id] = t.members.map(m => m.user?.id || m.userId).filter(Boolean);
         });
-        
+
         allShifts.forEach(shift => {
-            const shiftStart = new Date(shift.startAt);
-            const shiftEnd = new Date(shift.endAt);
-            const shiftDuration = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
-            const dayKey = toParis(shiftStart).toISOString().split('T')[0];
+          const shiftStart = new Date(shift.startAt);
+          const shiftEnd = new Date(shift.endAt);
+          const shiftDuration = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
+          const dayKey = toParis(shiftStart).toISOString().split('T')[0];
 
-            // Determine target users for this shift
-            let targetUserIds = [];
-            if (shift.employeeId) {
-                targetUserIds = [shift.employeeId];
-            } else if (shift.teamId && teamMembersMap[shift.teamId]) {
-                targetUserIds = teamMembersMap[shift.teamId];
-            }
+          // Determine target users for this shift
+          let targetUserIds = [];
+          if (shift.employeeId) {
+            targetUserIds = [shift.employeeId];
+          } else if (shift.teamId && teamMembersMap[shift.teamId]) {
+            targetUserIds = teamMembersMap[shift.teamId];
+          }
 
-            // Process for each target user
-            targetUserIds.forEach(userId => {
-                totalScheduledMinutes += shiftDuration;
-                dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + shiftDuration;
+          // Process for each target user
+          targetUserIds.forEach(userId => {
+            totalScheduledMinutes += shiftDuration;
+            dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + shiftDuration;
 
-                // Calculate Overlap
-                if (userStatsMap[userId]) {
-                    const userClocks = userStatsMap[userId].clocks;
-                    let minutesCovered = 0;
+            // Calculate Overlap
+            if (userStatsMap[userId]) {
+              const userClocks = userStatsMap[userId].clocks;
+              let minutesCovered = 0;
 
-                    userClocks.forEach(clock => {
-                        const clockIn = new Date(clock.clockIn);
-                        const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
+              userClocks.forEach(clock => {
+                const clockIn = new Date(clock.clockIn);
+                const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
 
-                        const overlapStart = new Date(Math.max(shiftStart, clockIn));
-                        const overlapEnd = new Date(Math.min(shiftEnd, clockOut));
-                        
-                        if (overlapEnd > overlapStart) {
-                            minutesCovered += Math.round((overlapEnd - overlapStart) / 60000);
-                        }
-                    });
+                const overlapStart = new Date(Math.max(shiftStart, clockIn));
+                const overlapEnd = new Date(Math.min(shiftEnd, clockOut));
 
-                    const effectiveOverlap = Math.min(minutesCovered, shiftDuration);
-                    totalOverlapMinutes += effectiveOverlap;
-                    dailyOverlapMap[dayKey] = (dailyOverlapMap[dayKey] || 0) + effectiveOverlap;
+                if (overlapEnd > overlapStart) {
+                  minutesCovered += Math.round((overlapEnd - overlapStart) / 60000);
                 }
-            });
+              });
+
+              const effectiveOverlap = Math.min(minutesCovered, shiftDuration);
+              totalOverlapMinutes += effectiveOverlap;
+              dailyOverlapMap[dayKey] = (dailyOverlapMap[dayKey] || 0) + effectiveOverlap;
+            }
+          });
         });
 
         // 4. Aggregate Per Team (using processed user stats)
         const teamMinutesMap = {};
         teams.forEach(team => {
-            let teamTotalMinutes = 0;
-            team.members.forEach(member => {
-                const userId = member.user?.id || member.userId;
-                if (userStatsMap[userId]) {
-                    teamTotalMinutes += userStatsMap[userId].totalMin;
-                }
-            });
-            teamMinutesMap[team.id] = { name: team.name, minutes: teamTotalMinutes };
+          let teamTotalMinutes = 0;
+          team.members.forEach(member => {
+            const userId = member.user?.id || member.userId;
+            if (userStatsMap[userId]) {
+              teamTotalMinutes += userStatsMap[userId].totalMin;
+            }
+          });
+          teamMinutesMap[team.id] = { name: team.name, minutes: teamTotalMinutes };
         });
-        
+
         // Build Team Comparison Data
         const comparisonData = Object.values(teamMinutesMap)
-            .map(t => ({ name: t.name, value: Math.round(t.minutes / 60 * 10) / 10 })) 
-            .sort((a, b) => b.value - a.value); 
+          .map(t => ({ name: t.name, value: Math.round(t.minutes / 60 * 10) / 10 }))
+          .sort((a, b) => b.value - a.value);
 
         setTeamComparisonData(comparisonData);
 
@@ -390,86 +391,94 @@ export default function ManagerDashboard() {
 
         // Chart Data: Adherence (Using Overlap)
         const adherencePerPeriod = periodBoundaries.map(period => {
-            let overlap = 0;
-            let scheduled = 0;
-            Object.entries(dailyOverlapMap).forEach(([dayKey, minutes]) => {
-                const dayDate = new Date(dayKey);
-                if (dayDate >= period.startDate && dayDate <= period.endDate) overlap += minutes;
-            });
-            Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
-                const dayDate = new Date(dayKey);
-                if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
-            });
-            
-            // Adherence = Overlap / Scheduled
-            const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : (overlap > 0 ? 100 : 0);
-            // Note: If overlap > 0 but scheduled = 0 (unscheduled work), we could decide it's 100% or N/A. 
-            // Standard adherence usually penalizes unscheduled work, but here we treat "Presence" as good.
-            
-            return { date: period.label, value: rate };
+          let overlap = 0;
+          let scheduled = 0;
+          Object.entries(dailyOverlapMap).forEach(([dayKey, minutes]) => {
+            const dayDate = new Date(dayKey);
+            if (dayDate >= period.startDate && dayDate <= period.endDate) overlap += minutes;
+          });
+          Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
+            const dayDate = new Date(dayKey);
+            if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
+          });
+
+          // Adherence = Overlap / Scheduled
+          const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : (overlap > 0 ? 100 : 0);
+          // Note: If overlap > 0 but scheduled = 0 (unscheduled work), we could decide it's 100% or N/A. 
+          // Standard adherence usually penalizes unscheduled work, but here we treat "Presence" as good.
+
+          return { date: period.label, value: rate };
         });
 
-        const globalAdherenceRate = totalScheduledMinutes > 0 
-            ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100) 
-            : 0; // If nothing scheduled, 0% adherence to planning? Or 100? Let's say 0 if no plan exists.
+        const globalAdherenceRate = totalScheduledMinutes > 0
+          ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100)
+          : 0; // If nothing scheduled, 0% adherence to planning? Or 100? Let's say 0 if no plan exists.
 
         const hoursData = buildChartSeries(hoursPerPeriod, 12, selectedPeriod);
-        const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value })); 
+        const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value }));
         const adherenceSeries = buildChartSeries(adherenceForChart, 12, selectedPeriod);
 
         const hoursCurrentDisplay = Math.round(totalCurrentMinutes / 60 * 100) / 100;
         const scheduledHoursDisplay = Math.round(totalScheduledMinutes / 60);
-        
+
         // Evolution logic
         const singleCurrentHours = singleCurrentMinutes / 60;
         const singlePreviousHours = singlePreviousMinutes / 60;
-        const evolutionRate = singlePreviousHours > 0 
-            ? ((singleCurrentHours - singlePreviousHours) / singlePreviousHours) * 100 
-            : 0;
-            
+        const evolutionRate = singlePreviousHours > 0
+          ? ((singleCurrentHours - singlePreviousHours) / singlePreviousHours) * 100
+          : 0;
+
         let evolutionLabel = "vs période précédente";
         if (selectedGranularity === 'week') evolutionLabel = "vs semaine précédente";
         if (selectedGranularity === 'day') evolutionLabel = "vs hier";
         if (selectedGranularity === 'month') evolutionLabel = "vs mois précédent";
         if (selectedGranularity === 'year') evolutionLabel = "vs année précédente";
-        
+
         setHoursTotals({
           current: hoursCurrentDisplay,
           currentMinutes: totalCurrentMinutes,
           evolutionRate: evolutionRate,
           evolutionLabel: evolutionLabel
         });
-        
+
         setHoursChartSeries(hoursData);
         setAdherenceData({
           rate: globalAdherenceRate,
           scheduledHours: scheduledHoursDisplay,
           chartSeries: adherenceSeries
         });
-        
+
       } catch (err) {
         console.error('[ManagerDashboard] Erreur chargement statistiques:', err);
       }
     };
-    
+
     loadRealStats();
   }, [stats.totalMembers, selectedGranularity, selectedPeriod, teams, user, loadDashboard]);
 
   // --- Team creation modal state ---
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [teamModalMode, setTeamModalMode] = useState('create');
-  
+
   // --- Work schedule configurator state ---
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedTeamForSchedule, setSelectedTeamForSchedule] = useState(null);
+  const [scheduleForConfig, setScheduleForConfig] = useState(null);
 
   const handleOpenCreateTeam = () => {
     setTeamModalMode('create');
     setIsTeamModalOpen(true);
   };
-  
-  const handleOpenScheduleConfig = (team) => {
+
+  const handleOpenScheduleConfig = async (team) => {
     setSelectedTeamForSchedule(team);
+    try {
+      const active = await scheduleTemplatesApi.getActiveForTeam(team.id);
+      setScheduleForConfig(active || null);
+    } catch (e) {
+      console.error('Erreur chargement planning actif:', e);
+      setScheduleForConfig(null);
+    }
     setIsScheduleModalOpen(true);
   };
 
@@ -478,7 +487,7 @@ export default function ManagerDashboard() {
       // Le modal a déjà créé l'équipe et nous renvoie l'objet créé
       setIsTeamModalOpen(false);
       await loadDashboard();
-      
+
       // Proposer de configurer les horaires après création
       const shouldConfig = window.confirm(
         `Équipe "${savedTeam.name}" créée avec succès !\n\nVoulez-vous configurer les horaires de travail maintenant ?`
@@ -510,7 +519,7 @@ export default function ManagerDashboard() {
     >
       <div className="p-8 space-y-6">
         <div className="max-w-7xl mx-auto">
-          
+
           {/* Header */}
           <div className="mb-6">
             <div className="flex items-center justify-between">
@@ -521,7 +530,7 @@ export default function ManagerDashboard() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <ExportMenu 
+                <ExportMenu
                   onExportPDF={handleExportPDF}
                   onExportCSV={handleExportCSV}
                   variant="outline"
@@ -547,7 +556,7 @@ export default function ManagerDashboard() {
             <div className="space-y-6">
               {/* Layout en 2 colonnes : Équipes à gauche (33%), Statistiques à droite (67%) */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
+
                 {/* Colonne gauche : Vos équipes (33%) */}
                 <div className="lg:col-span-1">
                   <div className="sticky top-6">
@@ -666,7 +675,7 @@ export default function ManagerDashboard() {
                             Aperçu des performances de vos équipes - {getPeriodInfo(selectedGranularity).label}
                           </CardDescription>
                         </div>
-                        <ExportMenu 
+                        <ExportMenu
                           onExportPDF={handleExportPDF}
                           onExportCSV={handleExportCSV}
                           variant="default"
@@ -688,12 +697,12 @@ export default function ManagerDashboard() {
                           </CardHeader>
                           <CardContent>
                             <div className="flex items-end gap-2">
-                                <div className="text-2xl font-bold">
+                              <div className="text-2xl font-bold">
                                 {Math.floor(hoursTotals.current)}h {Math.round((hoursTotals.current % 1) * 60)}m
-                                </div>
-                                <div className={`text-sm mb-1 font-medium ${hoursTotals.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {hoursTotals.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(hoursTotals.evolutionRate).toFixed(1)}%
-                                </div>
+                              </div>
+                              <div className={`text-sm mb-1 font-medium ${hoursTotals.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {hoursTotals.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(hoursTotals.evolutionRate).toFixed(1)}%
+                              </div>
                             </div>
                             <p className="text-xs text-gray-500 mt-2">{hoursTotals.evolutionLabel || "vs période précédente"}</p>
                             <div className="h-[120px] mt-4">
@@ -727,7 +736,7 @@ export default function ManagerDashboard() {
                           <CardContent>
                             <div className="text-2xl font-bold">{adherenceData.rate.toFixed(1)}%</div>
                             <p className="text-xs text-gray-500 mt-2">
-                                {adherenceData.scheduledHours}h planifiées sur la période
+                              {adherenceData.scheduledHours}h planifiées sur la période
                             </p>
                             <div className="h-[120px] mt-4">
                               <ResponsiveContainer width="100%" height="100%">
@@ -759,7 +768,7 @@ export default function ManagerDashboard() {
                           </CardHeader>
                           <CardContent>
                             <div className="text-2xl font-bold">
-                                {teamComparisonData.length > 0 ? teamComparisonData[0]?.name : 'Aucune donnée'}
+                              {teamComparisonData.length > 0 ? teamComparisonData[0]?.name : 'Aucune donnée'}
                             </div>
                             <p className="text-xs text-gray-500 mt-2">Équipe la plus active sur la période</p>
                             <div className="h-[120px] mt-4">
@@ -771,7 +780,7 @@ export default function ManagerDashboard() {
                                   <RechartsTooltip content={<CustomTooltip type="teams" />} cursor={false} />
                                   <Bar dataKey="value" fill="var(--color-desktop)" radius={[4, 4, 0, 0]}>
                                     {teamComparisonData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={index === 0 ? '#2563eb' : '#94a3b8'} />
+                                      <Cell key={`cell-${index}`} fill={index === 0 ? '#2563eb' : '#94a3b8'} />
                                     ))}
                                   </Bar>
                                 </BarChart>
@@ -790,33 +799,34 @@ export default function ManagerDashboard() {
               <div>
                 <PendingLeavesWidget />
               </div>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
+      </div>
 
-        {/* Team modal - rendered globally so it can open regardless of teams list */}
-        <TeamFormModal
-          isOpen={isTeamModalOpen}
-          mode={teamModalMode}
-          team={null}
-          onClose={() => setIsTeamModalOpen(false)}
-          onSave={handleSaveTeam}
-          userRole={user?.role}
-          currentUserId={user?.id}
-        />
-        
-        {/* Work schedule configurator modal */}
-        <WorkScheduleConfigurator
-          open={isScheduleModalOpen}
-          onClose={() => setIsScheduleModalOpen(false)}
-          teamId={selectedTeamForSchedule?.id}
-          teamName={selectedTeamForSchedule?.name}
-          onSave={() => {
-            setIsScheduleModalOpen(false);
-            loadDashboard(); // Recharger les données après sauvegarde
-          }}
-        />
+      {/* Team modal - rendered globally so it can open regardless of teams list */}
+      <TeamFormModal
+        isOpen={isTeamModalOpen}
+        mode={teamModalMode}
+        team={null}
+        onClose={() => setIsTeamModalOpen(false)}
+        onSave={handleSaveTeam}
+        userRole={user?.role}
+        currentUserId={user?.id}
+      />
+
+      {/* Work schedule configurator modal */}
+      <WorkScheduleConfigurator
+        open={isScheduleModalOpen}
+        onClose={() => setIsScheduleModalOpen(false)}
+        teamId={selectedTeamForSchedule?.id}
+        teamName={selectedTeamForSchedule?.name}
+        schedule={scheduleForConfig}
+        onSave={() => {
+          setIsScheduleModalOpen(false);
+          loadDashboard();
+        }}
+      />
     </Layout>
   );
 }
