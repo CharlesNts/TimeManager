@@ -24,6 +24,7 @@ public class ScheduleTemplateService {
     private final TeamRepository teams;
     private final WorkShiftRepository workShifts;
 
+    // -------- CREATE --------
     public ScheduleTemplate create(Long teamId, String name, boolean active, String weeklyPatternJson) {
         Team team = teams.findById(teamId)
                 .orElseThrow(() -> new NotFoundException("Team not found: " + teamId));
@@ -39,6 +40,33 @@ public class ScheduleTemplateService {
         return templates.save(st);
     }
 
+    // -------- UPDATE (new) --------
+    public ScheduleTemplate update(Long templateId,
+                                   String name,
+                                   boolean active,
+                                   String weeklyPatternJson) {
+
+        ScheduleTemplate st = templates.findById(templateId)
+                .orElseThrow(() -> new NotFoundException("Template not found: " + templateId));
+
+        // Check name uniqueness within the same team if it changed
+        if (name != null && !name.equalsIgnoreCase(st.getName())) {
+            if (templates.existsByTeamIdAndNameIgnoreCase(st.getTeam().getId(), name)) {
+                throw new ConflictException("Template name already exists for this team");
+            }
+            st.setName(name);
+        }
+
+        st.setActive(active); // frontend sends desired active flag
+
+        if (weeklyPatternJson != null) {
+            st.setWeeklyPatternJson(weeklyPatternJson);
+        }
+
+        return templates.save(st); // repository.save(...)
+    }
+
+    // -------- ACTIVATE / DEACTIVATE --------
     public ScheduleTemplate activate(Long templateId) {
         ScheduleTemplate st = templates.findById(templateId)
                 .orElseThrow(() -> new NotFoundException("Template not found: " + templateId));
@@ -64,8 +92,6 @@ public class ScheduleTemplateService {
             throw new ConflictException("Invalid date range");
         }
 
-        // Minimal example: 9–17 every weekday
-        // You can parse st.getWeeklyPatternJson() to be dynamic.
         int created = 0;
         for (LocalDate d = fromDate; !d.isAfter(toDate); d = d.plusDays(1)) {
             DayOfWeek dow = d.getDayOfWeek();
