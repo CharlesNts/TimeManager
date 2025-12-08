@@ -272,246 +272,248 @@ export default function ScheduleTemplatesPage() {
       userName={user ? `${user.firstName} ${user.lastName}` : ''}
       userRole={user?.role}
     >
-      <div className="space-y-8">
-        {/* Header */}
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <Calendar className="w-8 h-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Gestion des Plannings</h1>
-          </div>
-          <p className="text-gray-600">
-            Créez et gérez les modèles de plannings pour vos équipes
-          </p>
-        </div>
-
-        {/* Team Selector */}
-        {teams.length > 1 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Sélectionner une équipe</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-2 flex-wrap">
-                {teams.map((team) => (
-                  <Button
-                    key={team.id}
-                    variant={selectedTeamId === team.id ? 'default' : 'outline'}
-                    onClick={() => handleTeamChange(team.id)}
-                  >
-                    {team.name}
-                  </Button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-red-800">Erreur</p>
-              <p className="text-sm text-red-700">{error}</p>
+      <div className="p-8 space-y-6">
+        <div className="max-w-7xl mx-auto space-y-8">
+          {/* Header */}
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <Calendar className="w-8 h-8 text-blue-600" />
+              <h1 className="text-3xl font-bold text-gray-900">Gestion des Plannings</h1>
             </div>
+            <p className="text-gray-600">
+              Créez et gérez les modèles de plannings pour vos équipes
+            </p>
           </div>
-        )}
 
-        {/* Action Buttons */}
-        {!loading && (
-          <div className="flex gap-3 items-center flex-wrap">
-            <Button
-              onClick={() => setIsCreating(true)}
-              className="gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Créer un planning
-            </Button>
+          {/* Team Selector */}
+          {teams.length > 1 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Sélectionner une équipe</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-2 flex-wrap">
+                  {teams.map((team) => (
+                    <Button
+                      key={team.id}
+                      variant={selectedTeamId === team.id ? 'default' : 'outline'}
+                      onClick={() => handleTeamChange(team.id)}
+                    >
+                      {team.name}
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-            {schedules.length > 0 && (
-              <div className="flex gap-2 items-center text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3 flex-1">
-                <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                <p>
-                  Vous pouvez créer plusieurs modèles de planning pour{' '}
-                  {selectedTeamName || 'cette équipe'} (par exemple{' '}
-                  <strong>Hiver</strong>, <strong>Rush été</strong>, etc.).<br />
-                  Activez, modifiez ou supprimez-les depuis les cartes ci-dessous.
-                </p>
+          {/* Error Message */}
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-red-800">Erreur</p>
+                <p className="text-sm text-red-700">{error}</p>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {/* Schedules Grid */}
-        {!loading && schedules.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="pt-12 pb-12 text-center">
-              <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Aucun planning
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Créez votre premier planning pour {selectedTeamName || 'cette équipe'}
-              </p>
-              <Button onClick={() => setIsCreating(true)}>
+          {/* Action Buttons */}
+          {!loading && (
+            <div className="flex gap-3 items-center flex-wrap">
+              <Button
+                onClick={() => setIsCreating(true)}
+                className="gap-2"
+              >
+                <Plus className="w-4 h-4" />
                 Créer un planning
               </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {schedules.map((schedule) => {
-              const pattern = parseSchedulePattern(schedule.weeklyPatternJson);
-              const isActive = !!schedule.active;
-              const isActivating = activatingScheduleId === schedule.id;
-              const isDeleting = deletingScheduleId === schedule.id;
 
-              return (
-                <Card
-                  key={schedule.id}
-                  className={isActive ? 'border-blue-500 border-2' : ''}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="flex items-center gap-2">
-                          {schedule.name}
-                          {isActive && (
-                            <Badge className="bg-green-100 text-green-800 flex items-center gap-1">
-                              <Check className="w-3 h-3" />
+              {schedules.length > 0 && (
+                <div className="flex gap-2 items-center text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3 flex-1">
+                  <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                  <p>
+                    Vous pouvez créer plusieurs modèles de planning pour{' '}
+                    {selectedTeamName || 'cette équipe'} (par exemple{' '}
+                    <strong>Hiver</strong>, <strong>Rush été</strong>, etc.).<br />
+                    Activez, modifiez ou supprimez-les depuis les cartes ci-dessous.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Schedules Grid */}
+          {!loading && schedules.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="pt-12 pb-12 text-center">
+                <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Aucun planning
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Créez votre premier planning pour {selectedTeamName || 'cette équipe'}
+                </p>
+                <Button onClick={() => setIsCreating(true)}>
+                  Créer un planning
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {schedules.map((schedule) => {
+                const pattern = parseSchedulePattern(schedule.weeklyPatternJson);
+                const isActive = !!schedule.active;
+                const isActivating = activatingScheduleId === schedule.id;
+                const isDeleting = deletingScheduleId === schedule.id;
+
+                return (
+                  <Card
+                    key={schedule.id}
+                    className={isActive ? 'border-blue-500 border-2' : ''}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <CardTitle className="flex items-center gap-2">
+                            {schedule.name}
+                            {isActive && (
+                              <Badge className="bg-green-100 text-green-800 flex items-center gap-1">
+                                <Check className="w-3 h-3" />
+                                Actif
+                              </Badge>
+                            )}
+                          </CardTitle>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-4">
+                      {/* Days */}
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                          Jours de travail
+                        </p>
+                        <p className="text-sm text-gray-700">{pattern.days}</p>
+                      </div>
+
+                      {/* Times */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                            Début
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-blue-600" />
+                            <p className="text-sm font-semibold">{pattern.startTime}</p>
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                            Fin
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-blue-600" />
+                            <p className="text-sm font-semibold">{pattern.endTime}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2 pt-2 border-t">
+                        {/* Activer / Actif */}
+                        <Button
+                          size="sm"
+                          variant={isActive ? 'default' : 'outline'}
+                          onClick={() => handleActivateSchedule(schedule.id)}
+                          disabled={isActivating}
+                          className="flex-1 gap-2"
+                        >
+                          {isActivating ? (
+                            <>
+                              <div className="w-3 h-3 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin"></div>
+                              Activation...
+                            </>
+                          ) : isActive ? (
+                            <>
+                              <Check className="w-4 h-4" />
                               Actif
-                            </Badge>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-4 h-4" />
+                              Définir comme actif
+                            </>
                           )}
-                        </CardTitle>
+                        </Button>
+
+                        {/* Éditer */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditSchedule(schedule)}
+                          className="flex-1 gap-1"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                          Éditer
+                        </Button>
+
+                        {/* Supprimer */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteSchedule(schedule)}
+                          disabled={isDeleting}
+                          className="flex-1 gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                        >
+                          {isDeleting ? (
+                            <>
+                              <div className="w-3 h-3 rounded-full border-2 border-red-200 border-t-red-600 animate-spin"></div>
+                              Suppression...
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="w-4 h-4" />
+                              Supprimer
+                            </>
+                          )}
+                        </Button>
                       </div>
-                    </div>
-                  </CardHeader>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
 
-                  <CardContent className="space-y-4">
-                    {/* Days */}
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                        Jours de travail
-                      </p>
-                      <p className="text-sm text-gray-700">{pattern.days}</p>
-                    </div>
+          {/* Create/Edit Modal */}
+          {isCreating && (
+            <WorkScheduleConfigurator
+              open={isCreating}
+              onClose={() => setIsCreating(false)}
+              teamId={selectedTeamId}
+              teamName={selectedTeamName}
+              onSave={handleCreateSchedule}
+            />
+          )}
 
-                    {/* Times */}
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1">
-                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                          Début
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-blue-600" />
-                          <p className="text-sm font-semibold">{pattern.startTime}</p>
-                        </div>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                          Fin
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-blue-600" />
-                          <p className="text-sm font-semibold">{pattern.endTime}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2 pt-2 border-t">
-                      {/* Activer / Actif */}
-                      <Button
-                        size="sm"
-                        variant={isActive ? 'default' : 'outline'}
-                        onClick={() => handleActivateSchedule(schedule.id)}
-                        disabled={isActivating}
-                        className="flex-1 gap-2"
-                      >
-                        {isActivating ? (
-                          <>
-                            <div className="w-3 h-3 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin"></div>
-                            Activation...
-                          </>
-                        ) : isActive ? (
-                          <>
-                            <Check className="w-4 h-4" />
-                            Actif
-                          </>
-                        ) : (
-                          <>
-                            <Check className="w-4 h-4" />
-                            Définir comme actif
-                          </>
-                        )}
-                      </Button>
-
-                      {/* Éditer */}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEditSchedule(schedule)}
-                        className="flex-1 gap-1"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                        Éditer
-                      </Button>
-
-                      {/* Supprimer */}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDeleteSchedule(schedule)}
-                        disabled={isDeleting}
-                        className="flex-1 gap-1 text-red-600 border-red-200 hover:bg-red-50"
-                      >
-                        {isDeleting ? (
-                          <>
-                            <div className="w-3 h-3 rounded-full border-2 border-red-200 border-t-red-600 animate-spin"></div>
-                            Suppression...
-                          </>
-                        ) : (
-                          <>
-                            <Trash2 className="w-4 h-4" />
-                            Supprimer
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Create/Edit Modal */}
-        {isCreating && (
-          <WorkScheduleConfigurator
-            open={isCreating}
-            onClose={() => setIsCreating(false)}
-            teamId={selectedTeamId}
-            teamName={selectedTeamName}
-            onSave={handleCreateSchedule}
-          />
-        )}
-
-        {/* Edit Schedule Modal */}
-        {editingSchedule && (
-          <WorkScheduleConfigurator
-            open={!!editingSchedule}
-            onClose={() => setEditingSchedule(null)}
-            teamId={selectedTeamId}
-            teamName={selectedTeamName}
-            schedule={editingSchedule}
-            onSave={(updated) => {
-              setSchedules((prev) =>
-                prev.map((s) => (s.id === updated.id ? updated : s))
-              );
-              setEditingSchedule(null);
-            }}
-          />
-        )}
+          {/* Edit Schedule Modal */}
+          {editingSchedule && (
+            <WorkScheduleConfigurator
+              open={!!editingSchedule}
+              onClose={() => setEditingSchedule(null)}
+              teamId={selectedTeamId}
+              teamName={selectedTeamName}
+              schedule={editingSchedule}
+              onSave={(updated) => {
+                setSchedules((prev) =>
+                  prev.map((s) => (s.id === updated.id ? updated : s))
+                );
+                setEditingSchedule(null);
+              }}
+            />
+          )}
+        </div>
       </div>
     </Layout>
   );
