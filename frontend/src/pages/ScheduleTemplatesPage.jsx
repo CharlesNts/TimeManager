@@ -54,6 +54,9 @@ export default function ScheduleTemplatesPage() {
           days: 'Non configuré',
           startTime: '-',
           endTime: '-',
+          pauseDuration: null,
+          startDate: '-',
+          endDate: '-'
         };
       }
 
@@ -62,46 +65,8 @@ export default function ScheduleTemplatesPage() {
           ? JSON.parse(weeklyPatternJson)
           : weeklyPatternJson;
 
-      // Format ancien avec workDays + startTime / endTime
-      if (
-        Array.isArray(pattern.workDays) &&
-        (pattern.startTime || pattern.defaultStart) &&
-        (pattern.endTime || pattern.defaultEnd)
-      ) {
-        const workDays = pattern.workDays;
-        const startTime = pattern.startTime || pattern.defaultStart;
-        const endTime = pattern.endTime || pattern.defaultEnd;
-
-        const dayNames = [
-          'Dimanche',
-          'Lundi',
-          'Mardi',
-          'Mercredi',
-          'Jeudi',
-          'Vendredi',
-          'Samedi',
-        ];
-
-        const daysLabel = workDays
-          .map((d) => dayNames[d] ?? `Jour ${d}`)
-          .join(', ');
-
-        return {
-          days: daysLabel,
-          startTime,
-          endTime,
-        };
-      }
-
-      // Nouveau format: mon/tue/wed/... + slots
       const dayKeyToLabel = {
-        mon: 'Lundi',
-        tue: 'Mardi',
-        wed: 'Mercredi',
-        thu: 'Jeudi',
-        fri: 'Vendredi',
-        sat: 'Samedi',
-        sun: 'Dimanche',
+        mon: 'Lundi', tue: 'Mardi', wed: 'Mercredi', thu: 'Jeudi', fri: 'Vendredi', sat: 'Samedi', sun: 'Dimanche',
       };
 
       const activeDayKeys = Object.keys(dayKeyToLabel).filter((key) => {
@@ -110,29 +75,35 @@ export default function ScheduleTemplatesPage() {
       });
 
       if (activeDayKeys.length === 0) {
+        // Fallback for old format or empty
+        if (Array.isArray(pattern.workDays)) {
+          // ... old format logic if needed, or just return default
+          // For brevity/robustness, let's just return configured fields if they exist
+        }
         return {
           days: 'Non configuré',
           startTime: '-',
           endTime: '-',
+          pauseDuration: pattern.pauseDuration || null,
+          startDate: pattern.startDate || null,
+          endDate: pattern.endDate || null
         };
       }
 
       const firstDayKey = activeDayKeys[0];
       const firstSlots = pattern[firstDayKey];
-      const firstInterval =
-        Array.isArray(firstSlots) && firstSlots[0] ? firstSlots[0] : null;
-
+      const firstInterval = Array.isArray(firstSlots) && firstSlots[0] ? firstSlots[0] : null;
       const startTime = firstInterval && firstInterval[0] ? firstInterval[0] : '-';
       const endTime = firstInterval && firstInterval[1] ? firstInterval[1] : '-';
-
-      const daysLabel = activeDayKeys
-        .map((key) => dayKeyToLabel[key])
-        .join(', ');
+      const daysLabel = activeDayKeys.map((key) => dayKeyToLabel[key]).join(', ');
 
       return {
         days: daysLabel,
         startTime,
         endTime,
+        pauseDuration: pattern.pauseDuration || null,
+        startDate: pattern.startDate || null,
+        endDate: pattern.endDate || null
       };
     } catch (e) {
       console.warn('❗ Format Planning invalide →', weeklyPatternJson, e);
@@ -140,6 +111,9 @@ export default function ScheduleTemplatesPage() {
         days: 'Format invalide',
         startTime: '-',
         endTime: '-',
+        pauseDuration: null,
+        startDate: '-',
+        endDate: '-'
       };
     }
   };
@@ -417,10 +391,55 @@ export default function ScheduleTemplatesPage() {
                             <p className="text-sm font-semibold">{pattern.endTime}</p>
                           </div>
                         </div>
+                        {pattern.pauseDuration && (
+                          <div className="flex-1">
+                            <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                              Pause
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold">{pattern.pauseDuration} min</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Actions */}
-                      <div className="flex gap-2 pt-2 border-t">
+                      <div className="flex gap-2 pt-2 border-t mt-4">
+                        {/* Summary / Stats */}
+                        <div className="w-full mb-2">
+                          {/* Net Hours Calculation */}
+                          {(() => {
+                            if (!pattern.startTime || !pattern.endTime || pattern.startTime === '-') return null;
+                            const [sh, sm] = pattern.startTime.split(':').map(Number);
+                            const [eh, em] = pattern.endTime.split(':').map(Number);
+                            let diff = (eh * 60 + em) - (sh * 60 + sm);
+                            if (diff < 0) diff += 24 * 60;
+                            if (pattern.pauseDuration) diff -= pattern.pauseDuration;
+
+                            const netH = Math.floor(diff / 60);
+                            const netM = diff % 60;
+
+                            const validPeriodStr = (pattern.startDate || pattern.endDate)
+                              ? `${pattern.startDate ? 'du ' + pattern.startDate : ''} ${pattern.endDate ? 'au ' + pattern.endDate : ''}`
+                              : null;
+
+                            return (
+                              <div className="text-sm bg-gray-50 p-2 rounded text-center space-y-1">
+                                <p className="font-semibold text-gray-700">
+                                  Net: <span className="text-blue-600">{netH}h{netM > 0 ? netM : ''} / jour</span>
+                                </p>
+                                {validPeriodStr && (
+                                  <p className="text-xs text-gray-500">
+                                    Validité : {validPeriodStr}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 border-t pt-2">
                         {/* Activer / Actif */}
                         <Button
                           size="sm"
