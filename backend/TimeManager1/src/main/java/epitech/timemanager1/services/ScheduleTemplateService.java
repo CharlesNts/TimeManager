@@ -31,16 +31,18 @@ public class ScheduleTemplateService {
         if (templates.existsByTeamIdAndNameIgnoreCase(teamId, name)) {
             throw new ConflictException("Template name already exists for this team");
         }
+
         ScheduleTemplate st = ScheduleTemplate.builder()
                 .team(team)
                 .name(name)
-                .active(active)
+                .active(active)              // on garde le comportement existant
                 .weeklyPatternJson(weeklyPatternJson)
                 .build();
+
         return templates.save(st);
     }
 
-    // -------- UPDATE (new) --------
+    // -------- UPDATE --------
     public ScheduleTemplate update(Long templateId,
                                    String name,
                                    boolean active,
@@ -67,10 +69,32 @@ public class ScheduleTemplateService {
     }
 
     // -------- ACTIVATE / DEACTIVATE --------
+    /**
+     * Active un planning pour une équipe et désactive tous les autres
+     * -> garantit qu'il n'y ait QU'UN SEUL planning actif par équipe.
+     */
     public ScheduleTemplate activate(Long templateId) {
         ScheduleTemplate st = templates.findById(templateId)
                 .orElseThrow(() -> new NotFoundException("Template not found: " + templateId));
+
+        Long teamId = st.getTeam().getId();
+
+        // Récupérer tous les templates de la même équipe
+        List<ScheduleTemplate> teamTemplates = templates.findByTeamIdOrderByNameAsc(teamId);
+
+        // Désactiver tous les autres
+        for (ScheduleTemplate other : teamTemplates) {
+            if (!other.getId().equals(templateId) && other.isActive()) {
+                other.setActive(false);
+            }
+        }
+
+        // S'assurer que celui-ci est actif
         st.setActive(true);
+
+        // Sauvegarder les changements (tous les templates de l'équipe)
+        templates.saveAll(teamTemplates);
+
         return st;
     }
 
