@@ -87,9 +87,13 @@ export const getCurrentClock = async (userId) => {
  * @param {Object} pauseData - { reason, startTime }
  * @returns {Promise<Object>} La pause créée
  */
-export const createPause = async (clockId, pauseData) => {
+export const createPause = async (clockId, pauseData = {}) => {
   try {
-    const { data } = await api.post(`/api/clocks/${clockId}/pauses`, pauseData);
+    const { startAt, ...rest } = pauseData;
+    const { data } = await api.post(`/api/clocks/${clockId}/pauses`, {
+      startAt: startAt || new Date().toISOString(),
+      ...rest
+    });
     return data;
   } catch (error) {
     console.error('[clocksApi] createPause error:', error?.message || error);
@@ -105,12 +109,12 @@ export const createPause = async (clockId, pauseData) => {
  * @param {Object} updateData - { startAt, endAt, note }
  * @returns {Promise<Object>} La pause mise à jour
  */
-export const updatePause = async (clockId, pauseId, updateData) => {
+export const stopPause = async (clockId, pauseId, updateData) => {
   try {
     const { data } = await api.patch(`/api/clocks/${clockId}/pauses/${pauseId}`, updateData);
     return data;
   } catch (error) {
-    console.error('[clocksApi] updatePause error:', error?.message || error);
+    console.error('[clocksApi] stopPause error:', error?.message || error);
     throw error;
   }
 };

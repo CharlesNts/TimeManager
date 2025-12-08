@@ -22,9 +22,9 @@ public class ClockPauseService {
     private final ClockPauseRepository pauses;
 
     public ClockPause create(Long clockId,
-                             LocalDateTime startAt,
-                             LocalDateTime endAt,
-                             String note) {
+            LocalDateTime startAt,
+            LocalDateTime endAt,
+            String note) {
 
         Clock c = clocks.findById(clockId)
                 .orElseThrow(() -> new NotFoundException("Clock not found: " + clockId));
@@ -33,7 +33,7 @@ public class ClockPauseService {
             throw new ConflictException("startAt is required");
         }
 
-        LocalDateTime in  = c.getClockIn();
+        LocalDateTime in = c.getClockIn();
         LocalDateTime out = c.getClockOut();
 
         if (in == null) {
@@ -73,23 +73,22 @@ public class ClockPauseService {
     }
 
     public ClockPause update(Long pauseId,
-                             LocalDateTime startAt,
-                             LocalDateTime endAt,
-                             String note) {
+            LocalDateTime startAt,
+            LocalDateTime endAt,
+            String note) {
         ClockPause p = pauses.findById(pauseId)
                 .orElseThrow(() -> new NotFoundException("Pause not found: " + pauseId));
 
         LocalDateTime newStart = (startAt != null) ? startAt : p.getStartAt();
-        LocalDateTime newEnd   = (endAt   != null) ? endAt   : p.getEndAt();
+        LocalDateTime newEnd = (endAt != null) ? endAt : p.getEndAt();
 
         if (newStart == null || newEnd == null || !newStart.isBefore(newEnd)) {
             throw new ConflictException("Invalid pause window");
         }
 
         Clock c = p.getClock();
-        if (c.getClockOut() == null
-                || newStart.isBefore(c.getClockIn())
-                || newEnd.isAfter(c.getClockOut())) {
+        if (newStart.isBefore(c.getClockIn())
+                || (c.getClockOut() != null && newEnd.isAfter(c.getClockOut()))) {
             throw new ConflictException("Pause must be inside the clock-in/out interval");
         }
 
@@ -104,7 +103,7 @@ public class ClockPauseService {
         if (note != null) {
             p.setNote(note.isBlank() ? null : note);
         }
-        return p;
+        return pauses.save(p);
     }
 
     public void delete(Long pauseId) {

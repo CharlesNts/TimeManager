@@ -3,7 +3,8 @@ package epitech.timemanager1.dto;
 import lombok.Builder;
 import lombok.Data;
 
-@Data @Builder
+@Data
+@Builder
 public class ScheduleTemplateDTO {
     private Long id;
     private Long teamId;
