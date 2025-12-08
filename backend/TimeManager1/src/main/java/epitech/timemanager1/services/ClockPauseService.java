@@ -79,28 +79,23 @@ public class ClockPauseService {
         ClockPause p = pauses.findById(pauseId)
                 .orElseThrow(() -> new NotFoundException("Pause not found: " + pauseId));
 
-        LocalDateTime newStart = startAt != null ? startAt : p.getStartAt();
-        LocalDateTime newEnd   = endAt   != null ? endAt   : p.getEndAt();
+        LocalDateTime newStart = (startAt != null) ? startAt : p.getStartAt();
+        LocalDateTime newEnd   = (endAt   != null) ? endAt   : p.getEndAt();
 
-
-        if (newEnd == null) {
-            throw new ConflictException("endAt is required when updating a pause");
-        }
-
-        if (!newStart.isBefore(newEnd)) {
+        if (newStart == null || newEnd == null || !newStart.isBefore(newEnd)) {
             throw new ConflictException("Invalid pause window");
         }
 
         Clock c = p.getClock();
-        LocalDateTime in  = c.getClockIn();
-        LocalDateTime out = c.getClockOut();
-
-        if (in == null || (newStart.isBefore(in)) || (out != null && newEnd.isAfter(out))) {
+        if (c.getClockOut() == null
+                || newStart.isBefore(c.getClockIn())
+                || newEnd.isAfter(c.getClockOut())) {
             throw new ConflictException("Pause must be inside the clock-in/out interval");
         }
 
-        boolean overlap = pauses.existsOverlap(c.getId(), newStart, newEnd);
-        if (overlap && !(newStart.equals(p.getStartAt()) && newEnd.equals(p.getEndAt()))) {
+        // 🔹 Proper overlap check that ignores the current pause
+        boolean overlap = pauses.existsOverlapExcludingId(c.getId(), p.getId(), newStart, newEnd);
+        if (overlap) {
             throw new ConflictException("Pause overlaps an existing pause");
         }
 
@@ -109,7 +104,6 @@ public class ClockPauseService {
         if (note != null) {
             p.setNote(note.isBlank() ? null : note);
         }
-
         return p;
     }
 
