@@ -1,3 +1,4 @@
+// src/pages/ScheduleTemplatesPage.jsx
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getSidebarItems } from '../utils/navigationConfig';
@@ -9,10 +10,12 @@ import {
   AlertCircle,
   Check,
   Clock,
+  Trash2,
 } from 'lucide-react';
 import {
   listScheduleTemplatesForTeam,
   activateScheduleTemplate,
+  deleteScheduleTemplate,
 } from '../api/scheduleTemplatesApi';
 import { fetchTeamsByManager } from '../api/teamApi';
 import { Button } from '../components/ui/button';
@@ -33,6 +36,113 @@ export default function ScheduleTemplatesPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [activatingScheduleId, setActivatingScheduleId] = useState(null);
+  const [deletingScheduleId, setDeletingScheduleId] = useState(null);
+
+  // -------- helper d'affichage du pattern --------
+  const parseSchedulePattern = (weeklyPatternJson) => {
+    console.log(
+      '%c[DEBUG weeklyPatternJson] →',
+      'color:#4f46e5;font-weight:bold',
+      weeklyPatternJson,
+      '| type:',
+      typeof weeklyPatternJson
+    );
+
+    try {
+      if (!weeklyPatternJson) {
+        return {
+          days: 'Non configuré',
+          startTime: '-',
+          endTime: '-',
+        };
+      }
+
+      const pattern =
+        typeof weeklyPatternJson === 'string'
+          ? JSON.parse(weeklyPatternJson)
+          : weeklyPatternJson;
+
+      // Format ancien avec workDays + startTime / endTime
+      if (
+        Array.isArray(pattern.workDays) &&
+        (pattern.startTime || pattern.defaultStart) &&
+        (pattern.endTime || pattern.defaultEnd)
+      ) {
+        const workDays = pattern.workDays;
+        const startTime = pattern.startTime || pattern.defaultStart;
+        const endTime = pattern.endTime || pattern.defaultEnd;
+
+        const dayNames = [
+          'Dimanche',
+          'Lundi',
+          'Mardi',
+          'Mercredi',
+          'Jeudi',
+          'Vendredi',
+          'Samedi',
+        ];
+
+        const daysLabel = workDays
+          .map((d) => dayNames[d] ?? `Jour ${d}`)
+          .join(', ');
+
+        return {
+          days: daysLabel,
+          startTime,
+          endTime,
+        };
+      }
+
+      // Nouveau format: mon/tue/wed/... + slots
+      const dayKeyToLabel = {
+        mon: 'Lundi',
+        tue: 'Mardi',
+        wed: 'Mercredi',
+        thu: 'Jeudi',
+        fri: 'Vendredi',
+        sat: 'Samedi',
+        sun: 'Dimanche',
+      };
+
+      const activeDayKeys = Object.keys(dayKeyToLabel).filter((key) => {
+        const slots = pattern[key];
+        return Array.isArray(slots) && slots.length > 0 && Array.isArray(slots[0]);
+      });
+
+      if (activeDayKeys.length === 0) {
+        return {
+          days: 'Non configuré',
+          startTime: '-',
+          endTime: '-',
+        };
+      }
+
+      const firstDayKey = activeDayKeys[0];
+      const firstSlots = pattern[firstDayKey];
+      const firstInterval =
+        Array.isArray(firstSlots) && firstSlots[0] ? firstSlots[0] : null;
+
+      const startTime = firstInterval && firstInterval[0] ? firstInterval[0] : '-';
+      const endTime = firstInterval && firstInterval[1] ? firstInterval[1] : '-';
+
+      const daysLabel = activeDayKeys
+        .map((key) => dayKeyToLabel[key])
+        .join(', ');
+
+      return {
+        days: daysLabel,
+        startTime,
+        endTime,
+      };
+    } catch (e) {
+      console.warn('❗ Format Planning invalide →', weeklyPatternJson, e);
+      return {
+        days: 'Format invalide',
+        startTime: '-',
+        endTime: '-',
+      };
+    }
+  };
 
   // Load teams on mount
   useEffect(() => {
@@ -42,7 +152,6 @@ export default function ScheduleTemplatesPage() {
         const managerTeams = await fetchTeamsByManager(user?.id);
         setTeams(managerTeams);
 
-        // Set first team as default
         if (managerTeams.length > 0) {
           setSelectedTeamId(managerTeams[0].id);
           setSelectedTeamName(managerTeams[0].name);
@@ -98,7 +207,7 @@ export default function ScheduleTemplatesPage() {
       setActivatingScheduleId(scheduleId);
       await activateScheduleTemplate(scheduleId);
 
-      // Update local state
+      // Mise à jour locale : un seul actif
       setSchedules((prev) =>
         prev.map((s) => ({
           ...s,
@@ -107,7 +216,7 @@ export default function ScheduleTemplatesPage() {
       );
     } catch (err) {
       console.error('Error activating schedule:', err);
-      setError('Erreur lors de l\'activation du planning');
+      setError("Erreur lors de l'activation du planning");
     } finally {
       setActivatingScheduleId(null);
     }
@@ -117,24 +226,25 @@ export default function ScheduleTemplatesPage() {
     setEditingSchedule(schedule);
   };
 
-  const parseSchedulePattern = (jsonString) => {
+  const handleDeleteSchedule = async (schedule) => {
+    const confirmed = window.confirm(
+      `Voulez-vous vraiment supprimer le planning "${schedule.name}" ?`
+    );
+    if (!confirmed) return;
+
     try {
-      const pattern = JSON.parse(jsonString);
-      const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-      const daysLabel = pattern.workDays
-        .map((d) => dayNames[d])
-        .join(', ');
-      return {
-        days: daysLabel,
-        startTime: pattern.startTime,
-        endTime: pattern.endTime,
-      };
-    } catch {
-      return {
-        days: 'Format invalide',
-        startTime: '-',
-        endTime: '-',
-      };
+      setDeletingScheduleId(schedule.id);
+      await deleteScheduleTemplate(schedule.id);
+      setSchedules((prev) => prev.filter((s) => s.id !== schedule.id));
+
+      if (editingSchedule && editingSchedule.id === schedule.id) {
+        setEditingSchedule(null);
+      }
+    } catch (err) {
+      console.error('Error deleting schedule:', err);
+      setError('Erreur lors de la suppression du planning');
+    } finally {
+      setDeletingScheduleId(null);
     }
   };
 
@@ -207,33 +317,25 @@ export default function ScheduleTemplatesPage() {
           </div>
         )}
 
-        {/* Loading State */}
-        {loading && (
-          <div className="text-center py-12">
-            <div className="inline-flex items-center gap-2 text-gray-600">
-              <div className="w-4 h-4 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin"></div>
-              Chargement des plannings...
-            </div>
-          </div>
-        )}
-
         {/* Action Buttons */}
         {!loading && (
-          <div className="flex gap-3">
-            {schedules.length === 0 ? (
-              <Button
-                onClick={() => setIsCreating(true)}
-                className="gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Créer un planning
-              </Button>
-            ) : (
+          <div className="flex gap-3 items-center flex-wrap">
+            <Button
+              onClick={() => setIsCreating(true)}
+              className="gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Créer un planning
+            </Button>
+
+            {schedules.length > 0 && (
               <div className="flex gap-2 items-center text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3 flex-1">
                 <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
                 <p>
-                  Un planning existe déjà pour {selectedTeamName}.
-                  <strong className="ml-1">Modifiez-le directement</strong> depuis la carte ci-dessous.
+                  Vous pouvez créer plusieurs modèles de planning pour{' '}
+                  {selectedTeamName || 'cette équipe'} (par exemple{' '}
+                  <strong>Hiver</strong>, <strong>Rush été</strong>, etc.).<br />
+                  Activez, modifiez ou supprimez-les depuis les cartes ci-dessous.
                 </p>
               </div>
             )}
@@ -260,17 +362,21 @@ export default function ScheduleTemplatesPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {schedules.map((schedule) => {
               const pattern = parseSchedulePattern(schedule.weeklyPatternJson);
+              const isActive = !!schedule.active;
+              const isActivating = activatingScheduleId === schedule.id;
+              const isDeleting = deletingScheduleId === schedule.id;
+
               return (
                 <Card
                   key={schedule.id}
-                  className={schedule.active ? 'border-blue-500 border-2' : ''}
+                  className={isActive ? 'border-blue-500 border-2' : ''}
                 >
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <CardTitle className="flex items-center gap-2">
                           {schedule.name}
-                          {schedule.active && (
+                          {isActive && (
                             <Badge className="bg-green-100 text-green-800 flex items-center gap-1">
                               <Check className="w-3 h-3" />
                               Actif
@@ -314,28 +420,33 @@ export default function ScheduleTemplatesPage() {
 
                     {/* Actions */}
                     <div className="flex gap-2 pt-2 border-t">
-                      {!schedule.active && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleActivateSchedule(schedule.id)}
-                          disabled={activatingScheduleId === schedule.id}
-                          className="flex-1 gap-2"
-                        >
-                          {activatingScheduleId === schedule.id ? (
-                            <>
-                              <div className="w-3 h-3 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin"></div>
-                              Activation...
-                            </>
-                          ) : (
-                            <>
-                              <Check className="w-4 h-4" />
-                              Activer
-                            </>
-                          )}
-                        </Button>
-                      )}
+                      {/* Activer / Actif */}
+                      <Button
+                        size="sm"
+                        variant={isActive ? 'default' : 'outline'}
+                        onClick={() => handleActivateSchedule(schedule.id)}
+                        disabled={isActivating}
+                        className="flex-1 gap-2"
+                      >
+                        {isActivating ? (
+                          <>
+                            <div className="w-3 h-3 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin"></div>
+                            Activation...
+                          </>
+                        ) : isActive ? (
+                          <>
+                            <Check className="w-4 h-4" />
+                            Actif
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-4 h-4" />
+                            Définir comme actif
+                          </>
+                        )}
+                      </Button>
 
+                      {/* Éditer */}
                       <Button
                         size="sm"
                         variant="outline"
@@ -344,6 +455,27 @@ export default function ScheduleTemplatesPage() {
                       >
                         <Edit2 className="w-4 h-4" />
                         Éditer
+                      </Button>
+
+                      {/* Supprimer */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDeleteSchedule(schedule)}
+                        disabled={isDeleting}
+                        className="flex-1 gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                      >
+                        {isDeleting ? (
+                          <>
+                            <div className="w-3 h-3 rounded-full border-2 border-red-200 border-t-red-600 animate-spin"></div>
+                            Suppression...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-4 h-4" />
+                            Supprimer
+                          </>
+                        )}
                       </Button>
                     </div>
                   </CardContent>
@@ -380,7 +512,6 @@ export default function ScheduleTemplatesPage() {
             }}
           />
         )}
-
       </div>
     </Layout>
   );

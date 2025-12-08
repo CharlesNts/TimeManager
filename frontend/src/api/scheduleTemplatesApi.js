@@ -7,6 +7,7 @@ import api from './client';
  * - POST /api/schedule-templates (create)
  * - GET /api/schedule-templates/team/{teamId} (list/get active)
  * - POST /api/schedule-templates/{id}/activate (activate)
+ * - DELETE /api/schedule-templates/{id} (delete)
  */
 
 /**
@@ -59,10 +60,8 @@ export const getActiveScheduleTemplate = async (teamId) => {
   try {
     const { data } = await api.get(`/api/schedule-templates/team/${teamId}`);
     if (!Array.isArray(data) || data.length === 0) return null;
-    // Trier par ID décroissant pour avoir le plus récent en premier
     const sorted = [...data].sort((a, b) => b.id - a.id);
-    // Retourner le premier planning actif (le plus récent)
-    const activeSchedule = sorted.find(schedule => schedule.active);
+    const activeSchedule = sorted.find((schedule) => schedule.active);
     return activeSchedule || sorted[0];
   } catch (error) {
     console.error('[scheduleTemplatesApi] getActiveScheduleTemplate error:', error?.message || error);
@@ -70,6 +69,32 @@ export const getActiveScheduleTemplate = async (teamId) => {
   }
 };
 
+/**
+ * Supprimer un modèle d'horaire
+ * DELETE /api/schedule-templates/{id}
+ */
+export const deleteScheduleTemplate = async (id) => {
+  try {
+    await api.delete(`/api/schedule-templates/${id}`);
+  } catch (error) {
+    console.error('[scheduleTemplatesApi] deleteScheduleTemplate error:', error?.message || error);
+    throw error;
+  }
+};
+
+/**
+ * Mettre à jour un modèle d'horaire
+ * PUT /api/schedule-templates/{id}
+ */
+export const updateScheduleTemplate = async (id, templateData) => {
+  try {
+    const { data } = await api.put(`/api/schedule-templates/${id}`, templateData);
+    return data;
+  } catch (error) {
+    console.error('[scheduleTemplatesApi] updateScheduleTemplate error:', error?.message || error);
+    throw error;
+  }
+};
 
 // Export objet pour compatibilité avec ancien code si nécessaire
 export const scheduleTemplatesApi = {
@@ -77,6 +102,8 @@ export const scheduleTemplatesApi = {
   activate: activateScheduleTemplate,
   listForTeam: listScheduleTemplatesForTeam,
   getActiveForTeam: getActiveScheduleTemplate,
+  delete: deleteScheduleTemplate,
+  update: updateScheduleTemplate,
 };
 
 export default scheduleTemplatesApi;

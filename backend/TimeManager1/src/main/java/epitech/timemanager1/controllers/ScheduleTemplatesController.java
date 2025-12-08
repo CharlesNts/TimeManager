@@ -2,8 +2,6 @@ package epitech.timemanager1.controllers;
 
 import epitech.timemanager1.dto.ScheduleTemplateDTO;
 import epitech.timemanager1.entities.ScheduleTemplate;
-import epitech.timemanager1.exception.ConflictException;
-import epitech.timemanager1.exception.NotFoundException;
 import epitech.timemanager1.mapper.ScheduleTemplateMapper;
 import epitech.timemanager1.services.ScheduleTemplateService;
 import jakarta.validation.Valid;
@@ -45,7 +43,7 @@ public class ScheduleTemplatesController {
         return ResponseEntity.ok(mapper.toDtoList(templates.listForTeam(teamId)));
     }
 
-
+    // -------- UPDATE --------
     @PutMapping("/{id}")
     public ResponseEntity<ScheduleTemplateDTO> update(
             @PathVariable Long id,
@@ -58,6 +56,12 @@ public class ScheduleTemplatesController {
                 body.getWeeklyPatternJson()
         );
         return ResponseEntity.ok(mapper.toDto(updated));
+    }
 
+    // -------- DELETE --------
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        templates.delete(id);
+        return ResponseEntity.noContent().build();
     }
 }
