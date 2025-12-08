@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
-import { Clock, Loader2 } from 'lucide-react';
+import { Clock, Loader2, Calendar } from 'lucide-react';
 import { scheduleTemplatesApi } from '../../api/scheduleTemplatesApi';
 
 const DAYS_FR = [
@@ -57,12 +57,15 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
           return orderA - orderB;
         }),
         startTime: extractedStartTime,
-        endTime: extractedEndTime
+        endTime: extractedEndTime,
+        pauseDuration: parsedPattern.pauseDuration || '',
+        startDate: parsedPattern.startDate || '',
+        endDate: parsedPattern.endDate || ''
       };
 
     } catch (e) {
       console.warn('Erreur parsing schedule.weeklyPatternJson dans WorkScheduleConfigurator:', e);
-      return { workDays: [1, 2, 3, 4, 5], startTime: '09:00', endTime: '17:30' };
+      return { workDays: [1, 2, 3, 4, 5], startTime: '09:00', endTime: '17:30', pauseDuration: '', startDate: '', endDate: '' };
     }
   }, [schedule]);
 
@@ -70,6 +73,9 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
   const [workDays, setWorkDays] = useState([]); // Initialized to empty to be set by useEffect
   const [startTime, setStartTime] = useState('09:00'); // Initialized to default to be set by useEffect
   const [endTime, setEndTime] = useState('17:30'); // Initialized to default to be set by useEffect
+  const [pauseDuration, setPauseDuration] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -81,6 +87,9 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
       setWorkDays(resetValues.workDays);
       setStartTime(resetValues.startTime);
       setEndTime(resetValues.endTime);
+      setPauseDuration(resetValues.pauseDuration);
+      setStartDate(resetValues.startDate);
+      setEndDate(resetValues.endDate);
       setError('');
     }
   }, [open, schedule, teamName, parsePattern]);
@@ -129,6 +138,15 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
       });
       weeklyPattern.excludedDates = []; // Ensure it's always an array, even if empty
 
+      // Save pauseDuration if present
+      if (pauseDuration) {
+        weeklyPattern.pauseDuration = pauseDuration;
+      }
+
+      // Save Validity Dates
+      if (startDate) weeklyPattern.startDate = startDate;
+      if (endDate) weeklyPattern.endDate = endDate;
+
       let template;
 
       if (isEditing) {
@@ -143,7 +161,7 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
         template = await scheduleTemplatesApi.create({
           teamId,
           name: scheduleName,
-          active: true,
+          active: false,
           weeklyPatternJson: JSON.stringify(weeklyPattern)
         });
       }
@@ -195,11 +213,10 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
               {DAYS_FR.map((day) => (
                 <div
                   key={day.value}
-                  className={`flex items-center space-x-2 p-3 rounded-lg border cursor-pointer transition-colors ${
-                    workDays.includes(day.value)
-                      ? 'bg-blue-50 border-blue-200'
-                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                  }`}
+                  className={`flex items-center space-x-2 p-3 rounded-lg border cursor-pointer transition-colors ${workDays.includes(day.value)
+                    ? 'bg-blue-50 border-blue-200'
+                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                    }`}
                   onClick={() => toggleWorkDay(day.value)}
                 >
                   <Checkbox
@@ -244,7 +261,7 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
               <Clock className="w-4 h-4" />
               ⏰ Horaires
             </Label>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="start-time" className="text-xs text-muted-foreground">Début</Label>
                 <Input
@@ -263,6 +280,45 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
                   onChange={(e) => setEndTime(e.target.value)}
                 />
               </div>
+              <div>
+                <Label htmlFor="pause-duration" className="text-xs text-muted-foreground">Pause (min)</Label>
+                <Input
+                  id="pause-duration"
+                  type="number"
+                  min="0"
+                  value={pauseDuration}
+                  onChange={(e) => setPauseDuration(e.target.value)}
+                  placeholder="60"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Période de validité */}
+          <div className="space-y-3">
+            <Label className="flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              📅 Période de validité (Optionnel)
+            </Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="valid-start" className="text-xs text-muted-foreground">Du</Label>
+                <Input
+                  id="valid-start"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="valid-end" className="text-xs text-muted-foreground">Au</Label>
+                <Input
+                  id="valid-end"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
             </div>
           </div>
 
@@ -273,7 +329,30 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
             </p>
             <p className="text-xs text-blue-700 mt-1">
               De {startTime} à {endTime}
+              {pauseDuration ? ` (Pause: ${pauseDuration} min)` : ''}
             </p>
+            {(() => {
+              if (!startTime || !endTime) return null;
+              const [sh, sm] = startTime.split(':').map(Number);
+              const [eh, em] = endTime.split(':').map(Number);
+              const startMin = sh * 60 + sm;
+              const endMin = eh * 60 + em;
+              let diff = endMin - startMin;
+              if (diff < 0) diff += 24 * 60; // Handle overnight? Assuming day-shift for now
+
+              if (pauseDuration) {
+                diff -= Number(pauseDuration);
+              }
+
+              const h = Math.floor(diff / 60);
+              const m = diff % 60;
+
+              return (
+                <p className="text-xs text-blue-700 font-bold mt-1">
+                  Temps de travail effectif (Net) : {h}h{m > 0 ? m : ''} / jour
+                </p>
+              );
+            })()}
           </div>
         </div>
 
@@ -284,8 +363,8 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
             </div>
           )}
           <div className="flex gap-2 w-full">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={onClose}
               disabled={isSaving}
             >
