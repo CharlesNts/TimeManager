@@ -34,15 +34,14 @@ public class ClockPausesController {
     public ClockPause update(@PathVariable Long clockId,
                              @PathVariable Long pauseId,
                              @RequestBody UpdateRequest body) {
-        return service.update(pauseId, body.startAt(), body.endAt(), body.note());
+        return service.update(clockId, pauseId, body.startAt(), body.endAt(), body.note());
     }
 
     @DeleteMapping("/{pauseId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long clockId, @PathVariable Long pauseId) {
-        service.delete(pauseId);
+        service.delete(clockId, pauseId);
     }
-
     // --- DTOs ---
     public record CreateRequest(
             @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startAt,

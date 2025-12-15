@@ -35,19 +35,19 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
 
   // All PENDING leaves visible to a manager (via team membership)
   @Query("""
-      select l
-      from LeaveRequest l
-      join l.employee e
-      where l.status = epitech.timemanager1.entities.LeaveStatus.PENDING
-        and exists (
-           select 1
-           from Team t
-           join t.members m
-           where t.manager.id = :managerId
-             and m.id = e.id
-        )
-      order by l.createdAt desc
-      """)
+    select l
+    from LeaveRequest l
+    join l.employee e
+    where l.status = epitech.timemanager1.entities.LeaveStatus.PENDING
+      and exists (
+        select 1
+        from TeamMember tm
+        join tm.team t
+        where t.manager.id = :managerId
+          and tm.user.id = e.id
+      )
+    order by l.createdAt desc
+    """)
   List<LeaveRequest> findPendingForManager(@Param("managerId") Long managerId);
 
   // Window view for a month (or any window): overlap with [monthStart, monthEnd)

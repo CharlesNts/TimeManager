@@ -38,7 +38,6 @@ class ReportsControllerIT {
 
     @BeforeEach
     void seed() {
-        // Create one employee
         User u = users.save(User.builder()
                 .firstName("Emp")
                 .lastName("One")
@@ -49,9 +48,6 @@ class ReportsControllerIT {
                 .build());
         userId = u.getId();
 
-        // Seed EXACTLY 16.0 hours in the [2025-05-01, 2025-05-03) window:
-        // 2025-05-01: 09:30 → 17:30 (8h)
-        // 2025-05-02: 09:00 → 17:00 (8h)
         clockRepo.save(Clock.builder()
                 .user(u)
                 .clockIn(LocalDateTime.of(2025, 5, 1, 9, 30))
@@ -80,18 +76,25 @@ class ReportsControllerIT {
                 .andExpect(jsonPath("$.late").value(true));
 
         // --- hoursBetween ---
-        var resp = mvc.perform(get("/api/reports/users/{userId}/hours", userId)
+        String resp = mvc.perform(get("/api/reports/users/{userId}/hours", userId)
                         .param("from", "2025-05-01T00:00:00")
                         .param("to", "2025-05-03T00:00:00"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.userId").value((int) userId))
+                .andExpect(jsonPath("$.grossHours").value(16.0))
+                .andExpect(jsonPath("$.pauseHours").value(0.0))
+                .andExpect(jsonPath("$.netHours").value(16.0))
                 .andReturn().getResponse().getContentAsString();
 
+        // Optional: double-check using ObjectMapper (tolerant to floating errors)
         JsonNode json = om.readTree(resp);
-        double hours = json.get("hours").asDouble();
+        double grossHours = json.get("grossHours").asDouble();
+        double pauseHours = json.get("pauseHours").asDouble();
+        double netHours   = json.get("netHours").asDouble();
 
-        // Expect EXACTLY 16.0 hours with a tiny tolerance for double math
-        assertThat(hours).isCloseTo(16.0, within(1e-6));
+        assertThat(grossHours).isCloseTo(16.0, within(1e-6));
+        assertThat(pauseHours).isCloseTo(0.0, within(1e-6));
+        assertThat(netHours).isCloseTo(16.0, within(1e-6));
     }
 }

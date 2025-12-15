@@ -5,6 +5,7 @@ import epitech.timemanager1.dto.TeamAvgHoursDTO;
 import epitech.timemanager1.entities.Clock;
 import epitech.timemanager1.entities.Team;
 import epitech.timemanager1.repositories.ClockRepository;
+import epitech.timemanager1.repositories.TeamMemberRepository;
 import epitech.timemanager1.repositories.TeamRepository;
 import epitech.timemanager1.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class ReportsService {
     private final ClockRepository clockRepo;
     private final TeamRepository teamRepo;
     private final UserRepository userRepo;
+    private final TeamMemberRepository teamMemberRepo;
 
     public ReportsDTO buildReport(ZoneId zone) {
         ZonedDateTime nowZ = ZonedDateTime.now(zone);
@@ -68,15 +70,15 @@ public class ReportsService {
 
         // --- Compute team averages (same as before) ---
         List<TeamAvgHoursDTO> teamAvg = new ArrayList<>();
-        for (Team t : teamRepo.findAllWithMembers()) {
-            var members = t.getMembers();
-            if (members == null || members.isEmpty()) continue;
+        for (Team t : teamRepo.findAll()) {
+            List<Long> memberIds = teamMemberRepo.findUserIdsByTeamId(t.getId());
+            if (memberIds.isEmpty()) continue;
 
-            double sum = members.stream()
-                    .mapToDouble(u -> userHours.getOrDefault(u.getId(), 0.0))
+            double sum = memberIds.stream()
+                    .mapToDouble(id -> userHours.getOrDefault(id, 0.0))
                     .sum();
 
-            double avg = sum / members.size();
+            double avg = sum / memberIds.size();
             teamAvg.add(TeamAvgHoursDTO.builder()
                     .teamId(t.getId())
                     .teamName(t.getName())

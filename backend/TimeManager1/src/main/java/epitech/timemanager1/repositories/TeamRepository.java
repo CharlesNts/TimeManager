@@ -15,9 +15,4 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
     List<Team> findByManager(User manager);
 
     List<Team> findByManagerId(Long managerId);
-
-    @Query("select distinct t from Team t left join fetch t.members")
-    List<Team> findAllWithMembers();
-
-
 }

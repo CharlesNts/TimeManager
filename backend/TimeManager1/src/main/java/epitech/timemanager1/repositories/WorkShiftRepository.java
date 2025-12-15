@@ -27,4 +27,17 @@ public interface WorkShiftRepository extends JpaRepository<WorkShift, Long> {
     boolean existsOverlapForEmployee(@Param("employeeId") Long employeeId,
                                      @Param("startAt") LocalDateTime startAt,
                                      @Param("endAt") LocalDateTime endAt);
+
+    @Query("""
+       select case when count(s) > 0 then true else false end
+       from WorkShift s
+       where s.employee.id = :employeeId
+         and s.id <> :excludeId
+         and s.startAt < :endAt
+         and s.endAt   > :startAt
+       """)
+    boolean existsOverlapForEmployeeExcludingId(@Param("employeeId") Long employeeId,
+                                                @Param("excludeId") Long excludeId,
+                                                @Param("startAt") LocalDateTime startAt,
+                                                @Param("endAt") LocalDateTime endAt);
 }

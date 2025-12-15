@@ -70,17 +70,44 @@ class ScheduleTemplateServiceTest {
     }
 
     @Test
-    void activate_setsActiveTrue() {
-        ScheduleTemplate st = ScheduleTemplate.builder()
-                .id(9L).name("Default").active(false).build();
+    void activate_setsActiveTrue_and_disablesOthers() {
+        Team team = Team.builder().id(5L).name("X").build();
 
-        when(templates.findById(9L)).thenReturn(Optional.of(st));
+        ScheduleTemplate target = ScheduleTemplate.builder()
+                .id(9L)
+                .team(team)
+                .name("Default")
+                .active(false)
+                .build();
+
+        ScheduleTemplate otherActive = ScheduleTemplate.builder()
+                .id(10L)
+                .team(team)
+                .name("Other")
+                .active(true)
+                .build();
+
+        ScheduleTemplate otherInactive = ScheduleTemplate.builder()
+                .id(11L)
+                .team(team)
+                .name("Other2")
+                .active(false)
+                .build();
+
+        when(templates.findById(9L)).thenReturn(Optional.of(target));
+        when(templates.findByTeamIdOrderByNameAsc(5L))
+                .thenReturn(java.util.List.of(target, otherActive, otherInactive));
+
+        // activate() calls saveAll(teamTemplates)
+        when(templates.saveAll(anyList())).thenAnswer(inv -> inv.getArgument(0));
 
         ScheduleTemplate result = svc.activate(9L);
 
         assertTrue(result.isActive());
-        // entity is managed in service; explicit save is not called there,
-        // but if you add save() later, you can verify it here.
+        assertFalse(otherActive.isActive());     // should be disabled
+        assertFalse(otherInactive.isActive());   // stays false
+
+        verify(templates).saveAll(anyList());
     }
 
     @Test

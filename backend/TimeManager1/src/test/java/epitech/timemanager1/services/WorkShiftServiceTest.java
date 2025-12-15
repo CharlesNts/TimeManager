@@ -11,29 +11,25 @@ import epitech.timemanager1.repositories.UserRepository;
 import epitech.timemanager1.repositories.WorkShiftRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class WorkShiftServiceTest {
 
-    @Mock
-    WorkShiftRepository repo;
+    @Mock WorkShiftRepository repo;
+    @Mock TeamRepository teams;
+    @Mock UserRepository users;
 
-    @Mock
-    TeamRepository teams;
-
-    @Mock
-    UserRepository users;
-
-    @InjectMocks
-    WorkShiftService svc;
+    @InjectMocks WorkShiftService svc;
 
     // ---------- Utility methods ----------
 
@@ -87,7 +83,8 @@ class WorkShiftServiceTest {
         assertEquals(u, ws.getEmployee());
         assertEquals(start, ws.getStartAt());
         assertEquals(end, ws.getEndAt());
-        assertTrue(ws.getNote().contains("HQ"));
+        assertNotNull(ws.getNote());
+        assertTrue(ws.getNote().contains("location: HQ"));
     }
 
     @Test
@@ -98,6 +95,31 @@ class WorkShiftServiceTest {
         assertThrows(ConflictException.class,
                 () -> svc.create(7L, null, start, end, null, null));
     }
+
+    @Test
+    void create_teamNotFound_throws() {
+        when(teams.findById(7L)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class,
+                () -> svc.create(7L, null,
+                        LocalDateTime.of(2025, 1, 10, 9, 0),
+                        LocalDateTime.of(2025, 1, 10, 17, 0),
+                        null, null));
+    }
+
+    @Test
+    void create_employeeNotFound_throws() {
+        Team t = team(7L);
+        when(teams.findById(7L)).thenReturn(Optional.of(t));
+        when(users.findById(11L)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class,
+                () -> svc.create(7L, 11L,
+                        LocalDateTime.of(2025, 1, 10, 9, 0),
+                        LocalDateTime.of(2025, 1, 10, 17, 0),
+                        null, null));
+    }
+
     @Test
     void assignEmployee_overlap_throws() {
         Team t = team(5L);
@@ -108,8 +130,11 @@ class WorkShiftServiceTest {
 
         when(repo.findById(1L)).thenReturn(Optional.of(ws));
         when(users.findById(33L)).thenReturn(Optional.of(u));
-        when(repo.existsOverlapForEmployee(33L, ws.getStartAt(), ws.getEndAt()))
-                .thenReturn(true);
+
+        // IMPORTANT: assignEmployee() uses the EXCLUDING-ID overlap check
+        when(repo.existsOverlapForEmployeeExcludingId(
+                33L, 1L, ws.getStartAt(), ws.getEndAt()
+        )).thenReturn(true);
 
         assertThrows(ConflictException.class, () -> svc.assignEmployee(1L, 33L));
     }
@@ -124,11 +149,34 @@ class WorkShiftServiceTest {
 
         when(repo.findById(1L)).thenReturn(Optional.of(ws));
         when(users.findById(33L)).thenReturn(Optional.of(u));
-        when(repo.existsOverlapForEmployee(33L, ws.getStartAt(), ws.getEndAt()))
-                .thenReturn(false);
+
+        when(repo.existsOverlapForEmployeeExcludingId(
+                33L, 1L, ws.getStartAt(), ws.getEndAt()
+        )).thenReturn(false);
 
         WorkShift result = svc.assignEmployee(1L, 33L);
+
         assertEquals(u, result.getEmployee());
+    }
+
+    @Test
+    void assignEmployee_shiftNotFound_throws() {
+        when(repo.findById(1L)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class, () -> svc.assignEmployee(1L, 33L));
+    }
+
+    @Test
+    void assignEmployee_userNotFound_throws() {
+        Team t = team(5L);
+        WorkShift ws = shift(1L, t, null,
+                LocalDateTime.of(2025, 1, 11, 9, 0),
+                LocalDateTime.of(2025, 1, 11, 17, 0));
+
+        when(repo.findById(1L)).thenReturn(Optional.of(ws));
+        when(users.findById(33L)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class, () -> svc.assignEmployee(1L, 33L));
     }
 
     @Test
@@ -136,24 +184,36 @@ class WorkShiftServiceTest {
         Team t = team(2L);
         User u = user(10L);
         WorkShift ws = shift(1L, t, u,
-                LocalDateTime.now(), LocalDateTime.now().plusHours(8));
+                LocalDateTime.of(2025, 1, 10, 9, 0),
+                LocalDateTime.of(2025, 1, 10, 17, 0));
 
         when(repo.findById(1L)).thenReturn(Optional.of(ws));
 
         WorkShift result = svc.unassignEmployee(1L);
+
         assertNull(result.getEmployee());
+    }
+
+    @Test
+    void unassignEmployee_missing_throws() {
+        when(repo.findById(1L)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class, () -> svc.unassignEmployee(1L));
     }
 
     @Test
     void delete_missing_throws() {
         when(repo.existsById(999L)).thenReturn(false);
+
         assertThrows(NotFoundException.class, () -> svc.delete(999L));
     }
 
     @Test
     void delete_existing_ok() {
         when(repo.existsById(5L)).thenReturn(true);
+
         svc.delete(5L);
+
         verify(repo).deleteById(5L);
     }
 }

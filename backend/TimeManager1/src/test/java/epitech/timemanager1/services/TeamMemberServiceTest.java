@@ -31,7 +31,7 @@ class TeamMemberServiceTest {
     void addMember_ok() {
         when(tmRepo.existsByUserIdAndTeamId(2L, 1L)).thenReturn(false);
         Team team = Team.builder().id(1L).name("Core").build();
-        User user = User.builder().id(2L).email("x@y.z").password("p").build();
+        User user = User.builder().id(2L).email("x@y.z").password("p").active(true).build();
         when(teamRepo.findById(1L)).thenReturn(Optional.of(team));
         when(userRepo.findById(2L)).thenReturn(Optional.of(user));
         when(tmRepo.save(any(TeamMember.class))).thenAnswer(inv -> {

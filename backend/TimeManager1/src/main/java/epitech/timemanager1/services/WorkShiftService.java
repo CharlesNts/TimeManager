@@ -160,13 +160,10 @@ public class WorkShiftService {
                                          LocalDateTime startAt,
                                          LocalDateTime endAt,
                                          Long excludeShiftId) {
-        boolean overlaps;
-        if (excludeShiftId == null) {
-            overlaps = workShifts.existsOverlapForEmployee(employeeId, startAt, endAt);
-        } else {
-            // If you add the "exclude id" version in the repo, call it here.
-            overlaps = workShifts.existsOverlapForEmployee(employeeId, startAt, endAt);
-        }
+        boolean overlaps = (excludeShiftId == null)
+                ? workShifts.existsOverlapForEmployee(employeeId, startAt, endAt)
+                : workShifts.existsOverlapForEmployeeExcludingId(employeeId, excludeShiftId, startAt, endAt);
+
         if (overlaps) {
             throw new ConflictException("Employee already has overlapping shift");
         }

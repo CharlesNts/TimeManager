@@ -32,14 +32,9 @@ public class Team {
     @JoinColumn(name = "manager_id")
     private User manager;
 
-    // Team membership via join table
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "team_members",
-            joinColumns = @JoinColumn(name = "team_id"),
-            inverseJoinColumns = @JoinColumn(name = "user_id")
-    )
-    private Set<User> members = new HashSet<>();
+    @OneToMany(mappedBy = "team", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<TeamMember> memberships = new HashSet<>();
 
     @CreatedDate
     @Column(nullable = false, updatable = false)

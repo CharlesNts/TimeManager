@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface ClockPauseRepository extends JpaRepository<ClockPause, Long> {
 
@@ -35,5 +36,6 @@ public interface ClockPauseRepository extends JpaRepository<ClockPause, Long> {
 
 
     boolean existsByClockIdAndEndAtIsNull(Long clockId);
-
+    boolean existsByIdAndClockId(Long id, Long clockId);
+    Optional<ClockPause> findByIdAndClockId(Long id, Long clockId);
 }
