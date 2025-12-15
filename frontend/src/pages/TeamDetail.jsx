@@ -410,13 +410,31 @@ export default function TeamDetail() {
         setMemberComparisonData(memberCompData);
 
         // Calcul de l'évolution d'adhérence (dernière période vs avant-dernière)
+        // Règles:
+        // 1. Si pas assez de données (previousAdh <= 10%), évolution = 0
+        // 2. Si adhérence actuelle >= 100%, ne peut pas être en régression
+        // 3. COHÉRENCE UI : Si l'adhérence globale est excellente (> 99.5%), on ne montre pas de régression locale
         let adherenceEvolution = 0;
         if (adherencePerPeriod.length >= 2) {
           const currentAdh = adherencePerPeriod[adherencePerPeriod.length - 1].value;
           const previousAdh = adherencePerPeriod[adherencePerPeriod.length - 2].value;
-          adherenceEvolution = previousAdh > 0
-            ? ((currentAdh - previousAdh) / previousAdh) * 100
-            : 0;
+
+          // Seulement calculer l'évolution si la période précédente a des données significatives
+          if (previousAdh > 10 && currentAdh > 0) {
+            adherenceEvolution = ((currentAdh - previousAdh) / previousAdh) * 100;
+
+            // Si l'adhérence actuelle est à 100%, on ne peut pas être en régression
+            // (on a atteint le maximum possible)
+            if (currentAdh >= 100 && adherenceEvolution < 0) {
+              adherenceEvolution = 0;
+            }
+          }
+        }
+
+        // Force consistency with weighted average displayed
+        const displayedGlobalRate = avgAdherenceRate; // TeamDetail uses avgAdherenceRate for display
+        if (displayedGlobalRate > 99.5 && adherenceEvolution < 0) {
+          adherenceEvolution = 0;
         }
 
         // E. Fetch Lateness Data for all members

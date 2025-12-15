@@ -39,9 +39,10 @@ const DAY_NAME_TO_JS_DAY = {
  * Get the scheduled minutes for a specific date based on the weekly pattern
  * @param {Date} date - The date to check
  * @param {object} pattern - The parsed weekly pattern
+ * @param {Date} [limitDate] - Optional limit time (calculation stops at this time for this date)
  * @returns {number} - Minutes scheduled for that day
  */
-export function getScheduledMinutesForDate(date, pattern) {
+export function getScheduledMinutesForDate(date, pattern, limitDate = null) {
     if (!pattern || !date) return 0;
 
     const jsDay = date.getDay(); // 0=Sunday, 1=Monday, etc.
@@ -56,16 +57,31 @@ export function getScheduledMinutesForDate(date, pattern) {
     }
 
     let totalMinutes = 0;
+    const limitMinutes = limitDate ? (limitDate.getHours() * 60 + limitDate.getMinutes()) : null;
 
     // Each day can have multiple time slots (e.g., morning and afternoon)
     daySchedule.forEach(slot => {
         if (Array.isArray(slot) && slot.length >= 2) {
             const [startTime, endTime] = slot;
             const startMinutes = parseTimeToMinutes(startTime);
-            const endMinutes = parseTimeToMinutes(endTime);
+            let endMinutes = parseTimeToMinutes(endTime);
 
-            if (startMinutes !== null && endMinutes !== null && endMinutes > startMinutes) {
-                totalMinutes += endMinutes - startMinutes;
+            if (startMinutes !== null && endMinutes !== null) {
+                // Apply time limit if current date matches limitDate
+                if (limitMinutes !== null) {
+                    // If slot starts after limit, it doesn't count
+                    if (startMinutes >= limitMinutes) {
+                        return;
+                    }
+                    // If slot ends after limit, cap it
+                    if (endMinutes > limitMinutes) {
+                        endMinutes = limitMinutes;
+                    }
+                }
+
+                if (endMinutes > startMinutes) {
+                    totalMinutes += endMinutes - startMinutes;
+                }
             }
         }
     });
@@ -118,17 +134,36 @@ export function calculateScheduledMinutesFromTemplate(startDate, endDate, schedu
     const current = new Date(startDate);
     current.setHours(0, 0, 0, 0);
 
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
+    // End date reference for comparison
+    const endRef = new Date(endDate);
+    // Note: We don't force endRef to 23:59:59 anymore to respect precise endDate if provided
+    // However, to ensure we include the last day in the loop, we compare dates (year/month/day)
 
-    while (current <= end) {
-        const minutes = getScheduledMinutesForDate(current, pattern);
+    // Helper to get day string
+    const getDayStr = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const endDayStr = getDayStr(endRef);
+
+    while (true) {
+        const currentDayStr = getDayStr(current);
+
+        // Stop if we passed the end day
+        if (current > endRef && currentDayStr !== endDayStr) break;
+
+        // Check if this is the last day to apply time limit
+        // We apply limit if it's the exact same day as endDate
+        const isLimitDay = currentDayStr === endDayStr;
+        const limitDate = isLimitDay ? endRef : null;
+
+        const minutes = getScheduledMinutesForDate(current, pattern, limitDate);
 
         if (minutes > 0) {
             const dayKey = formatDateKey(current);
             result.dailyMap[dayKey] = minutes;
             result.totalMinutes += minutes;
         }
+
+        // Check break condition after processing
+        if (currentDayStr === endDayStr) break;
 
         // Move to next day
         current.setDate(current.getDate() + 1);
