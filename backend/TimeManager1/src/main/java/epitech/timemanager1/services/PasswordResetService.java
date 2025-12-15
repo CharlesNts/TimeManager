@@ -73,6 +73,7 @@ public class PasswordResetService {
                 .expiresAt(LocalDateTime.now().plusMinutes(TOKEN_TTL_MINUTES))
                 .build();
         tokens.save(prt);
+        tokens.flush();
 
         String link = resetLinkBase + token;
         mailService.sendPasswordResetEmail(user.getEmail(), link);
