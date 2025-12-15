@@ -30,6 +30,20 @@ class ScheduleTemplateServiceTest {
     @InjectMocks ScheduleTemplateService svc;
 
     @Test
+    void activate_setsActiveTrue() {
+        Team team = Team.builder().id(5L).name("X").build();
+
+        ScheduleTemplate st = ScheduleTemplate.builder()
+                .id(9L).team(team).name("Default").active(false).build();
+
+        when(templates.findById(9L)).thenReturn(Optional.of(st));
+
+        ScheduleTemplate result = svc.activate(9L);
+
+        assertTrue(result.isActive());
+    }
+
+    @Test
     void create_duplicateName_throws() {
         when(teams.findById(5L)).thenReturn(Optional.of(Team.builder().id(5L).name("X").build()));
         when(templates.existsByTeamIdAndNameIgnoreCase(5L, "Default")).thenReturn(true);

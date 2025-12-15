@@ -61,7 +61,7 @@ class TeamServiceTest {
         when(teamRepo.findById(1L)).thenReturn(Optional.of(existing));
         when(teamRepo.findByName("Platform")).thenReturn(Optional.empty());
 
-        Team patch = Team.builder().name("Platform").description("new").manager(User.builder().id(5L).build()).build();
+        Team patch = Team.builder().name("Platform").description("new").manager(User.builder().id(5L).active(true).build()).build();
         Team updated = service.update(1L, patch);
 
         assertEquals("Platform", updated.getName());
@@ -83,7 +83,7 @@ class TeamServiceTest {
     void assignManager_ok() {
         Team t = Team.builder().id(1L).build();
         when(teamRepo.findById(1L)).thenReturn(Optional.of(t));
-        when(userRepo.findById(9L)).thenReturn(Optional.of(User.builder().id(9L).build()));
+        when(userRepo.findById(9L)).thenReturn(Optional.of(User.builder().id(9L).active(true).build()));
 
         Team res = service.assignManager(1L, 9L);
 

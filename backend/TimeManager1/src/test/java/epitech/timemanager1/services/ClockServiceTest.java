@@ -31,7 +31,7 @@ class ClockServiceTest {
 
     @BeforeEach
     void setup() {
-        user = User.builder().id(1L).email("a@b.c").firstName("A").lastName("B").password("x").build();
+        user = User.builder().id(1L).email("a@b.c").firstName("A").lastName("B").password("x").active(true).build();
     }
 
     @Test

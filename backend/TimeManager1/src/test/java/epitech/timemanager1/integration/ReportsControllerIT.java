@@ -87,14 +87,9 @@ class ReportsControllerIT {
                 .andExpect(jsonPath("$.netHours").value(16.0))
                 .andReturn().getResponse().getContentAsString();
 
-        // Optional: double-check using ObjectMapper (tolerant to floating errors)
         JsonNode json = om.readTree(resp);
-        double grossHours = json.get("grossHours").asDouble();
-        double pauseHours = json.get("pauseHours").asDouble();
-        double netHours   = json.get("netHours").asDouble();
+        double netHours = json.get("netHours").asDouble();
 
-        assertThat(grossHours).isCloseTo(16.0, within(1e-6));
-        assertThat(pauseHours).isCloseTo(0.0, within(1e-6));
         assertThat(netHours).isCloseTo(16.0, within(1e-6));
     }
 }
