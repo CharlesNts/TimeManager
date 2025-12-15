@@ -298,71 +298,54 @@ export default function EmployeeDashboard() {
         let totalLateDays = 0;
         let totalDaysWithClock = 0;
 
-        const monthLabels = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+        // --- CALCUL RETARD DYNAMIQUE UNIFIÉ (Toutes granularités) ---
 
-        if (selectedGranularity === 'year') {
-          // Fetch lateness for each of the last 12 months
-          const now = new Date();
-          const monthPromises = [];
-          for (let i = 11; i >= 0; i--) {
-            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            monthPromises.push(
-              reportsApi.getUserLatenessRate(targetUserId, yearMonth)
-                .then(r => ({ yearMonth, label: monthLabels[d.getMonth()], ...r }))
-                .catch(() => ({ yearMonth, label: monthLabels[d.getMonth()], rate: 0, lateDays: 0, totalDaysWithClock: 0 }))
-            );
-          }
-          const results = await Promise.all(monthPromises);
-          latenessChartSeries = results.map(r => ({ label: r.label, value: (r.rate || 0) * 100 }));
-          const current = results[results.length - 1];
-          const previous = results[results.length - 2];
-          currentLatenessRate = (current?.rate || 0) * 100;
-          previousLatenessRate = (previous?.rate || 0) * 100;
-          totalLateDays = results.reduce((sum, r) => sum + (r.lateDays || 0), 0);
-          totalDaysWithClock = results.reduce((sum, r) => sum + (r.totalDaysWithClock || 0), 0);
-        } else if (selectedGranularity === 'month') {
-          // Fetch lateness for the last 4 months (one point per month)
-          const now = new Date();
-          const monthPromises = [];
-          for (let i = 3; i >= 0; i--) {
-            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            monthPromises.push(
-              reportsApi.getUserLatenessRate(targetUserId, yearMonth)
-                .then(r => ({ yearMonth, label: monthLabels[d.getMonth()], ...r }))
-                .catch(() => ({ yearMonth, label: monthLabels[d.getMonth()], rate: 0, lateDays: 0, totalDaysWithClock: 0 }))
-            );
-          }
-          const results = await Promise.all(monthPromises);
-          latenessChartSeries = results.map(r => ({ label: r.label, value: (r.rate || 0) * 100 }));
-          const current = results[results.length - 1];
-          const previous = results[results.length - 2];
-          currentLatenessRate = (current?.rate || 0) * 100;
-          previousLatenessRate = (previous?.rate || 0) * 100;
-          totalLateDays = current?.lateDays || 0;
-          totalDaysWithClock = current?.totalDaysWithClock || 0;
-        } else {
-          // Week: fetch current month only (single value)
-          const currentMonthStr = startOfCurrentPeriod.toISOString().substring(0, 7);
-          const lateness = await reportsApi.getUserLatenessRate(targetUserId, currentMonthStr)
-            .catch(() => ({ rate: 0, lateDays: 0, totalDaysWithClock: 0 }));
-          currentLatenessRate = (lateness.rate || 0) * 100;
-          totalLateDays = lateness.lateDays || 0;
-          totalDaysWithClock = lateness.totalDaysWithClock || 0;
-          latenessChartSeries = [{ label: 'Ce mois', value: currentLatenessRate }];
-        }
+        // 1. Organiser les clocks par jour (Date locale)
+        const clocksByDay = {};
+        clocksRange.forEach(c => {
+          const d = new Date(c.clockIn);
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          const dayKey = `${year}-${month}-${day}`;
 
-        const latenessEvolution = previousLatenessRate > 0
-          ? ((currentLatenessRate - previousLatenessRate) / previousLatenessRate) * 100
+          if (!clocksByDay[dayKey]) clocksByDay[dayKey] = [];
+          clocksByDay[dayKey].push(d);
+        });
+
+        const THRESHOLD_H = 9;
+        const THRESHOLD_M = 5;
+        const limitMinutes = THRESHOLD_H * 60 + THRESHOLD_M; // 09:05
+
+        // 2. Déterminer le statut de retard pour chaque jour
+        const dayLatenessMap = {};
+        Object.entries(clocksByDay).forEach(([dayKey, dates]) => {
+          // Trouver le premier clock-in de la journée
+          dates.sort((a, b) => a - b);
+          const firstClock = dates[0];
+          const firstMinutes = firstClock.getHours() * 60 + firstClock.getMinutes();
+          const isLate = firstMinutes > limitMinutes;
+
+          // Vérifier si ce jour est dans la période affichée
+          const dayDate = new Date(dayKey);
+          dayDate.setHours(12, 0, 0, 0); // Sécurité
+
+          if (dayDate >= startOfCurrentPeriod && dayDate <= endOfCurrentPeriod) {
+            totalDaysWithClock++;
+            if (isLate) totalLateDays++;
+          }
+        });
+
+        currentLatenessRate = totalDaysWithClock > 0
+          ? (totalLateDays / totalDaysWithClock) * 100
           : 0;
 
         setLatenessData({
           rate: currentLatenessRate,
           lateDays: totalLateDays,
           totalDays: totalDaysWithClock,
-          chartSeries: latenessChartSeries,
-          evolutionRate: latenessEvolution
+          chartSeries: [], // Pas de graphique pour le retard
+          evolutionRate: 0 // Pas d'évolution calculée (pas de données période précédente)
         });
 
         // Filter clocks for the relevant period only for KPIs (not graph)
@@ -478,13 +461,30 @@ export default function EmployeeDashboard() {
           : 0;
 
         // Calcul de l'évolution d'adhérence (dernière période vs avant-dernière)
+        // Règles:
+        // 1. Si pas assez de données (previousAdh <= 10%), évolution = 0
+        // 2. Si adhérence actuelle >= 100%, ne peut pas être en régression
+        // 3. COHÉRENCE UI : Si l'adhérence globale est excellente (> 99.5%), on ne montre pas de régression locale
         let adherenceEvolution = 0;
         if (adherencePerPeriod.length >= 2) {
           const currentAdh = adherencePerPeriod[adherencePerPeriod.length - 1].value;
           const previousAdh = adherencePerPeriod[adherencePerPeriod.length - 2].value;
-          adherenceEvolution = previousAdh > 0
-            ? ((currentAdh - previousAdh) / previousAdh) * 100
-            : 0;
+
+          // Seulement calculer l'évolution si la période précédente a des données significatives
+          if (previousAdh > 10 && currentAdh > 0) {
+            adherenceEvolution = ((currentAdh - previousAdh) / previousAdh) * 100;
+
+            // Si l'adhérence actuelle est à 100%, on ne peut pas être en régression
+            // (on a atteint le maximum possible)
+            if (currentAdh >= 100 && adherenceEvolution < 0) {
+              adherenceEvolution = 0;
+            }
+          }
+        }
+
+        // Force consistency: if global stats say "100%" (or close), don't show negative evolution
+        if (globalAdherenceRate > 99.5 && adherenceEvolution < 0) {
+          adherenceEvolution = 0;
         }
 
         setHoursChartSeries(hoursData);
@@ -854,11 +854,7 @@ export default function EmployeeDashboard() {
                         <p className="text-xs text-gray-500 mt-2">
                           {latenessData.lateDays} jour(s) en retard sur {latenessData.totalDays} jours travaillés
                         </p>
-                        <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-100">
-                          <p className="text-xs text-amber-700">
-                            Taux calculé sur le mois en cours.
-                          </p>
-                        </div>
+
                       </CardContent>
                     </Card>
 
