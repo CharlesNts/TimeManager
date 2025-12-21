@@ -49,6 +49,7 @@ public class SecurityConfig {
 
                         // TEMP: keep user endpoints open for integration tests
                         .requestMatchers("/api/users/**").permitAll()
+                        .requestMatchers("/api/kafka/**").permitAll()
 
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()

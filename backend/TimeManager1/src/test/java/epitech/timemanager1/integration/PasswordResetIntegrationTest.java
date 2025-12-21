@@ -6,18 +6,27 @@ import epitech.timemanager1.entities.PasswordResetToken;
 import epitech.timemanager1.entities.User;
 import epitech.timemanager1.repositories.PasswordResetTokenRepository;
 import epitech.timemanager1.repositories.UserRepository;
+import epitech.timemanager1.services.PasswordResetService;
+import epitech.timemanager1.services.mail.MailService;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
+import static javax.management.Query.eq;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -78,4 +87,6 @@ class PasswordResetIntegrationTest {
 
     record Forgot(String email) {}
     record Reset(String token, String newPassword) {}
+
+
 }
