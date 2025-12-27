@@ -1,4 +1,4 @@
-FROM sonarqube:10.9.0-community
+FROM sonarqube:community
 
 USER root
 RUN apt-get update && apt-get install -y wget
