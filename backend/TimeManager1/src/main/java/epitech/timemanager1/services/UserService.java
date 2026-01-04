@@ -2,12 +2,15 @@ package epitech.timemanager1.services;
 
 import epitech.timemanager1.dto.UserDTO;
 import epitech.timemanager1.entities.User;
+import epitech.timemanager1.events.UserRegisteredEvent;
 import epitech.timemanager1.exception.ConflictException;
 import epitech.timemanager1.exception.NotFoundException;
+import epitech.timemanager1.kafka.KafkaTopics;
 import epitech.timemanager1.mapper.UserMapper;
 import epitech.timemanager1.repositories.TeamMemberRepository;
 import epitech.timemanager1.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +37,7 @@ public class UserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final TeamMemberRepository teamMemberRepository;
+    private final KafkaTemplate<String, UserRegisteredEvent> kafkaTemplate;
 
     /**
      * Creates a new user based on the provided DTO.
@@ -47,6 +51,7 @@ public class UserService {
      * @return the created {@link UserDTO}
      * @throws ConflictException if the password is missing or email is already in use
      */
+    @Transactional
     public UserDTO create(UserDTO dto) {
         if (dto.getPassword() == null || dto.getPassword().isBlank()) {
             throw new ConflictException("Password is required for user creation");
@@ -59,9 +64,21 @@ public class UserService {
         User user = userMapper.toEntity(dto);
         user.setCreatedAt(LocalDateTime.now());
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
-        user.setActive(false); // CEO must approve new users
+        user.setActive(false); // CEO approval required
 
-        return userMapper.toDTO(userRepository.save(user));
+        User savedUser = userRepository.save(user);
+        kafkaTemplate.send(
+                KafkaTopics.USER_REGISTERED,
+                "user-" + savedUser.getId(), // key (ordering per user)
+                new UserRegisteredEvent(
+                        savedUser.getId(),
+                        savedUser.getEmail(),
+                        savedUser.getFirstName(),
+                        LocalDateTime.now()
+                )
+        );
+
+        return userMapper.toDTO(savedUser);
     }
 
     /**
@@ -139,6 +156,7 @@ public class UserService {
         }
         userRepository.deleteById(id);
     }
+
     /**
      * Approves a user (activates their account).
      *

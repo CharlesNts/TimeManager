@@ -13,9 +13,9 @@ import org.springframework.stereotype.Service;
  * {@code dev}, and {@code test} Spring profiles.
  * </p>
  */
-@Slf4j
+@Profile("test")
 @Service
-@Profile({"default", "dev", "test"})
+@Slf4j
 public class LoggingMailService implements MailService {
 
     /**
@@ -28,5 +28,11 @@ public class LoggingMailService implements MailService {
     @Override
     public void sendPasswordResetEmail(String to, String link) {
         log.info("[DEV MAIL] To: {} | Reset link: {}", to, link);
+    }
+
+    @Async
+    @Override
+    public void sendWelcomeEmail(String to, String firstName) {
+        log.info("[DEV MAIL] To: {} | Welcome {}", to, firstName);
     }
 }

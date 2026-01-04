@@ -42,7 +42,10 @@ public class SecurityConfig {
 
                         // Public auth endpoints
                         .requestMatchers("/auth/login", "/auth/register").permitAll()
-                        .requestMatchers("/api/auth/password/**").permitAll()
+                        .requestMatchers(
+                                "/api/password/**",
+                                "/api/auth/password/**"
+                        ).permitAll()
 
                         // /auth/me must be authenticated
                         .requestMatchers("/auth/me").authenticated()

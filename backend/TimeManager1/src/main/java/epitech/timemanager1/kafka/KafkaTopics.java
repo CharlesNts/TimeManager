@@ -7,4 +7,7 @@ public final class KafkaTopics {
     /** Fired when a user requests a password reset */
     public static final String PASSWORD_RESET_REQUESTED =
             "timemanager.password-reset.requested";
+
+    public static final String USER_REGISTERED =
+            "timemanager.user-registered";
 }

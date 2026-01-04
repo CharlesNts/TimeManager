@@ -8,8 +8,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+@Profile({"dev", "prod"})
 @Service
-@Profile("prod")
 @RequiredArgsConstructor
 public class SmtpMailService implements MailService {
 
@@ -29,6 +29,24 @@ public class SmtpMailService implements MailService {
         msg.setTo(to);
         msg.setSubject(resetSubject);
         msg.setText(buildResetBody(link));
+        mailSender.send(msg);
+    }
+
+    @Async
+    @Override
+    public void sendWelcomeEmail(String to, String firstName) {
+        SimpleMailMessage msg = new SimpleMailMessage();
+        msg.setFrom(from);
+        msg.setTo(to);
+        msg.setSubject("Welcome to TimeManager 👋");
+        msg.setText("""
+            Hello %s,
+
+            Welcome to TimeManager!
+            Your account has been created successfully.
+
+            — TimeManager Team
+            """.formatted(firstName));
         mailSender.send(msg);
     }
 

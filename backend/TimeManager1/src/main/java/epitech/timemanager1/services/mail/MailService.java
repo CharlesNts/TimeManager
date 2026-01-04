@@ -16,4 +16,6 @@ public interface MailService {
      * @param link the password reset link to include in the email
      */
     void sendPasswordResetEmail(String to, String link);
+    void sendWelcomeEmail(String to, String firstName);
+
 }
