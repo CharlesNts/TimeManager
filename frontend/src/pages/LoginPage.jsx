@@ -40,10 +40,8 @@ export default function LoginPage() {
         email: formData.email,
         password: formData.password,
       });
-      
-      console.log('🔐 Réponse login:', res.data);
+
       const { accessToken, expiresIn } = res.data;
-      console.log('🔑 Token reçu:', accessToken?.substring(0, 20) + '...');
 
       // Stocker le token AVANT d'appeler /auth/me
       localStorage.setItem('access_token', accessToken);
@@ -52,10 +50,8 @@ export default function LoginPage() {
         localStorage.setItem('token_expires_at', expiresAt.toString());
       }
 
-      console.log('👤 Appel /auth/me (l\'interceptor va ajouter le token automatiquement)');
       // ⚠️ Ne PAS passer de headers explicites, l'interceptor s'en charge !
       const me = await api.get('/auth/me');
-      console.log('✅ Profil chargé:', me.data);
       setUser(me.data);
 
       // 4) Navigation + fallback dur si un guard bloque
@@ -65,7 +61,6 @@ export default function LoginPage() {
         window.location.replace('/my-clocks');
       }
     } catch (err) {
-      console.error('❌ Erreur de connexion:', err);
       if (err.response) {
         if (err.response.status === 401) setError('Identifiants incorrects');
         else if (err.response.status === 403) setError('Accès refusé');
@@ -97,7 +92,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" data-testid="login-form">
             <div className="space-y-2">
               <Label htmlFor="email">Email professionnel</Label>
               <div className="relative">
