@@ -62,4 +62,25 @@ public class SmtpMailService implements MailService {
                 If you didn't request this, ignore this email.
                 """.formatted(link);
     }
+
+    @Async
+    @Override
+    public void sendRejectionEmail(String to, String firstName, String reason) {
+        SimpleMailMessage msg = new SimpleMailMessage();
+        msg.setFrom(from);
+        msg.setTo(to);
+        msg.setSubject("Your TimeManager account");
+        msg.setText("""
+        Hello %s,
+
+        Unfortunately, your account was rejected.
+
+        Reason:
+        %s
+
+        — TimeManager Team
+        """.formatted(firstName, reason));
+
+        mailSender.send(msg);
+    }
 }

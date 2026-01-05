@@ -2,7 +2,9 @@ package epitech.timemanager1.services;
 
 import epitech.timemanager1.dto.UserDTO;
 import epitech.timemanager1.entities.User;
+import epitech.timemanager1.events.UserApprovedEvent;
 import epitech.timemanager1.events.UserRegisteredEvent;
+import epitech.timemanager1.events.UserRejectedEvent;
 import epitech.timemanager1.exception.ConflictException;
 import epitech.timemanager1.exception.NotFoundException;
 import epitech.timemanager1.kafka.KafkaTopics;
@@ -38,6 +40,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final TeamMemberRepository teamMemberRepository;
     private final KafkaTemplate<String, UserRegisteredEvent> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate2;
 
     /**
      * Creates a new user based on the provided DTO.
@@ -157,17 +160,22 @@ public class UserService {
         userRepository.deleteById(id);
     }
 
-    /**
-     * Approves a user (activates their account).
-     *
-     * @param id the user's ID
-     * @throws NotFoundException if the user does not exist
-     */
     public void approveUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("User not found"));
+
         user.setActive(true);
         userRepository.save(user);
+
+        kafkaTemplate2.send(
+                KafkaTopics.USER_APPROVED,
+                new UserApprovedEvent(
+                        user.getId(),
+                        user.getEmail(),
+                        user.getFirstName(),
+                        LocalDateTime.now()
+                )
+        );
     }
 
     /**
@@ -179,8 +187,20 @@ public class UserService {
     public void rejectUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("User not found"));
+
         user.setActive(false);
         userRepository.save(user);
+
+        kafkaTemplate2.send(
+                KafkaTopics.USER_REJECTED,
+                new UserRejectedEvent(
+                        user.getId(),
+                        user.getEmail(),
+                        user.getFirstName(),
+                        "Account rejected by admin",
+                        LocalDateTime.now()
+                )
+        );
     }
 
     /**

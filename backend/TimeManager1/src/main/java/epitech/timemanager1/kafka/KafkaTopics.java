@@ -10,4 +10,10 @@ public final class KafkaTopics {
 
     public static final String USER_REGISTERED =
             "timemanager.user-registered";
+
+    public static final String USER_APPROVED =
+            "timemanager.user-approved";
+
+    public static final String USER_REJECTED =
+            "timemanager.user-rejected";
 }

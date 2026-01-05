@@ -35,4 +35,16 @@ public class LoggingMailService implements MailService {
     public void sendWelcomeEmail(String to, String firstName) {
         log.info("[DEV MAIL] To: {} | Welcome {}", to, firstName);
     }
+
+    @Async
+    @Override
+    public void sendRejectionEmail(String to, String firstName, String reason) {
+        log.info("""
+        [DEV MAIL]
+        To: {}
+        Hello {},
+        Your account was rejected.
+        Reason: {}
+        """, to, firstName, reason);
+    }
 }

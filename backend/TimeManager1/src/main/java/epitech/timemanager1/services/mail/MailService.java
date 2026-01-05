@@ -18,4 +18,5 @@ public interface MailService {
     void sendPasswordResetEmail(String to, String link);
     void sendWelcomeEmail(String to, String firstName);
 
+    void sendRejectionEmail(String email, String s, String reason);
 }
