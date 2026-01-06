@@ -4,15 +4,15 @@ services:
     container_name: timemanager-db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: "0000"
       POSTGRES_DB: teammanager_db
       POSTGRES_HOST_AUTH_METHOD: md5
     ports:
-      - "5434:5432"
+      - "5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5
