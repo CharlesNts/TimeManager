@@ -89,7 +89,7 @@ describe('LoginPage', () => {
             data: { accessToken: 'fake_token_123', expiresIn: 3600 }
         });
         api.get.mockResolvedValueOnce({
-            data: { id: 1, email: 'test@primebank.com', role: 'EMPLOYEE' }
+            data: { id: 1, email: 'test@primebank.com', role: 'EMPLOYEE', active: true }
         });
 
         render(<LoginPage />);
@@ -110,7 +110,7 @@ describe('LoginPage', () => {
         await waitFor(() => {
             expect(localStorage.getItem('access_token')).toBe('fake_token_123');
             expect(api.get).toHaveBeenCalledWith('/auth/me');
-            expect(mockSetUser).toHaveBeenCalledWith({ id: 1, email: 'test@primebank.com', role: 'EMPLOYEE' });
+            expect(mockSetUser).toHaveBeenCalledWith({ id: 1, email: 'test@primebank.com', role: 'EMPLOYEE', active: true });
             expect(mockNavigate).toHaveBeenCalledWith('/my-clocks', { replace: true });
         });
     });

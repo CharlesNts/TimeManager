@@ -64,7 +64,7 @@ export default function RegisterPage() {
         // role: non obligatoire -> le back mettra EMPLOYEE par défaut
       };
 
-      const res = await axios.post('http://localhost:8080/auth/register', payload, {
+      const res = await axios.post('/auth/register', payload, {
         headers: { 'Content-Type': 'application/json' }
       });
 

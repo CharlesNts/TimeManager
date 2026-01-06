@@ -52,6 +52,15 @@ export default function LoginPage() {
 
       // ⚠️ Ne PAS passer de headers explicites, l'interceptor s'en charge !
       const me = await api.get('/auth/me');
+      
+      // Check if account is active
+      if (!me.data.active) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('token_expires_at');
+        setError('Votre compte est inactif. Veuillez contacter l\'administrateur.');
+        return;
+      }
+      
       setUser(me.data);
 
       // 4) Navigation + fallback dur si un guard bloque
