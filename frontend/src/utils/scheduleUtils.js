@@ -22,18 +22,7 @@ export function parseWeeklyPattern(weeklyPatternJson) {
     }
 }
 
-/**
- * Map day names to JS Date day numbers (0=Sunday, 1=Monday, etc.)
- */
-const DAY_NAME_TO_JS_DAY = {
-    sun: 0,
-    mon: 1,
-    tue: 2,
-    wed: 3,
-    thu: 4,
-    fri: 5,
-    sat: 6
-};
+// Day mappings are handled directly in getScheduledMinutesForDate
 
 /**
  * Get the scheduled minutes for a specific date based on the weekly pattern
@@ -143,6 +132,7 @@ export function calculateScheduledMinutesFromTemplate(startDate, endDate, schedu
     const getDayStr = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
     const endDayStr = getDayStr(endRef);
 
+    // eslint-disable-next-line no-constant-condition
     while (true) {
         const currentDayStr = getDayStr(current);
 

@@ -1,7 +1,7 @@
 // src/utils/pdfExport.js
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { drawBarChart, drawLineChart, formatHours } from './pdfChartUtils';
+import { drawBarChart, drawLineChart } from './pdfChartUtils';
 
 /**
  * Génère un PDF pour le dashboard Employé

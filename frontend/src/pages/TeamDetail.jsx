@@ -238,6 +238,7 @@ export default function TeamDetail() {
           singlePreviousEnd = new Date(singleCurrentStart);
         }
 
+        // eslint-disable-next-line no-unused-vars
         let totalCurrentMinutes = 0;
         let singleCurrentMinutes = 0;
         let singlePreviousMinutes = 0;
@@ -370,6 +371,7 @@ export default function TeamDetail() {
         // Global adherence: total worked capped at scheduled / total scheduled
         const totalWorkedMinutes = Object.values(dailyHoursMap).reduce((a, b) => a + b, 0);
         const totalOverlapMinutes = Math.min(totalWorkedMinutes, totalScheduledMinutes);
+        // eslint-disable-next-line no-unused-vars
         const globalAdherenceRate = totalScheduledMinutes > 0
           ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100)
           : 0;

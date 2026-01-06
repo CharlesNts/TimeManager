@@ -1,6 +1,6 @@
 // src/pages/TeamsList.jsx
 import React, { useEffect, useState } from 'react';
-import { Users, Plus, Clock, CalendarCheck, TrendingUp } from 'lucide-react';
+import { Users, Plus, CalendarCheck, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getSidebarItems } from '../utils/navigationConfig';
@@ -19,7 +19,7 @@ import {
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardTitle, CardHeader } from '../components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
-import { buildChartSeries } from '../api/statsApi';
+// buildChartSeries imported from statsApi below
 import { getPeriodInfo, getDisplayPeriodBoundaries } from '../utils/granularityUtils';
 import { calculateScheduledMinutesFromTemplate } from '../utils/scheduleUtils';
 import { toParis } from '../utils/dateUtils';
@@ -98,7 +98,7 @@ export default function TeamsList() {
   const [selectedGranularity, setSelectedGranularity] = useState('week');
   const selectedPeriod = getPeriodInfo(selectedGranularity).periodCount;
   const [teamComparisonData, setTeamComparisonData] = useState([]);
-  const [hoursChartSeries, setHoursChartSeries] = useState([]);
+  const [, setHoursChartSeries] = useState([]);
   const [adherenceData, setAdherenceData] = useState({ rate: 0, chartSeries: [] });
   const [chartModal, setChartModal] = useState({ open: false, title: '', subtitle: '', data: [], chartType: 'bar', config: {} });
   const [statsLoading, setStatsLoading] = useState(true);
@@ -152,6 +152,7 @@ export default function TeamsList() {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.role]);
 
   // Load Stats for Graphs
@@ -239,11 +240,9 @@ export default function TeamsList() {
 
         // Process schedules
         let dailyScheduledMap = {};
-        let totalScheduledMinutes = 0;
         scheduleResults.forEach(({ schedule, memberCount }) => {
           if (!schedule || memberCount === 0) return;
           const scheduledData = calculateScheduledMinutesFromTemplate(startOfCurrentPeriod, endOfCurrentPeriod, schedule);
-          totalScheduledMinutes += scheduledData.totalMinutes * memberCount;
           Object.entries(scheduledData.dailyMap).forEach(([dayKey, minutes]) => {
             dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + (minutes * memberCount);
           });
@@ -279,7 +278,8 @@ export default function TeamsList() {
           });
 
           // Per-team breakdown for this period
-          Object.entries(teamDailyHoursMap).forEach(([teamId, teamData]) => {
+          // eslint-disable-next-line no-unused-vars
+          Object.entries(teamDailyHoursMap).forEach(([_teamId, teamData]) => {
             let teamMin = 0;
             Object.entries(teamData.dailyMap).forEach(([dayKey, minutes]) => {
               const dayDate = new Date(dayKey);
@@ -321,7 +321,8 @@ export default function TeamsList() {
           const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : 0;
 
           // Per-team adherence (simplified - based on hours worked)
-          Object.entries(teamDailyHoursMap).forEach(([teamId, teamData]) => {
+          // eslint-disable-next-line no-unused-vars
+          Object.entries(teamDailyHoursMap).forEach(([_teamId, teamData]) => {
             let teamWorked = 0;
             Object.entries(teamData.dailyMap).forEach(([dayKey, minutes]) => {
               const dayDate = new Date(dayKey);
@@ -356,6 +357,7 @@ export default function TeamsList() {
     };
 
     loadStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teams.length, selectedGranularity, selectedPeriod, user?.role]);
 
   const handleTeamClick = (teamId) => {
