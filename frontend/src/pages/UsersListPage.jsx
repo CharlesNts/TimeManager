@@ -34,7 +34,6 @@ import {
   fetchUsers,
   fetchPendingUsers,
   approveUser,
-  rejectUser,
   updateUser,
   deleteUser,
 } from '../api/userAdminApi';
@@ -196,13 +195,11 @@ export default function UsersListPage() {
 
         // Process clocks
         const dailyHoursMap = {};
-        let totalMinutes = 0;
         clocksResults.forEach(({ clocks }) => {
           clocks.forEach(clock => {
             const clockIn = new Date(clock.clockIn);
             const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
             const minutes = Math.max(0, Math.round((clockOut - clockIn) / 60000));
-            totalMinutes += minutes;
 
             const clockInParis = toParis(clockIn);
             const dayKey = `${clockInParis.getFullYear()}-${String(clockInParis.getMonth() + 1).padStart(2, '0')}-${String(clockInParis.getDate()).padStart(2, '0')}`;
@@ -212,11 +209,9 @@ export default function UsersListPage() {
 
         // Process schedules
         let dailyScheduledMap = {};
-        let totalScheduledMinutes = 0;
         scheduleResults.forEach(({ schedule, memberCount }) => {
           if (!schedule || memberCount === 0) return;
           const scheduledData = calculateScheduledMinutesFromTemplate(startOfCurrentPeriod, endOfCurrentPeriod, schedule);
-          totalScheduledMinutes += scheduledData.totalMinutes * memberCount;
           Object.entries(scheduledData.dailyMap).forEach(([dayKey, minutes]) => {
             dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + (minutes * memberCount);
           });
@@ -281,6 +276,7 @@ export default function UsersListPage() {
     };
 
     loadStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows.length, selectedGranularity, selectedPeriod]);
 
   // Filtrage
