@@ -34,32 +34,21 @@ jobs:
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
-      - name: Build and analyze with SonarQube
+      - name: Build and analyze with SonarCloud
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
           cd backend/TimeManager1
-
-          # Option 1: Pour SonarCloud
           mvn clean verify sonar:sonar \
             -Dsonar.projectKey=timemanager-backend \
-            -Dsonar.organization=YOUR_ORG_KEY \
-            -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.token=$SONAR_TOKEN
 
-          # Option 2: Pour SonarQube self-hosted (décommentez si vous utilisez SonarQube local)
-          # mvn clean verify sonar:sonar \
-          #   -Dsonar.projectKey=timemanager-backend \
-          #   -Dsonar.host.url=$SONAR_HOST_URL \
-          #   -Dsonar.token=$SONAR_TOKEN
-
-      - name: SonarQube Quality Gate check
+      - name: SonarCloud Quality Gate check
         uses: sonarsource/sonarqube-quality-gate-action@master
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_HOST_URL: https://sonarcloud.io
 
   sonarqube-frontend:
     name: SonarQube - Frontend Analysis
@@ -83,20 +72,20 @@ jobs:
           cd frontend
           npm ci
 
-      - name: SonarQube Scan - Frontend
+      - name: SonarCloud Scan - Frontend
         uses: sonarsource/sonarqube-scan-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_HOST_URL: https://sonarcloud.io
         with:
           projectBaseDir: frontend
           args: >
             -Dsonar.projectKey=timemanager-frontend
-            -Dsonar.organization=YOUR_ORG_KEY
+            -Dsonar.organization=charlesnts
 
-      - name: SonarQube Quality Gate check
+      - name: SonarCloud Quality Gate check
         uses: sonarsource/sonarqube-quality-gate-action@master
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_HOST_URL: https://sonarcloud.io

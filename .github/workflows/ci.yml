@@ -27,29 +27,20 @@ jobs:
           cd backend/TimeManager1
           mvn clean package -DskipTests
 
-#      - name: Run tests
-#        run: |
-#          cd backend/TimeManager1
-#          mvn test
-#
-#      - name: Generate coverage report
-#        run: |
-#          cd backend/TimeManager1
-#          mvn jacoco:report
-#
-#      - name: Upload coverage report
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: jacoco-report
-#          path: backend/target/site/jacoco/
-#
-#      - name: Comment coverage on PR
-#        if: github.event_name == 'pull_request'
-#        run: |
-#          echo "Coverage report generated"
+      - name: Run tests
+        run: |
+          cd backend/TimeManager1
+          mvn test
 
-  frontend-build:
-    name: Frontend - Build
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-jar
+          path: backend/TimeManager1/target/*.jar
+          retention-days: 7
+
+  frontend-build-test:
+    name: Frontend - Build & Test
     runs-on: ubuntu-latest
 
     steps:
@@ -68,32 +59,24 @@ jobs:
           cd frontend
           npm ci
 
+      - name: Lint
+        run: |
+          cd frontend
+          npm run lint
+
+      - name: Run tests
+        run: |
+          cd frontend
+          npm test -- --run
+
       - name: Build
         run: |
           cd frontend
           npm run build
 
-      - name: Upload build
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
           path: frontend/dist/
-
-  docker-build:
-    name: Docker - Build Images
-    runs-on: ubuntu-latest
-    needs: [backend-build-test, frontend-build]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Build backend image
-        run: |
-          cd backend
-          docker build -t time-manager-backend .
-
-      - name: Build frontend image
-        run: |
-          cd frontend
-          docker build -t time-manager-frontend .
+          retention-days: 7
