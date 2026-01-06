@@ -40,7 +40,7 @@ class UserServiceTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        userService = new UserService(userRepository, userMapper, passwordEncoder, teamMemberRepository, null);
+        userService = new UserService(userRepository, userMapper, passwordEncoder, teamMemberRepository, null, null);
     }
 
     private UserDTO getSampleUserDTO() {

@@ -55,4 +55,14 @@ public interface ClockRepository extends JpaRepository<Clock, Long> {
            """)
     List<Clock> findAllBetweenFetchUserWithPauses(@Param("from") LocalDateTime from,
                                                   @Param("to") LocalDateTime to);
+
+    @Query("""
+    select c
+    from Clock c
+    where c.clockIn between :from and :to
+""")
+    List<Clock> findAllBetween(
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to
+    );
 }
