@@ -1,6 +1,6 @@
 // src/pages/LoginPage.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
@@ -54,12 +54,12 @@ export default function LoginPage() {
       const me = await api.get('/auth/me');
       
       // Check if account is active
-      if (!me.data.active) {
+      /* if (!me.data.active) {
         localStorage.removeItem('access_token');
         localStorage.removeItem('token_expires_at');
         setError('Votre compte est inactif. Veuillez contacter l\'administrateur.');
         return;
-      }
+      } */
       
       setUser(me.data);
 
@@ -122,9 +122,9 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Mot de passe</Label>
-                <a href="/forgot-password" className="text-sm text-gray-600 hover:text-black">
+                <Link to="/forgot-password" className="text-sm text-gray-600 hover:text-black">
                   Mot de passe oublié ?
-                </a>
+                </Link>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -159,7 +159,7 @@ export default function LoginPage() {
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Pas de compte ? <a href="/register" className="text-black font-medium hover:underline">S&apos;inscrire</a>
+              Pas de compte ? <Link to="/register" className="text-black font-medium hover:underline">S&apos;inscrire</Link>
             </p>
           </div>
         </CardContent>
