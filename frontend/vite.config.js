@@ -33,6 +33,13 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/setupTests.js',
+    pool: 'threads',
+    singleThread: true,
+    environmentOptions: {
+      jsdom: {
+        resources: 'usable',
+      },
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
