@@ -150,7 +150,7 @@ describe('UsersListPage', () => {
     });
 
     it('handles user rejection (delete)', async () => {
-        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        window.confirm = vi.fn(() => true);
         userAdminApi.deleteUser.mockResolvedValueOnce(true);
         renderComponent();
 

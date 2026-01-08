@@ -31,15 +31,10 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: 'jsdom',
+    environment: 'happy-dom',
     setupFiles: './src/setupTests.js',
     pool: 'threads',
     singleThread: true,
-    environmentOptions: {
-      jsdom: {
-        resources: 'usable',
-      },
-    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
