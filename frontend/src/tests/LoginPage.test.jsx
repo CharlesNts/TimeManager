@@ -8,6 +8,7 @@ const mockNavigate = vi.fn();
 // Mocking react-router-dom
 vi.mock('react-router-dom', () => ({
     useNavigate: () => mockNavigate,
+    Link: ({ children, to }) => <a href={to}>{children}</a>,
 }));
 
 // Mocking AuthContext
