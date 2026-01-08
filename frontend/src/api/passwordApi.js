@@ -1,38 +1,20 @@
-// src/api/passwordApi.js
-import api from './client';
+import client from './client';
 
 /**
- * API pour la gestion des mots de passe
- * Backend endpoints: /api/auth/password/*
+ * Triggers the password reset email for the given email address.
+ * @param {string} email 
+ * @returns {Promise<void>}
  */
-
-/**
- * Demande de réinitialisation de mot de passe
- * Envoie un email avec un lien de reset
- * @param {string} email - Email de l'utilisateur
- */
-export const requestPasswordReset = async (email) => {
-  try {
-    await api.post('/api/auth/password/forgot', { email });
-    return { success: true, message: 'Email envoyé si le compte existe' };
-  } catch (err) {
-    console.error('[passwordApi] requestPasswordReset failed:', err?.message || err);
-    throw err;
-  }
+export const forgotPassword = async (email) => {
+  await client.post('/api/auth/password/forgot', { email });
 };
 
 /**
- * Réinitialisation du mot de passe avec token
- * @param {string} token - Token reçu par email
- * @param {string} newPassword - Nouveau mot de passe
+ * Resets the password using the token and new password.
+ * @param {string} token 
+ * @param {string} newPassword 
+ * @returns {Promise<void>}
  */
 export const resetPassword = async (token, newPassword) => {
-  try {
-    await api.post('/api/auth/password/reset', { token, newPassword });
-    return { success: true, message: 'Mot de passe réinitialisé avec succès' };
-  } catch (err) {
-    console.error('[passwordApi] resetPassword failed:', err?.message || err);
-    throw err;
-  }
+  await client.post('/api/auth/password/reset', { token, newPassword });
 };
-
