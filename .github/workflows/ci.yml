@@ -131,17 +131,24 @@ jobs:
           distribution: temurin
           cache: maven
 
-      - name: Download backend coverage
-        uses: actions/download-artifact@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          name: backend-coverage
-          path: backend/TimeManager1/target/site/jacoco/
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Download frontend coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-coverage
-          path: frontend/coverage/
+      - name: Build backend and generate coverage
+        run: |
+          cd backend/TimeManager1
+          mvn clean test -Dspring.profiles.active=ci -Dtest='**/services/**Test'
+          mvn jacoco:report -Dspring.profiles.active=ci
+
+      - name: Install frontend dependencies and run tests with coverage
+        run: |
+          cd frontend
+          npm ci
+          npm test -- --run --coverage
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
