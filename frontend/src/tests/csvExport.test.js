@@ -1,21 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Import the functions we want to test
-// Note: We can't easily test downloadCSV as it uses DOM APIs,
-// but we can test the data generation functions by mocking downloadCSV
-
-// We'll test by importing and mocking the download function
-const mockDownloadCSV = vi.fn();
-
-// Mock the module to intercept downloadCSV calls
-vi.mock('../utils/csvExport', async () => {
-    const actual = await vi.importActual('../utils/csvExport');
-    return {
-        ...actual,
-        // We'll access internal functions via the exports
-    };
-});
-
 import {
     exportEmployeeDashboardCSV,
     exportManagerDashboardCSV,
@@ -26,8 +10,6 @@ import {
 
 describe('csvExport', () => {
     let createElementSpy;
-    let appendChildSpy;
-    let removeChildSpy;
     let clickSpy;
 
     beforeEach(() => {
@@ -40,11 +22,11 @@ describe('csvExport', () => {
             style: {},
             click: clickSpy,
         });
-        appendChildSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => { });
-        removeChildSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => { });
+        vi.spyOn(document.body, 'appendChild').mockImplementation(() => { });
+        vi.spyOn(document.body, 'removeChild').mockImplementation(() => { });
 
         // Mock URL.createObjectURL
-        global.URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+        globalThis.URL.createObjectURL = vi.fn(() => 'blob:mock-url');
     });
 
     afterEach(() => {
