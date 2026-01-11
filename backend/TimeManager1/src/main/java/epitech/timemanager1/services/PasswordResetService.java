@@ -12,6 +12,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -26,7 +27,8 @@ public class PasswordResetService {
     private final PasswordResetTokenRepository tokens;
     private final PasswordEncoder passwordEncoder;
     private final KafkaTemplate<String, PasswordResetRequestedEvent> kafka;
-
+    @Value("${app.kafka.enabled:true}")
+    private boolean kafkaEnabled;
     private static final int TOKEN_BYTES = 24;
     private static final int TOKEN_TTL_MINUTES = 60;
 
@@ -51,16 +53,18 @@ public class PasswordResetService {
 
         String link = resetLinkBase + token;
 
-        kafka.send(
-                KafkaTopics.PASSWORD_RESET_REQUESTED,
-                "password-reset:" + user.getId(),
-                new PasswordResetRequestedEvent(
-                        user.getId(),
-                        user.getEmail(),
-                        link,
-                        LocalDateTime.now()
-                )
-        );
+        if (kafkaEnabled) {
+            kafka.send(
+                    KafkaTopics.PASSWORD_RESET_REQUESTED,
+                    "password-reset:" + user.getId(),
+                    new PasswordResetRequestedEvent(
+                            user.getId(),
+                            user.getEmail(),
+                            link,
+                            LocalDateTime.now()
+                    )
+            );
+        }
     }
 
     @Transactional
