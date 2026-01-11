@@ -35,11 +35,18 @@ public class ScheduleTemplateService {
         ScheduleTemplate st = ScheduleTemplate.builder()
                 .team(team)
                 .name(name)
-                .active(active)              // on garde le comportement existant
+                .active(active)
                 .weeklyPatternJson(weeklyPatternJson)
                 .build();
 
-        return templates.save(st);
+        ScheduleTemplate saved = templates.save(st);
+        
+        // Ensure uniqueness of active template if this one is active
+        if (active) {
+            ensureSingleActive(teamId, saved.getId());
+        }
+        
+        return saved;
     }
 
     // -------- UPDATE --------
@@ -51,9 +58,11 @@ public class ScheduleTemplateService {
         ScheduleTemplate st = templates.findById(templateId)
                 .orElseThrow(() -> new NotFoundException("Template not found: " + templateId));
 
+        Long teamId = st.getTeam().getId();
+
         // Check name uniqueness within the same team if it changed
         if (name != null && !name.equalsIgnoreCase(st.getName())) {
-            if (templates.existsByTeamIdAndNameIgnoreCase(st.getTeam().getId(), name)) {
+            if (templates.existsByTeamIdAndNameIgnoreCase(teamId, name)) {
                 throw new ConflictException("Template name already exists for this team");
             }
             st.setName(name);
@@ -65,7 +74,14 @@ public class ScheduleTemplateService {
             st.setWeeklyPatternJson(weeklyPatternJson);
         }
 
-        return templates.save(st); // repository.save(...)
+        ScheduleTemplate saved = templates.save(st);
+
+        // Ensure uniqueness of active template if this one is active
+        if (active) {
+            ensureSingleActive(teamId, saved.getId());
+        }
+
+        return saved;
     }
 
     // -------- ACTIVATE / DEACTIVATE --------
@@ -77,25 +93,20 @@ public class ScheduleTemplateService {
         ScheduleTemplate st = templates.findById(templateId)
                 .orElseThrow(() -> new NotFoundException("Template not found: " + templateId));
 
-        Long teamId = st.getTeam().getId();
+        ensureSingleActive(st.getTeam().getId(), templateId);
+        
+        st.setActive(true);
+        return templates.save(st);
+    }
 
-        // Récupérer tous les templates de la même équipe
+    private void ensureSingleActive(Long teamId, Long activeTemplateId) {
         List<ScheduleTemplate> teamTemplates = templates.findByTeamIdOrderByNameAsc(teamId);
-
-        // Désactiver tous les autres
         for (ScheduleTemplate other : teamTemplates) {
-            if (!other.getId().equals(templateId) && other.isActive()) {
+            if (!other.getId().equals(activeTemplateId) && other.isActive()) {
                 other.setActive(false);
             }
         }
-
-        // S'assurer que celui-ci est actif
-        st.setActive(true);
-
-        // Sauvegarder les changements (tous les templates de l'équipe)
         templates.saveAll(teamTemplates);
-
-        return st;
     }
 
     public ScheduleTemplate deactivate(Long templateId) {
