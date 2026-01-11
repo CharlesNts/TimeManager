@@ -77,6 +77,7 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
   const [pauseDuration, setPauseDuration] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [isActive, setIsActive] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -91,6 +92,7 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
       setPauseDuration(resetValues.pauseDuration);
       setStartDate(resetValues.startDate);
       setEndDate(resetValues.endDate);
+      setIsActive(schedule ? schedule.active : true);
       setError('');
     }
   }, [open, schedule, teamName, parsePattern]);
@@ -154,15 +156,14 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
         template = await scheduleTemplatesApi.update(schedule.id, {
           name: scheduleName,
           weeklyPatternJson: JSON.stringify(weeklyPattern),
-          // Assuming teamId and active status are not changed via this modal
           teamId: schedule.teamId,
-          active: schedule.active,
+          active: isActive,
         });
       } else {
         template = await scheduleTemplatesApi.create({
           teamId,
           name: scheduleName,
-          active: false,
+          active: isActive,
           weeklyPatternJson: JSON.stringify(weeklyPattern)
         });
       }
@@ -321,6 +322,18 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
                 />
               </div>
             </div>
+          </div>
+
+          {/* Options */}
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="is-active"
+              checked={isActive}
+              onCheckedChange={setIsActive}
+            />
+            <Label htmlFor="is-active" className="text-sm font-medium cursor-pointer">
+              Définir comme planning actif pour l&apos;équipe
+            </Label>
           </div>
 
           {/* Résumé */}
