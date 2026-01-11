@@ -430,6 +430,17 @@ export default function TeamDetail() {
         }
 
         // E. Calculate Lateness Locally (Consistent with Period)
+        // Re-fetch clocks for lateness calculation to ensure we have the data
+        const membersData = await Promise.all(members.map(async (m) => {
+            const userId = m.user?.id ?? m.userId;
+            if (!userId) return { userId, currentClocks: [], previousClocks: [] };
+            const [currentClocks, previousClocks] = await Promise.all([
+                getClocksInRange(userId, startOfCurrentPeriod, endOfCurrentPeriod),
+                getClocksInRange(userId, singlePreviousStart, singlePreviousEnd)
+            ]);
+            return { userId, currentClocks, previousClocks };
+        }));
+
         let totalLateDays = 0;
         let totalDaysWithClock = 0;
         let prevTotalLateDays = 0;

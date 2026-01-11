@@ -25,10 +25,11 @@ import {
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { buildChartSeries } from '../api/statsApi';
 import { getPeriodInfo, getDisplayPeriodBoundaries } from '../utils/granularityUtils';
-import { calculateScheduledMinutesFromTemplate } from '../utils/scheduleUtils';
-import { toParis } from '../utils/dateUtils';
+import { toParis, toISO } from '../utils/dateUtils';
 import api from '../api/client';
+import { getClocksInRange } from '../api/clocks.api';
 import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
+import { calculateScheduledMinutesFromTemplate, getLatenessThresholdFromSchedule } from '../utils/scheduleUtils';
 
 import {
   fetchUsers,
@@ -93,6 +94,7 @@ export default function UsersListPage() {
   const [hoursChartSeries, setHoursChartSeries] = useState([]);
   const [hoursTotals, setHoursTotals] = useState({ current: 0 });
   const [adherenceData, setAdherenceData] = useState({ rate: 0, chartSeries: [] });
+  const [latenessData, setLatenessData] = useState({ rate: 0, lateDays: 0, totalDays: 0 });
   const [chartModal, setChartModal] = useState({ open: false, title: '', subtitle: '', data: [], chartType: 'area', config: {} });
   const [statsLoading, setStatsLoading] = useState(true);
 
@@ -145,8 +147,8 @@ export default function UsersListPage() {
         const startOfCurrentPeriod = periodBoundaries[0].startDate;
         const endOfCurrentPeriod = now;
 
-        // Get all employees and managers for clocking
-        const targetUsers = rows.filter(u => u.role === 'EMPLOYEE' || u.role === 'MANAGER');
+        // Get all employees, managers and admins for clocking stats
+        const targetUsers = rows.filter(u => u.role === 'EMPLOYEE' || u.role === 'MANAGER' || u.role === 'CEO');
 
         // Get all teams for schedule templates
         const { data: allApiUsers } = await api.get('/api/users');
@@ -179,10 +181,10 @@ export default function UsersListPage() {
         const [clocksResults, scheduleResults] = await Promise.all([
           Promise.all(targetUsers.map(async (u) => {
             try {
-              const { data } = await api.get(`/api/users/${u.id}/clocks/range`, {
-                params: { from: startOfCurrentPeriod.toISOString(), to: endOfCurrentPeriod.toISOString() }
-              });
-              return { userId: u.id, clocks: Array.isArray(data) ? data : [] };
+              const clocks = await getClocksInRange(u.id, toISO(startOfCurrentPeriod), toISO(endOfCurrentPeriod));
+              // Debug log
+              if (clocks.length > 0) console.log(`[UsersListPage] Loaded ${clocks.length} clocks for user ${u.id}`);
+              return { userId: u.id, clocks };
             } catch { return { userId: u.id, clocks: [] }; }
           })),
           Promise.all(teamsWithMembers.map(async (team) => {
@@ -193,9 +195,30 @@ export default function UsersListPage() {
           }))
         ]);
 
-        // Process clocks
+        // Calculate Lateness Locally
+        let totalLateDays = 0;
+        let totalDaysWithClock = 0;
+        
+        // Need to map user -> schedule
+        const userScheduleMap = {};
+        teamsWithMembers.forEach(t => {
+           const schedResult = scheduleResults.find(s => s.teamId === t.id);
+           const sched = schedResult?.schedule;
+           if (sched) {
+             t.members.forEach(m => {
+               const uid = m.user?.id || m.userId;
+               if (uid) userScheduleMap[uid] = sched;
+             });
+           }
+        });
+
+        // Process clocks & lateness
         const dailyHoursMap = {};
-        clocksResults.forEach(({ clocks }) => {
+        clocksResults.forEach(({ userId, clocks }) => {
+          // Lateness per user
+          const schedule = userScheduleMap[userId];
+          const daysMap = {};
+
           clocks.forEach(clock => {
             const clockIn = new Date(clock.clockIn);
             const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
@@ -204,11 +227,34 @@ export default function UsersListPage() {
             const clockInParis = toParis(clockIn);
             const dayKey = `${clockInParis.getFullYear()}-${String(clockInParis.getMonth() + 1).padStart(2, '0')}-${String(clockInParis.getDate()).padStart(2, '0')}`;
             dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
+
+            // For lateness: find first clock of day
+            const dayStr = clockInParis.toDateString();
+            if (!daysMap[dayStr] || clockIn < daysMap[dayStr]) {
+               daysMap[dayStr] = clockIn;
+            }
           });
+
+          // Compute lateness for this user
+          if (schedule) {
+             Object.values(daysMap).forEach(firstClockDate => {
+               const limitMinutes = getLatenessThresholdFromSchedule(schedule, firstClockDate, 5);
+               const actualMinutes = firstClockDate.getHours() * 60 + firstClockDate.getMinutes();
+               totalDaysWithClock++;
+               if (actualMinutes > limitMinutes) totalLateDays++;
+             });
+          }
         });
 
-        // Process schedules
-        let dailyScheduledMap = {};
+                const currentLatenessRate = totalDaysWithClock > 0 ? (totalLateDays / totalDaysWithClock) * 100 : 0;
+
+                setLatenessData({ rate: currentLatenessRate, lateDays: totalLateDays, totalDays: totalDaysWithClock });
+
+        
+
+                // Process schedules
+
+                let dailyScheduledMap = {};
         scheduleResults.forEach(({ schedule, memberCount }) => {
           if (!schedule || memberCount === 0) return;
           const scheduledData = calculateScheduledMinutesFromTemplate(startOfCurrentPeriod, endOfCurrentPeriod, schedule);
@@ -428,7 +474,7 @@ export default function UsersListPage() {
                 {statsLoading ? (
                   <div className="text-gray-500 text-sm">Chargement des statistiques...</div>
                 ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {/* Hours Chart */}
                     <Card
                       className="cursor-pointer hover:shadow-md transition-shadow"
@@ -510,6 +556,22 @@ export default function UsersListPage() {
                           </ResponsiveContainer>
                         </div>
                         <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Lateness KPI - Added */}
+                    <Card className="hover:shadow-md transition-shadow">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">
+                          Taux de retard
+                        </CardTitle>
+                        <Clock className="h-4 w-4 text-amber-500" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold mb-2 text-amber-600">{latenessData.rate.toFixed(1)}%</div>
+                        <p className="text-xs text-gray-500">
+                          {latenessData.lateDays} jour(s) en retard sur {latenessData.totalDays} jours travaillés
+                        </p>
                       </CardContent>
                     </Card>
                   </div>
