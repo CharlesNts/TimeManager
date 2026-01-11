@@ -288,38 +288,75 @@ export default function ManagerDashboard() {
               return { teamId: team.id, schedule };
             } catch (e) { return { teamId: team.id, schedule: null }; }
           })),
-          // Fetch Lateness Rate for all users (Current Month)
-          Promise.all(uniqueMemberIds.map(async (userId) => {
-            const currentMonthStr = startOfCurrentPeriod.toISOString().substring(0, 7); // YYYY-MM
-            try {
-              return await reportsApi.getUserLatenessRate(userId, currentMonthStr);
-            } catch (e) { return { totalDaysWithClock: 0, lateDays: 0 }; }
-          }))
+          // Fetch Lateness Rate for all users (Current Month) - Calculated LOCALLY
+          // We don't fetch from API anymore to ensure consistency with Schedule Templates logic
+          Promise.resolve([]) 
         ]);
 
         const clocksResults = allResults[0];
         const previousClocksResults = allResults[1];
         const scheduleResults = allResults[2];
-        const latenessResults = allResults[3];
+        // const latenessResults = allResults[3]; // Not used anymore
 
-        // --- Calculate Aggregated Lateness ---
-        const totalLatenessStats = latenessResults.reduce((acc, curr) => {
-          return {
-            totalDays: acc.totalDays + (curr.totalDaysWithClock || 0),
-            lateDays: acc.lateDays + (curr.lateDays || 0)
-          };
-        }, { totalDays: 0, lateDays: 0 });
+        // Map teamId -> Schedule
+        const scheduleMap = {};
+        scheduleResults.forEach(r => {
+           if (r.teamId && r.schedule) scheduleMap[r.teamId] = r.schedule;
+        });
 
-        const aggregatedLatenessRate = totalLatenessStats.totalDays > 0
-          ? (totalLatenessStats.lateDays / totalLatenessStats.totalDays) * 100
+        // Map userId -> Schedule (via Team)
+        // We need to know which team a user belongs to.
+        // The 'teams' state has members.
+        const userScheduleMap = {};
+        teams.forEach(t => {
+           const sched = scheduleMap[t.id];
+           if (sched) {
+             t.members.forEach(m => {
+               const uid = m.user?.id || m.userId;
+               if (uid) userScheduleMap[uid] = sched;
+             });
+           }
+        });
+
+        // --- Calculate Aggregated Lateness Locally ---
+        let globalTotalDays = 0;
+        let globalLateDays = 0;
+
+        clocksResults.forEach(({ userId, clocks }) => {
+           const schedule = userScheduleMap[userId];
+           // Group clocks by day to find first clock-in
+           const daysMap = {};
+           clocks.forEach(c => {
+             const d = new Date(c.clockIn);
+             const dayKey = d.toDateString();
+             if (!daysMap[dayKey] || d < daysMap[dayKey]) {
+               daysMap[dayKey] = d;
+             }
+           });
+
+           Object.values(daysMap).forEach(firstClockDate => {
+             // Check if late
+             // Tolerance 5 mins default
+             const limitMinutes = getLatenessThresholdFromSchedule(schedule, firstClockDate, 5);
+             const actualMinutes = firstClockDate.getHours() * 60 + firstClockDate.getMinutes();
+             
+             globalTotalDays++;
+             if (actualMinutes > limitMinutes) {
+               globalLateDays++;
+             }
+           });
+        });
+
+        const aggregatedLatenessRate = globalTotalDays > 0
+          ? (globalLateDays / globalTotalDays) * 100
           : 0;
 
         setLatenessData({
           rate: aggregatedLatenessRate,
-          lateDays: totalLatenessStats.lateDays,
-          totalDays: totalLatenessStats.totalDays,
-          chartSeries: [], // TODO: Calculate monthly series for manager view
-          evolutionRate: 0 // TODO: Calculate evolution vs previous period
+          lateDays: globalLateDays,
+          totalDays: globalTotalDays,
+          chartSeries: [], 
+          evolutionRate: 0 
         });
 
         // 2. Process Clocks (Actual Volume)

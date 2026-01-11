@@ -41,7 +41,7 @@ import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
 import reportsApi from '../api/reportsApi';
 import { buildChartSeries } from '../api/statsApi';
 import { getDisplayPeriodBoundaries } from '../utils/granularityUtils';
-import { calculateScheduledMinutesFromTemplate } from '../utils/scheduleUtils';
+import { calculateScheduledMinutesFromTemplate, getLatenessThresholdFromSchedule } from '../utils/scheduleUtils';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 
 // shadcn components
@@ -429,58 +429,56 @@ export default function TeamDetail() {
           adherenceEvolution = 0;
         }
 
-        // E. Fetch Lateness Data for all members
-        const currentMonthStr = now.toISOString().substring(0, 7); // YYYY-MM
-        const monthLabels = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
-
-        let latenessChartSeries = [];
+        // E. Calculate Lateness Locally (Consistent with Period)
         let totalLateDays = 0;
         let totalDaysWithClock = 0;
-        let currentLatenessRate = 0;
-        let previousLatenessRate = 0;
-
-        // Fetch lateness for current month for all members
-        const latenessPromises = allMemberIds.map(uid =>
-          reportsApi.getUserLatenessRate(uid, currentMonthStr)
-            .catch(() => ({ rate: 0, lateDays: 0, totalDaysWithClock: 0 }))
-        );
-        const latenessResults = await Promise.all(latenessPromises);
-
-        // Aggregate lateness stats
-        latenessResults.forEach(r => {
-          totalLateDays += r.lateDays || 0;
-          totalDaysWithClock += r.totalDaysWithClock || 0;
-        });
-        currentLatenessRate = totalDaysWithClock > 0
-          ? (totalLateDays / totalDaysWithClock) * 100
-          : 0;
-
-        // Optional: Calculate previous month for evolution
-        const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const prevMonthStr = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
-        const prevLatenessPromises = allMemberIds.map(uid =>
-          reportsApi.getUserLatenessRate(uid, prevMonthStr)
-            .catch(() => ({ rate: 0, lateDays: 0, totalDaysWithClock: 0 }))
-        );
-        const prevLatenessResults = await Promise.all(prevLatenessPromises);
         let prevTotalLateDays = 0;
         let prevTotalDaysWithClock = 0;
-        prevLatenessResults.forEach(r => {
-          prevTotalLateDays += r.lateDays || 0;
-          prevTotalDaysWithClock += r.totalDaysWithClock || 0;
+
+        // Current Period Lateness
+        // We reuse 'membersData' which contains { userId, currentClocks, previousClocks }
+        membersData.forEach(({ userId, currentClocks, previousClocks }) => {
+           // Group by day to check first clock-in
+           const currentDaysMap = {};
+           currentClocks.forEach(c => {
+             const d = new Date(c.clockIn);
+             const dayKey = d.toDateString();
+             if (!currentDaysMap[dayKey] || d < currentDaysMap[dayKey]) currentDaysMap[dayKey] = d;
+           });
+
+           Object.values(currentDaysMap).forEach(firstClockDate => {
+             const limitMinutes = getLatenessThresholdFromSchedule(activeSchedule, firstClockDate, 5);
+             const actualMinutes = firstClockDate.getHours() * 60 + firstClockDate.getMinutes();
+             totalDaysWithClock++;
+             if (actualMinutes > limitMinutes) totalLateDays++;
+           });
+
+           // Previous Period Lateness (Evolution)
+           const prevDaysMap = {};
+           previousClocks.forEach(c => {
+             const d = new Date(c.clockIn);
+             const dayKey = d.toDateString();
+             if (!prevDaysMap[dayKey] || d < prevDaysMap[dayKey]) prevDaysMap[dayKey] = d;
+           });
+
+           Object.values(prevDaysMap).forEach(firstClockDate => {
+             const limitMinutes = getLatenessThresholdFromSchedule(activeSchedule, firstClockDate, 5);
+             const actualMinutes = firstClockDate.getHours() * 60 + firstClockDate.getMinutes();
+             prevTotalDaysWithClock++;
+             if (actualMinutes > limitMinutes) prevTotalLateDays++;
+           });
         });
-        previousLatenessRate = prevTotalDaysWithClock > 0
-          ? (prevTotalLateDays / prevTotalDaysWithClock) * 100
-          : 0;
+
+        const currentLatenessRate = totalDaysWithClock > 0 ? (totalLateDays / totalDaysWithClock) * 100 : 0;
+        const previousLatenessRate = prevTotalDaysWithClock > 0 ? (prevTotalLateDays / prevTotalDaysWithClock) * 100 : 0;
 
         const latenessEvolution = previousLatenessRate > 0
           ? ((currentLatenessRate - previousLatenessRate) / previousLatenessRate) * 100
           : 0;
 
-        // Build chart series (current and previous month)
-        latenessChartSeries = [
-          { label: monthLabels[prevMonth.getMonth()], value: previousLatenessRate },
-          { label: monthLabels[now.getMonth()], value: currentLatenessRate }
+        const latenessChartSeries = [
+          { label: 'Période préc.', value: previousLatenessRate },
+          { label: 'Période act.', value: currentLatenessRate }
         ];
 
         setLatenessData({
