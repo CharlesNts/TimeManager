@@ -1,7 +1,7 @@
-# Workflow SonarQube Analysis
-# Ce workflow analyse le code avec SonarQube/SonarCloud
+# Workflow SonarCloud Analysis
+# Ce workflow analyse le code avec SonarCloud
 
-name: SonarQube Analysis
+name: SonarCloud Analysis
 
 on:
   push:
@@ -10,8 +10,8 @@ on:
     branches: [main, develop]
 
 jobs:
-  sonarqube-backend:
-    name: SonarQube - Backend Analysis
+  sonarcloud-backend:
+    name: SonarCloud - Backend Analysis
     runs-on: ubuntu-latest
 
     steps:
@@ -27,7 +27,7 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Cache SonarQube packages
+      - name: Cache SonarCloud packages
         uses: actions/cache@v3
         with:
           path: ~/.sonar/cache
@@ -39,9 +39,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           cd backend/TimeManager1
-          mvn clean verify sonar:sonar \
-            -Dsonar.projectKey=timemanager-backend \
-            -Dsonar.token=$SONAR_TOKEN
+          mvn clean verify sonar:sonar -Dsonar.token=$SONAR_TOKEN
 
       - name: SonarCloud Quality Gate check
         uses: sonarsource/sonarqube-quality-gate-action@master
@@ -50,8 +48,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
 
-  sonarqube-frontend:
-    name: SonarQube - Frontend Analysis
+  sonarcloud-frontend:
+    name: SonarCloud - Frontend Analysis
     runs-on: ubuntu-latest
 
     steps:
@@ -73,19 +71,14 @@ jobs:
           npm ci
 
       - name: SonarCloud Scan - Frontend
-        uses: sonarsource/sonarqube-scan-action@master
+        uses: sonarsource/sonarcloud-github-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
         with:
           projectBaseDir: frontend
-          args: >
-            -Dsonar.projectKey=timemanager-frontend
-            -Dsonar.organization=charlesnts
 
       - name: SonarCloud Quality Gate check
         uses: sonarsource/sonarqube-quality-gate-action@master
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
