@@ -88,79 +88,88 @@ export const calculatePeriodDates = (granularity) => {
  */
 export const getPeriodBoundaries = (granularity, startDate, endDate) => {
   const periods = [];
+  const endLimitTime = startOfDay(endDate).getTime();
+  let current = new Date(startDate);
+  let safety = 0;
 
   if (granularity === 'day') {
-    const MAX_ITERATIONS = 366; // Safety guard
-    const endDayStart = startOfDay(endDate).getTime();
-    for (let i = 0; i < MAX_ITERATIONS; i++) {
-      const current = addDays(startDate, i);
-      const currentDayStart = startOfDay(current).getTime();
-      if (currentDayStart > endDayStart) break;
+    const MAX_DAYS = 366;
+    while (startOfDay(current).getTime() <= endLimitTime && safety < MAX_DAYS) {
       const dayStart = startOfDay(current);
       const dayEnd = new Date(dayStart);
       dayEnd.setHours(23, 59, 59, 999);
+
       periods.push({
         startDate: dayStart,
         endDate: dayEnd,
         label: current.toLocaleDateString('fr-FR', { weekday: 'short', month: 'short', day: 'numeric' })
       });
+
+      current = addDays(current, 1);
+      safety++;
     }
     return periods;
   }
 
   if (granularity === 'week') {
-    const MAX_ITERATIONS = 53; // Safety guard
-    const endDayStart = startOfDay(endDate).getTime();
-    const firstWeekStart = startOfWeekMon(startDate);
-    for (let i = 0; i < MAX_ITERATIONS; i++) {
-      const weekStart = addDays(firstWeekStart, i * 7);
-      if (startOfDay(weekStart).getTime() > endDayStart) break;
+    const MAX_WEEKS = 53;
+    let weekStart = startOfWeekMon(startDate);
+    while (startOfDay(weekStart).getTime() <= endLimitTime && safety < MAX_WEEKS) {
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
       weekEnd.setHours(23, 59, 59, 999);
+
       const weekNum = Math.ceil((weekStart.getDate()) / 7);
       periods.push({
-        startDate: weekStart,
+        startDate: new Date(weekStart),
         endDate: weekEnd,
         label: `S${weekNum}`
       });
+
+      weekStart = addDays(weekStart, 7);
+      safety++;
     }
     return periods;
   }
 
   if (granularity === 'month') {
-    const MAX_ITERATIONS = 120; // Safety guard (10 years)
-    const endDayStart = startOfDay(endDate).getTime();
-    for (let i = 0; i < MAX_ITERATIONS; i++) {
-      const monthStart = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
-      if (monthStart.getTime() > endDayStart) break;
+    const MAX_MONTHS = 120;
+    while (startOfDay(current).getTime() <= endLimitTime && safety < MAX_MONTHS) {
+      const monthStart = new Date(current.getFullYear(), current.getMonth(), 1);
       monthStart.setHours(0, 0, 0, 0);
       const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
       monthEnd.setHours(23, 59, 59, 999);
+
       periods.push({
         startDate: monthStart,
         endDate: monthEnd,
         label: monthStart.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })
       });
+
+      current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
+      safety++;
     }
     return periods;
   }
 
   if (granularity === 'year') {
-    const MAX_ITERATIONS = 100; // Safety guard
+    const MAX_YEARS = 100;
     const endYear = endDate.getFullYear();
-    for (let i = 0; i < MAX_ITERATIONS; i++) {
-      const year = startDate.getFullYear() + i;
-      if (year > endYear) break;
-      const yearStart = new Date(year, 0, 1);
+    let currentYear = startDate.getFullYear();
+    while (currentYear <= endYear && safety < MAX_YEARS) {
+      const yearStart = new Date(currentYear, 0, 1);
       yearStart.setHours(0, 0, 0, 0);
-      const yearEnd = new Date(year, 11, 31);
+      const yearEnd = new Date(currentYear, 11, 31);
       yearEnd.setHours(23, 59, 59, 999);
+
       periods.push({
         startDate: yearStart,
         endDate: yearEnd,
-        label: yearStart.getFullYear().toString()
+        label: currentYear.toString()
       });
+
+      currentYear++;
+      safety++;
     }
     return periods;
   }

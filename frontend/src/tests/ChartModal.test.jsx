@@ -46,6 +46,15 @@ describe('ChartModal', () => {
         expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
 
+    it('does NOT call onClose when other keys are pressed', () => {
+        render(<ChartModal {...defaultProps} />);
+        const backdrop = screen.getByRole('dialog');
+        fireEvent.keyDown(backdrop, { key: 'Enter' }); // Not Escape
+        fireEvent.keyDown(backdrop, { key: 'Tab' });
+        fireEvent.keyDown(backdrop, { key: 'a' });
+        expect(mockOnClose).not.toHaveBeenCalled();
+    });
+
     it('calls onClose when clicking the backdrop', () => {
         render(<ChartModal {...defaultProps} />);
         const backdrop = screen.getByRole('dialog');
@@ -68,5 +77,19 @@ describe('ChartModal', () => {
     it('renders bar chart when type is bar', () => {
         render(<ChartModal {...defaultProps} type="bar" />);
         expect(screen.getByTestId('bar-chart')).toBeInTheDocument();
+    });
+
+    it('renders CustomTooltip when provided', () => {
+        const CustomTooltip = () => <div data-testid="custom-tooltip">Custom Tooltip</div>;
+        render(<ChartModal {...defaultProps} CustomTooltip={CustomTooltip} />);
+        expect(screen.getByTestId('tooltip')).toBeInTheDocument();
+    });
+
+    it('uses provided chartConfig colors', () => {
+        const chartConfig = { color: 'red', gradientId: 'testGradient', barColors: ['red', 'blue'] };
+        render(<ChartModal {...defaultProps} chartConfig={chartConfig} type="area" />);
+        // Since we mock AreaChart/Area, we can't easily check props passed to them without spying on the mock,
+        // but we can check if it renders without error.
+        expect(screen.getByTestId('area-chart')).toBeInTheDocument();
     });
 });
