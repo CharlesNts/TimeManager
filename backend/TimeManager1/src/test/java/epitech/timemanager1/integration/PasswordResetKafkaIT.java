@@ -1,4 +1,5 @@
 package epitech.timemanager1.integration;
+import epitech.timemanager1.IntegrationTest;
 
 import epitech.timemanager1.events.PasswordResetEmailListener;
 import epitech.timemanager1.events.PasswordResetRequestedEvent;
@@ -6,9 +7,7 @@ import epitech.timemanager1.kafka.KafkaTopics;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import static org.mockito.ArgumentMatchers.*;
@@ -18,11 +17,9 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import static org.awaitility.Awaitility.await;
 
-@ActiveProfiles("test")
 public class PasswordResetKafkaIT {
     @Nested
-    @SpringBootTest
-    @ActiveProfiles("test")
+    @IntegrationTest
     class PasswordResetKafkaIT1 {
 
         @MockitoSpyBean
