@@ -26,8 +26,8 @@
         <!-- SonarCloud Configuration -->
         <sonar.organization>charlesnts</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
-        <sonar.projectKey>timemanager-backend</sonar.projectKey>
-        <sonar.projectName>TimeManager Backend</sonar.projectName>
+        <sonar.projectKey>CharlesNts_TimeManager</sonar.projectKey>
+        <sonar.projectName>TimeManager</sonar.projectName>
     </properties>
 
     <dependencies>
@@ -55,6 +55,11 @@
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
         </dependency>
 
         <!-- MapStruct -->
@@ -112,6 +117,12 @@
             <artifactId>annotations</artifactId>
             <version>13.0</version>
             <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
         </dependency>
 
         <!-- Tests -->
@@ -214,6 +225,27 @@
                 <groupId>org.sonarsource.scanner.maven</groupId>
                 <artifactId>sonar-maven-plugin</artifactId>
                 <version>4.0.0.4121</version>
+            </plugin>
+
+            <!-- JaCoCo Maven Plugin for code coverage -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
             <plugin>

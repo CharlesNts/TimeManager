@@ -36,8 +36,8 @@ export default defineConfig({
     pool: 'threads',
     singleThread: true,
     coverage: {
-      provider: 'v8',
-      reporter: ['text', 'lcov'],
+      provider: 'istanbul',
+      reporter: ['text', 'lcov', 'html'],
       exclude: ['node_modules/', 'src/setupTests.js'],
     },
   }

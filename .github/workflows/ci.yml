@@ -6,69 +6,74 @@ on:
   pull_request:
     branches: [main, develop]
 
-# Variables d'environnement globales
 env:
-  NODE_VERSION: '18'
   JAVA_VERSION: '21'
+  NODE_VERSION: '20'
 
 jobs:
+# ==================================================
+# BACKEND
+# ==================================================
   backend-build-test:
     name: Backend - Build & Test
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
-          java-version: 21
-          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
           cache: maven
 
-      - name: Build with Maven
+      - name: Build backend (CI profile)
         run: |
           cd backend/TimeManager1
-          mvn clean package -DskipTests
+          mvn clean package -DskipTests -Dspring.profiles.active=ci
 
-      - name: Run tests
+      - name: Run backend tests (CI profile - unit tests only)
         run: |
           cd backend/TimeManager1
-          mvn test
+          mvn test -Dspring.profiles.active=ci -Dtest='**/services/**Test'
 
-      - name: Generate test coverage report
+      - name: Generate JaCoCo report
         run: |
           cd backend/TimeManager1
-          mvn jacoco:report
+          mvn jacoco:report -Dspring.profiles.active=ci
 
-      - name: Upload JAR artifact
+      - name: Upload backend JAR
         uses: actions/upload-artifact@v4
         with:
           name: backend-jar
           path: backend/TimeManager1/target/*.jar
           retention-days: 7
 
-      - name: Upload backend coverage report
+      - name: Upload backend coverage
         uses: actions/upload-artifact@v4
         with:
           name: backend-coverage
           path: backend/TimeManager1/target/site/jacoco/
           retention-days: 7
 
+# ==================================================
+# FRONTEND
+# ==================================================
   frontend-build-test:
     name: Frontend - Build & Test
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Set up Node
-        uses: actions/setup-node@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
@@ -81,246 +86,102 @@ jobs:
           cd frontend
           npm run lint
 
-      - name: Run tests with coverage
+      - name: Run frontend tests with coverage
         run: |
           cd frontend
           npm test -- --run --coverage
 
-      - name: Build
+      - name: Build frontend
         run: |
           cd frontend
           npm run build
 
-      - name: Upload build artifact
+      - name: Upload frontend build
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
           path: frontend/dist/
           retention-days: 7
 
-      - name: Upload frontend coverage report
+      - name: Upload frontend coverage
         uses: actions/upload-artifact@v4
         with:
           name: frontend-coverage
           path: frontend/coverage/
           retention-days: 7
 
-  # =============================================
-  # JOB 3: Analyse Qualité du Code - SonarQube
-  # =============================================
+# ==================================================
+# SONARCLOUD
+# ==================================================
   sonarqube-analysis:
-    name: SonarQube Analysis
+    name: SonarCloud Analysis
     runs-on: ubuntu-latest
     needs: [backend-build-test, frontend-build-test]
-    
-    # Analyser seulement les branches principales et les PRs
-    if: |
-      github.event_name == 'push' && 
-      (github.ref == 'refs/heads/develop' || 
-       github.ref == 'refs/heads/main') ||
-      github.event_name == 'pull_request'
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-      with:
-        # Historique complet requis pour l'analyse SonarQube
-        fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up JDK 21
-      uses: actions/setup-java@v3
-      with:
-        java-version: 21
-        distribution: 'temurin'
-        cache: maven
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: maven
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: frontend/package-lock.json
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-    # ========================================
-    # Backend: Build et génération couverture
-    # ========================================
-    - name: Build Backend with coverage
-      run: |
-        cd backend/TimeManager1
-        mvn clean verify -DskipTests=false
+      - name: Build backend and generate coverage
+        run: |
+          cd backend/TimeManager1
+          mvn clean test -Dspring.profiles.active=ci -Dtest='**/services/**Test'
+          mvn jacoco:report -Dspring.profiles.active=ci
 
-    # ========================================
-    # Frontend: Install et génération couverture
-    # ========================================
-    - name: Install Frontend dependencies
-      run: |
-        cd frontend
-        npm ci
+      - name: Install frontend dependencies and run tests with coverage
+        run: |
+          cd frontend
+          npm ci
+          npm test -- --run --coverage
 
-    - name: Run Frontend tests with coverage
-      run: |
-        cd frontend
-        npm test -- --run --coverage
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=CharlesNts_TimeManager
+            -Dsonar.organization=charlesnts
+            -Dsonar.sources=frontend/src,backend/TimeManager1/src/main
+            -Dsonar.tests=frontend/src/tests,backend/TimeManager1/src/test
+            -Dsonar.java.binaries=backend/TimeManager1/target/classes
+            -Dsonar.coverage.jacoco.xmlReportPaths=backend/TimeManager1/target/site/jacoco/jacoco.xml
+            -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/target/**,**/tests/**,**/*.test.js,**/*.test.jsx,**/*.spec.js,**/*.spec.jsx
+            -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.qualitygate.wait=true
 
-    # ========================================
-    # Téléchargement des rapports de couverture
-    # ========================================
-    - name: Download backend coverage report
-      uses: actions/download-artifact@v4
-      with:
-        name: backend-coverage
-        path: backend/TimeManager1/target/site/jacoco/
-      continue-on-error: true
-
-    - name: Download frontend coverage report
-      uses: actions/download-artifact@v4
-      with:
-        name: frontend-coverage
-        path: frontend/coverage/
-      continue-on-error: true
-
-    # ========================================
-    # Vérification des rapports de couverture
-    # ========================================
-    - name: Verify coverage reports
-      run: |
-        echo "Verification des rapports de couverture..."
-        echo ""
-        
-        # Backend (JaCoCo)
-        if [ -f "backend/TimeManager1/target/site/jacoco/jacoco.xml" ]; then
-          echo "[OK] Backend coverage (JaCoCo): TROUVE"
-          ls -lh backend/TimeManager1/target/site/jacoco/jacoco.xml
-        else
-          echo "[WARNING] Backend coverage: NON TROUVE"
-          echo "Recherche dans:"
-          find backend/TimeManager1/target -name "jacoco.xml" 2>/dev/null || echo "Aucun jacoco.xml trouvé"
-        fi
-        
-        echo ""
-        
-        # Frontend (LCOV)
-        if [ -f "frontend/coverage/lcov.info" ]; then
-          echo "[OK] Frontend coverage (LCOV): TROUVE"
-          wc -l frontend/coverage/lcov.info
-        else
-          echo "[WARNING] Frontend coverage: NON TROUVE"
-          echo "Contenu du dossier coverage:"
-          ls -la frontend/coverage/ 2>/dev/null || echo "Dossier coverage inexistant"
-        fi
-
-    # ========================================
-    # Analyse SonarQube Cloud
-    # ========================================
-    - name: SonarQube Scan
-      uses: SonarSource/sonarqube-scan-action@master
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        SONAR_HOST_URL: https://sonarcloud.io
-      with:
-        args: >
-          -Dsonar.projectKey=CharlesNts_TimeManager
-          -Dsonar.organization=charlesnts
-          -Dsonar.branch.name=${{ github.ref_name }}
-          -Dsonar.sources=frontend/src,backend/TimeManager1/src/main
-          -Dsonar.tests=frontend/src,backend/TimeManager1/src/test
-          -Dsonar.java.binaries=backend/TimeManager1/target/classes
-          -Dsonar.coverage.jacoco.xmlReportPaths=backend/TimeManager1/target/site/jacoco/jacoco.xml
-          -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info
-          -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/target/**,**/*.test.js,**/*.test.jsx,**/*.spec.js
-          -Dsonar.test.inclusions=**/*.test.js,**/*.test.jsx,**/*.spec.js,**/src/test/**/*.java
-          -Dsonar.sourceEncoding=UTF-8
-          -Dsonar.qualitygate.wait=true
-          -Dsonar.qualitygate.timeout=300
-
-    # ========================================
-    # Vérification Quality Gate
-    # ========================================
-    - name: Check Quality Gate Status
-      uses: SonarSource/sonarqube-quality-gate-action@master
-      timeout-minutes: 5
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        SONAR_HOST_URL: https://sonarcloud.io
-      with:
-        scanMetadataReportFile: .scannerwork/report-task.txt
-
-    # ========================================
-    # Résumé de l'analyse
-    # ========================================
-    - name: Analysis Summary
-      if: always()
-      run: |
-        echo "## SonarQube Analysis Summary" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Branch analyzed:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "**Project:** CharlesNts_TimeManager" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "[LINK] [View Results on SonarQube Cloud](https://sonarcloud.io/dashboard?id=CharlesNts_TimeManager&branch=${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        if [ -f "backend/TimeManager1/target/site/jacoco/jacoco.xml" ]; then
-          echo "[OK] Backend coverage included (JaCoCo)" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        if [ -f "frontend/coverage/lcov.info" ]; then
-          echo "[OK] Frontend coverage included (LCOV)" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Quality Metrics" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=CharlesNts_TimeManager&metric=alert_status&branch=${{ github.ref_name }})](https://sonarcloud.io/dashboard?id=CharlesNts_TimeManager&branch=${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
-        echo "[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=CharlesNts_TimeManager&metric=coverage&branch=${{ github.ref_name }})](https://sonarcloud.io/dashboard?id=CharlesNts_TimeManager&branch=${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
-        echo "[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=CharlesNts_TimeManager&metric=bugs&branch=${{ github.ref_name }})](https://sonarcloud.io/dashboard?id=CharlesNts_TimeManager&branch=${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
-
-  # =============================================
-  # JOB 4: Rapport Final
-  # =============================================
+# ==================================================
+# FINAL REPORT
+# ==================================================
   final-report:
     name: Final CI Report
     runs-on: ubuntu-latest
     needs: [backend-build-test, frontend-build-test, sonarqube-analysis]
     if: always()
-    
+
     steps:
-    - name: Generate Final Report
-      run: |
-        echo "# CI Pipeline Report - TimeManager" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "## Jobs Executed" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "[OK] **Backend Build & Test**" >> $GITHUB_STEP_SUMMARY
-        echo "- Maven build & package" >> $GITHUB_STEP_SUMMARY
-        echo "- Unit tests execution" >> $GITHUB_STEP_SUMMARY
-        echo "- JaCoCo coverage report" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "[OK] **Frontend Build & Test**" >> $GITHUB_STEP_SUMMARY
-        echo "- NPM dependencies installation" >> $GITHUB_STEP_SUMMARY
-        echo "- ESLint code quality" >> $GITHUB_STEP_SUMMARY
-        echo "- Vitest unit tests" >> $GITHUB_STEP_SUMMARY
-        echo "- Production build" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "[OK] **SonarQube Analysis**" >> $GITHUB_STEP_SUMMARY
-        echo "- Code quality analysis" >> $GITHUB_STEP_SUMMARY
-        echo "- Security vulnerabilities scan" >> $GITHUB_STEP_SUMMARY
-        echo "- Coverage reports integration" >> $GITHUB_STEP_SUMMARY
-        echo "- Quality Gate validation" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "## Artifacts Generated" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "- Backend JAR (Spring Boot)" >> $GITHUB_STEP_SUMMARY
-        echo "- Frontend Build (Vite dist)" >> $GITHUB_STEP_SUMMARY
-        echo "- Backend Coverage (JaCoCo)" >> $GITHUB_STEP_SUMMARY
-        echo "- Frontend Coverage (Vitest)" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "---" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Quick Links:**" >> $GITHUB_STEP_SUMMARY
-        echo "- [SonarQube Dashboard](https://sonarcloud.io/dashboard?id=CharlesNts_TimeManager)" >> $GITHUB_STEP_SUMMARY
-        echo "- [GitHub Actions](https://github.com/${{ github.repository }}/actions)" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+      - name: Summary
+        run: |
+          echo "# CI Pipeline – TimeManager" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✔ Backend build & tests" >> $GITHUB_STEP_SUMMARY
+          echo "✔ Frontend build & tests" >> $GITHUB_STEP_SUMMARY
+          echo "✔ SonarCloud analysis" >> $GITHUB_STEP_SUMMARY

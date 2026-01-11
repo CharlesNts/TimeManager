@@ -8,6 +8,8 @@ import epitech.timemanager1.kafka.KafkaTopics;
 import epitech.timemanager1.repositories.PasswordResetTokenRepository;
 import epitech.timemanager1.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -25,7 +27,12 @@ public class PasswordResetService {
     private final UserRepository users;
     private final PasswordResetTokenRepository tokens;
     private final PasswordEncoder passwordEncoder;
-    private final KafkaTemplate<String, PasswordResetRequestedEvent> kafka;
+
+    @Autowired(required = false)
+    private KafkaTemplate<String, PasswordResetRequestedEvent> kafka;
+
+    @Value("${app.kafka.enabled:true}")
+    private boolean kafkaEnabled;
 
     private static final int TOKEN_BYTES = 24;
     private static final int TOKEN_TTL_MINUTES = 60;
@@ -36,7 +43,6 @@ public class PasswordResetService {
         if (opt.isEmpty()) return;
 
         User user = opt.get();
-
         tokens.deleteByUserId(user.getId());
 
         String token = generateToken();
@@ -49,18 +55,18 @@ public class PasswordResetService {
 
         tokens.saveAndFlush(prt);
 
-        String link = resetLinkBase + token;
-
-        kafka.send(
-                KafkaTopics.PASSWORD_RESET_REQUESTED,
-                "password-reset:" + user.getId(),
-                new PasswordResetRequestedEvent(
-                        user.getId(),
-                        user.getEmail(),
-                        link,
-                        LocalDateTime.now()
-                )
-        );
+        if (kafkaEnabled && kafka != null) {
+            kafka.send(
+                    KafkaTopics.PASSWORD_RESET_REQUESTED,
+                    "password-reset:" + user.getId(),
+                    new PasswordResetRequestedEvent(
+                            user.getId(),
+                            user.getEmail(),
+                            resetLinkBase + token,
+                            LocalDateTime.now()
+                    )
+            );
+        }
     }
 
     @Transactional

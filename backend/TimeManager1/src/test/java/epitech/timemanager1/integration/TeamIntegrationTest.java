@@ -1,4 +1,5 @@
 package epitech.timemanager1.integration;
+import epitech.timemanager1.IntegrationTest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -9,8 +10,6 @@ import epitech.timemanager1.repositories.TeamRepository;
 import epitech.timemanager1.repositories.UserRepository;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -28,8 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WithMockUser(username = "tester", roles = {"EMPLOYEE"}) // <-- this line
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@SpringBootTest
-@AutoConfigureMockMvc
+@IntegrationTest
 class TeamIntegrationTest {
 
     @Autowired private MockMvc mvc;
@@ -41,8 +39,10 @@ class TeamIntegrationTest {
 
     @BeforeEach
     void clean() {
-        // nukes everything in the right order and resets IDs
-        jdbc.execute("TRUNCATE TABLE team_members, clocks, teams, users RESTART IDENTITY CASCADE");
+        jdbc.execute("DELETE FROM team_members");
+        jdbc.execute("DELETE FROM clocks");
+        jdbc.execute("DELETE FROM teams");
+        jdbc.execute("DELETE FROM users");
     }
 
 
