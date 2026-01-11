@@ -144,175 +144,248 @@ export default function UsersListPage() {
       try {
         const now = new Date();
         const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
-        const startOfCurrentPeriod = periodBoundaries[0].startDate;
-        const endOfCurrentPeriod = now;
-
-        // Get all employees, managers and admins for clocking stats
-        const targetUsers = rows.filter(u => u.role === 'EMPLOYEE' || u.role === 'MANAGER' || u.role === 'CEO');
-
-        // Get all teams for schedule templates
-        const { data: allApiUsers } = await api.get('/api/users');
-        const managerAndCEOIds = (allApiUsers || [])
-          .filter(u => u.role === 'MANAGER' || u.role === 'CEO')
-          .map(u => u.id);
-
-        const teamPromises = managerAndCEOIds.map(id =>
-          api.get('/api/teams', { params: { managerId: id } })
-            .then(res => Array.isArray(res.data) ? res.data : [])
-            .catch(() => [])
-        );
-        const teamArrays = await Promise.all(teamPromises);
-        const teamsFlat = teamArrays.flat();
-        const uniqueTeams = Array.from(new Map(teamsFlat.map(t => [t.id, t])).values());
-
-        // Fetch members for all teams
-        const teamsWithMembers = await Promise.all(
-          uniqueTeams.map(async (team) => {
-            try {
-              const { data: members } = await api.get(`/api/teams/${team.id}/members`);
-              return { ...team, members: Array.isArray(members) ? members : [] };
-            } catch {
-              return { ...team, members: [] };
-            }
-          })
-        );
-
-        // Fetch clocks and schedules
-        const [clocksResults, scheduleResults] = await Promise.all([
-          Promise.all(targetUsers.map(async (u) => {
-            try {
-              const clocks = await getClocksInRange(u.id, toISO(startOfCurrentPeriod), toISO(endOfCurrentPeriod));
-              // Debug log
-              if (clocks.length > 0) console.log(`[UsersListPage] Loaded ${clocks.length} clocks for user ${u.id}`);
-              return { userId: u.id, clocks };
-            } catch { return { userId: u.id, clocks: [] }; }
-          })),
-          Promise.all(teamsWithMembers.map(async (team) => {
-            try {
-              const schedule = await scheduleTemplatesApi.getActiveForTeam(team.id);
-              return { teamId: team.id, schedule, memberCount: team.members.length };
-            } catch { return { teamId: team.id, schedule: null, memberCount: team.members.length }; }
-          }))
-        ]);
-
-        // Calculate Lateness Locally
-        let totalLateDays = 0;
-        let totalDaysWithClock = 0;
+                const startOfCurrentPeriod = periodBoundaries[0].startDate;
+                const endOfCurrentPeriod = now;
         
-        // Need to map user -> schedule
-        const userScheduleMap = {};
-        teamsWithMembers.forEach(t => {
-           const schedResult = scheduleResults.find(s => s.teamId === t.id);
-           const sched = schedResult?.schedule;
-           if (sched) {
-             t.members.forEach(m => {
-               const uid = m.user?.id || m.userId;
-               if (uid) userScheduleMap[uid] = sched;
-             });
-           }
-        });
-
-        // Process clocks & lateness
-        const dailyHoursMap = {};
-        clocksResults.forEach(({ userId, clocks }) => {
-          // Lateness per user
-          const schedule = userScheduleMap[userId];
-          const daysMap = {};
-
-          clocks.forEach(clock => {
-            const clockIn = new Date(clock.clockIn);
-            const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
-            const minutes = Math.max(0, Math.round((clockOut - clockIn) / 60000));
-
-            const clockInParis = toParis(clockIn);
-            const dayKey = `${clockInParis.getFullYear()}-${String(clockInParis.getMonth() + 1).padStart(2, '0')}-${String(clockInParis.getDate()).padStart(2, '0')}`;
-            dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
-
-            // For lateness: find first clock of day
-            const dayStr = clockInParis.toDateString();
-            if (!daysMap[dayStr] || clockIn < daysMap[dayStr]) {
-               daysMap[dayStr] = clockIn;
-            }
-          });
-
-          // Compute lateness for this user
-          if (schedule) {
-             Object.values(daysMap).forEach(firstClockDate => {
-               const limitMinutes = getLatenessThresholdFromSchedule(schedule, firstClockDate, 5);
-               const actualMinutes = firstClockDate.getHours() * 60 + firstClockDate.getMinutes();
-               totalDaysWithClock++;
-               if (actualMinutes > limitMinutes) totalLateDays++;
-             });
-          }
-        });
-
+                // Evolution: Compare total of current period vs total of previous period
+                const periodDurationMs = endOfCurrentPeriod.getTime() - startOfCurrentPeriod.getTime();
+                const previousPeriodEnd = new Date(startOfCurrentPeriod.getTime() - 1);
+                const previousPeriodStart = new Date(previousPeriodEnd.getTime() - periodDurationMs);
+                previousPeriodStart.setHours(0, 0, 0, 0);
+                previousPeriodEnd.setHours(23, 59, 59, 999);
+        
+                // Get all employees, managers and admins for clocking stats
+                const targetUsers = rows.filter(u => u.role === 'EMPLOYEE' || u.role === 'MANAGER' || u.role === 'CEO');
+        
+                // Get all teams for schedule templates
+                const { data: allApiUsers } = await api.get('/api/users');
+                const managerAndCEOIds = (allApiUsers || [])
+                  .filter(u => u.role === 'MANAGER' || u.role === 'CEO')
+                  .map(u => u.id);
+        
+                const teamPromises = managerAndCEOIds.map(id =>
+                  api.get('/api/teams', { params: { managerId: id } })
+                    .then(res => Array.isArray(res.data) ? res.data : [])
+                    .catch(() => [])
+                );
+                const teamArrays = await Promise.all(teamPromises);
+                const teamsFlat = teamArrays.flat();
+                const uniqueTeams = Array.from(new Map(teamsFlat.map(t => [t.id, t])).values());
+        
+                // Fetch members for all teams
+                const teamsWithMembers = await Promise.all(
+                  uniqueTeams.map(async (team) => {
+                    try {
+                      const { data: members } = await api.get(`/api/teams/${team.id}/members`);
+                      return { ...team, members: Array.isArray(members) ? members : [] };
+                    } catch {
+                      return { ...team, members: [] };
+                    }
+                  })
+                );
+        
+                // Fetch clocks and schedules
+                const [clocksResults, previousClocksResults, scheduleResults] = await Promise.all([
+                  Promise.all(targetUsers.map(async (u) => {
+                    try {
+                      const clocks = await getClocksInRange(u.id, toISO(startOfCurrentPeriod), toISO(endOfCurrentPeriod));
+                      return { userId: u.id, clocks };
+                    } catch { return { userId: u.id, clocks: [] }; }
+                  })),
+                  Promise.all(targetUsers.map(async (u) => {
+                    try {
+                      const clocks = await getClocksInRange(u.id, toISO(previousPeriodStart), toISO(previousPeriodEnd));
+                      return { userId: u.id, clocks };
+                    } catch { return { userId: u.id, clocks: [] }; }
+                  })),
+                  Promise.all(teamsWithMembers.map(async (team) => {
+                    try {
+                      const schedule = await scheduleTemplatesApi.getActiveForTeam(team.id);
+                      return { teamId: team.id, schedule, memberCount: team.members.length };
+                    } catch { return { teamId: team.id, schedule: null, memberCount: team.members.length }; }
+                  }))
+                ]);
+        
+                // Need to map user -> schedule
+                const userScheduleMap = {};
+                teamsWithMembers.forEach(t => {
+                   const schedResult = scheduleResults.find(s => s.teamId === t.id);
+                   const sched = schedResult?.schedule;
+                   if (sched) {
+                     t.members.forEach(m => {
+                       const uid = m.user?.id || m.userId;
+                       if (uid) userScheduleMap[uid] = sched;
+                     });
+                   }
+                });
+        
+                // --- Calculate Current Stats ---
+                let totalCurrentMinutes = 0;
+                let totalLateDays = 0;
+                let totalDaysWithClock = 0;
+                const dailyHoursMap = {};
+        
+                clocksResults.forEach(({ userId, clocks }) => {
+                  const schedule = userScheduleMap[userId];
+                  const daysMap = {};
+        
+                  clocks.forEach(clock => {
+                    const clockIn = new Date(clock.clockIn);
+                    const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
+                    const minutes = Math.max(0, Math.round((clockOut - clockIn) / 60000));
+        
+                    totalCurrentMinutes += minutes;
+                    const clockInParis = toParis(clockIn);
+                    const dayKey = `${clockInParis.getFullYear()}-${String(clockInParis.getMonth() + 1).padStart(2, '0')}-${String(clockInParis.getDate()).padStart(2, '0')}`;
+                    dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
+        
+                    const dayStr = clockInParis.toDateString();
+                    if (!daysMap[dayStr] || clockIn < daysMap[dayStr]) daysMap[dayStr] = clockIn;
+                  });
+        
+                  if (schedule) {
+                     Object.values(daysMap).forEach(firstClockDate => {
+                       const limitMinutes = getLatenessThresholdFromSchedule(schedule, firstClockDate, 5);
+                       const actualMinutes = firstClockDate.getHours() * 60 + firstClockDate.getMinutes();
+                       totalDaysWithClock++;
+                       if (actualMinutes > limitMinutes) totalLateDays++;
+                     });
+                  }
+                });
+        
+                // --- Calculate Previous Stats (Evolution) ---
+                let totalPreviousMinutes = 0;
+                let prevTotalLateDays = 0;
+                let prevTotalDaysWithClock = 0;
+        
+                previousClocksResults.forEach(({ userId, clocks }) => {
+                  const schedule = userScheduleMap[userId];
+                  const daysMap = {};
+        
+                  clocks.forEach(clock => {
+                    const clockIn = new Date(clock.clockIn);
+                    const clockOut = clock.clockOut ? new Date(clock.clockOut) : previousPeriodEnd;
+                    const minutes = Math.max(0, Math.round((clockOut - clockIn) / 60000));
+                    totalPreviousMinutes += minutes;
+        
+                    const clockInParis = toParis(clockIn);
+                    const dayStr = clockInParis.toDateString();
+                    if (!daysMap[dayStr] || clockIn < daysMap[dayStr]) daysMap[dayStr] = clockIn;
+                  });
+        
+                  if (schedule) {
+                     Object.values(daysMap).forEach(firstClockDate => {
+                       const limitMinutes = getLatenessThresholdFromSchedule(schedule, firstClockDate, 5);
+                       const actualMinutes = firstClockDate.getHours() * 60 + firstClockDate.getMinutes();
+                       prevTotalDaysWithClock++;
+                       if (actualMinutes > limitMinutes) prevTotalLateDays++;
+                     });
+                  }
+                });
+        
+                // --- Evolution Rates ---
+                const currentHours = totalCurrentMinutes / 60;
+                const previousHours = totalPreviousMinutes / 60;
+                let hoursEvolution = 0;
+                if (previousHours > 0) hoursEvolution = ((currentHours - previousHours) / previousHours) * 100;
+                else if (currentHours > 0) hoursEvolution = 100;
+        
                 const currentLatenessRate = totalDaysWithClock > 0 ? (totalLateDays / totalDaysWithClock) * 100 : 0;
-
-                setLatenessData({ rate: currentLatenessRate, lateDays: totalLateDays, totalDays: totalDaysWithClock });
-
+                const previousLatenessRate = prevTotalDaysWithClock > 0 ? (prevTotalLateDays / prevTotalDaysWithClock) * 100 : 0;
+                let latenessEvolution = 0;
+                if (previousLatenessRate > 0) latenessEvolution = ((currentLatenessRate - previousLatenessRate) / previousLatenessRate) * 100;
         
-
-                // Process schedules
-
+                setLatenessData({ 
+                  rate: currentLatenessRate, 
+                  lateDays: totalLateDays, 
+                  totalDays: totalDaysWithClock,
+                  evolutionRate: latenessEvolution
+                });
+        
+                // --- Process Schedules ---
                 let dailyScheduledMap = {};
-        scheduleResults.forEach(({ schedule, memberCount }) => {
-          if (!schedule || memberCount === 0) return;
-          const scheduledData = calculateScheduledMinutesFromTemplate(startOfCurrentPeriod, endOfCurrentPeriod, schedule);
-          Object.entries(scheduledData.dailyMap).forEach(([dayKey, minutes]) => {
-            dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + (minutes * memberCount);
-          });
-        });
-
-        // Hours Chart
-        const hoursPerPeriod = periodBoundaries.map(period => {
-          let totalMin = 0;
-          Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
-            const dayDate = new Date(dayKey);
-            if (dayDate >= period.startDate && dayDate <= period.endDate) totalMin += minutes;
-          });
-          return { date: period.label, minutesWorked: totalMin };
-        });
-
-        const hoursData = buildChartSeries(hoursPerPeriod, 12, selectedPeriod);
-        setHoursChartSeries(hoursData);
-
-        const avgMinutesPerPeriod = hoursPerPeriod.length > 0
-          ? hoursPerPeriod.reduce((sum, p) => sum + p.minutesWorked, 0) / hoursPerPeriod.length
-          : 0;
-        setHoursTotals({ current: avgMinutesPerPeriod });
-
-        // Adherence Chart
-        const adherencePerPeriod = periodBoundaries.map(period => {
-          let worked = 0;
-          let scheduled = 0;
-
-          Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
-            const dayDate = new Date(dayKey);
-            if (dayDate >= period.startDate && dayDate <= period.endDate) worked += minutes;
-          });
-
-          Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
-            const dayDate = new Date(dayKey);
-            if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
-          });
-
-          const overlap = Math.min(worked, scheduled);
-          const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : 0;
-
-          return { date: period.label, value: rate };
-        });
-
-        const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value }));
-        const adherenceSeries = buildChartSeries(adherenceForChart, 12, selectedPeriod);
-
-        const avgAdherenceRate = adherencePerPeriod.length > 0
-          ? adherencePerPeriod.reduce((sum, p) => sum + p.value, 0) / adherencePerPeriod.length
-          : 0;
-
-        setAdherenceData({
-          rate: avgAdherenceRate,
-          chartSeries: adherenceSeries
-        });
+                let totalScheduledMinutes = 0;
+                scheduleResults.forEach(({ schedule, memberCount }) => {
+                  if (!schedule || memberCount === 0) return;
+                  const scheduledData = calculateScheduledMinutesFromTemplate(startOfCurrentPeriod, endOfCurrentPeriod, schedule);
+                  totalScheduledMinutes += scheduledData.totalMinutes * memberCount;
+                  Object.entries(scheduledData.dailyMap).forEach(([dayKey, minutes]) => {
+                    dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + (minutes * memberCount);
+                  });
+                });
+        
+                // Hours Chart
+                const hoursPerPeriod = periodBoundaries.map(period => {
+                  let totalMin = 0;
+                  Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
+                    const dayDate = new Date(dayKey);
+                    if (dayDate >= period.startDate && dayDate <= period.endDate) totalMin += minutes;
+                  });
+                  return { date: period.label, minutesWorked: totalMin };
+                });
+        
+                const hoursData = buildChartSeries(hoursPerPeriod, 12, selectedPeriod);
+                setHoursChartSeries(hoursData);
+        
+                const avgMinutesPerPeriod = hoursPerPeriod.length > 0
+                  ? hoursPerPeriod.reduce((sum, p) => sum + p.minutesWorked, 0) / hoursPerPeriod.length
+                  : 0;
+                
+                let evolutionLabel = "vs période précédente";
+                if (selectedGranularity === 'week') evolutionLabel = "vs 7 jours précédents";
+                if (selectedGranularity === 'month') evolutionLabel = "vs 4 semaines précédentes";
+                if (selectedGranularity === 'year') evolutionLabel = "vs 12 mois précédents";
+        
+                setHoursTotals({ 
+                  current: avgMinutesPerPeriod, 
+                  evolutionRate: hoursEvolution,
+                  evolutionLabel 
+                });
+        
+                // Adherence Chart
+                const adherencePerPeriod = periodBoundaries.map(period => {
+                  let worked = 0;
+                  let scheduled = 0;
+        
+                  Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
+                    const dayDate = new Date(dayKey);
+                    if (dayDate >= period.startDate && dayDate <= period.endDate) worked += minutes;
+                  });
+        
+                  Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
+                    const dayDate = new Date(dayKey);
+                    if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
+                  });
+        
+                  const overlap = Math.min(worked, scheduled);
+                  const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : 0;
+        
+                  return { date: period.label, value: rate };
+                });
+        
+                const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value }));
+                const adherenceSeries = buildChartSeries(adherenceForChart, 12, selectedPeriod);
+        
+                const totalOverlapMinutes = Math.min(totalCurrentMinutes, totalScheduledMinutes);
+                const globalAdherenceRate = totalScheduledMinutes > 0
+                  ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100)
+                  : 0;
+        
+                let adherenceEvolution = 0;
+                if (adherencePerPeriod.length >= 2) {
+                  const currentAdh = adherencePerPeriod[adherencePerPeriod.length - 1].value;
+                  const previousAdh = adherencePerPeriod[adherencePerPeriod.length - 2].value;
+                  if (previousAdh > 10 && currentAdh > 0) {
+                    adherenceEvolution = ((currentAdh - previousAdh) / previousAdh) * 100;
+                    if (currentAdh >= 100 && adherenceEvolution < 0) adherenceEvolution = 0;
+                  }
+                }
+        
+                setAdherenceData({
+                  rate: globalAdherenceRate,
+                  chartSeries: adherenceSeries,
+                  evolutionRate: adherenceEvolution
+                });
 
       } catch (err) {
         console.error('[UsersListPage] Error loading stats:', err);
@@ -494,8 +567,13 @@ export default function UsersListPage() {
                         <Clock className="h-4 w-4 text-gray-400" />
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold mb-2">{fmtMinutes(Math.round(hoursTotals.current))}</div>
-                        <p className="text-xs text-gray-500">Moyenne par période</p>
+                        <div className="flex items-end gap-2">
+                          <div className="text-2xl font-bold">{fmtMinutes(Math.round(hoursTotals.current))}</div>
+                          <div className={`text-sm mb-1 font-medium ${hoursTotals.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {hoursTotals.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(hoursTotals.evolutionRate).toFixed(1)}%
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">Moyenne • {hoursTotals.evolutionLabel}</p>
                         <div className="h-[120px] mt-4">
                           <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={hoursChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
@@ -536,8 +614,13 @@ export default function UsersListPage() {
                         <CalendarCheck className="h-4 w-4 text-gray-400" />
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold mb-2">{adherenceData.rate.toFixed(1)}%</div>
-                        <p className="text-xs text-gray-500">Respect du planning</p>
+                        <div className="flex items-end gap-2">
+                          <div className="text-2xl font-bold">{adherenceData.rate.toFixed(1)}%</div>
+                          <div className={`text-sm mb-1 font-medium ${adherenceData.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {adherenceData.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(adherenceData.evolutionRate).toFixed(1)}%
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">Respect du planning</p>
                         <div className="h-[120px] mt-4">
                           <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={adherenceData.chartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
@@ -568,8 +651,13 @@ export default function UsersListPage() {
                         <Clock className="h-4 w-4 text-amber-500" />
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold mb-2 text-amber-600">{latenessData.rate.toFixed(1)}%</div>
-                        <p className="text-xs text-gray-500">
+                        <div className="flex items-end gap-2">
+                          <div className="text-2xl font-bold text-amber-600">{latenessData.rate.toFixed(1)}%</div>
+                          <div className={`text-sm mb-1 font-medium ${latenessData.evolutionRate <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {latenessData.evolutionRate <= 0 ? "↘" : "↗"} {Math.abs(latenessData.evolutionRate).toFixed(1)}%
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
                           {latenessData.lateDays} jour(s) en retard sur {latenessData.totalDays} jours travaillés
                         </p>
                       </CardContent>
