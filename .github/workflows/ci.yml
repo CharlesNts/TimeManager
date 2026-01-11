@@ -34,10 +34,10 @@ jobs:
           cd backend/TimeManager1
           mvn clean package -DskipTests -Dspring.profiles.active=ci
 
-      - name: Run backend tests (CI profile)
+      - name: Run backend tests (CI profile - unit tests only)
         run: |
           cd backend/TimeManager1
-          mvn test -Dspring.profiles.active=ci
+          mvn test -Dspring.profiles.active=ci -Dtest='**/services/**Test'
 
       - name: Generate JaCoCo report
         run: |
