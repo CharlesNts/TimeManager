@@ -30,7 +30,7 @@ import ExportMenu from '../components/ui/ExportMenu';
 import { buildChartSeries } from '../api/statsApi';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 import { getPeriodInfo, getDisplayPeriodBoundaries } from '../utils/granularityUtils';
-import { calculateScheduledMinutesFromTemplate } from '../utils/scheduleUtils';
+import { calculateScheduledMinutesFromTemplate, getLatenessThresholdFromSchedule } from '../utils/scheduleUtils';
 import { toParis } from '../utils/dateUtils';
 import ChartModal from '../components/ui/ChartModal';
 
@@ -239,27 +239,15 @@ export default function ManagerDashboard() {
         const startOfCurrentPeriod = periodBoundaries[0].startDate;
         const endOfCurrentPeriod = now;
 
-        // Single Period for Evolution
-        const latestPeriod = periodBoundaries[periodBoundaries.length - 1];
-        const singleCurrentStart = latestPeriod.startDate;
-        const singleCurrentEnd = latestPeriod.endDate;
+        // Evolution: Comparer la période TOTALE actuelle vs la période TOTALE précédente
+        const periodDurationMs = endOfCurrentPeriod.getTime() - startOfCurrentPeriod.getTime();
+        const previousPeriodEnd = new Date(startOfCurrentPeriod.getTime() - 1);
+        const previousPeriodStart = new Date(previousPeriodEnd.getTime() - periodDurationMs);
+        previousPeriodStart.setHours(0, 0, 0, 0);
+        previousPeriodEnd.setHours(23, 59, 59, 999);
 
-        let singlePreviousStart, singlePreviousEnd;
-        if (periodBoundaries.length >= 2) {
-          const prev = periodBoundaries[periodBoundaries.length - 2];
-          singlePreviousStart = prev.startDate;
-          singlePreviousEnd = prev.endDate;
-        } else {
-          singlePreviousStart = new Date(singleCurrentStart);
-          if (selectedGranularity === 'day') singlePreviousStart.setDate(singlePreviousStart.getDate() - 1);
-          else if (selectedGranularity === 'week') singlePreviousStart.setDate(singlePreviousStart.getDate() - 7);
-          singlePreviousEnd = new Date(singleCurrentStart);
-        }
-
-        // eslint-disable-next-line no-unused-vars
         let totalCurrentMinutes = 0;
-        let singleCurrentMinutes = 0;
-        let singlePreviousMinutes = 0;
+        let totalPreviousMinutes = 0;
 
         const dailyHoursMap = {}; // Actual hours worked
         let dailyScheduledMap = {}; // Scheduled hours from templates
@@ -339,21 +327,29 @@ export default function ManagerDashboard() {
             const clockOut = clock.clockOut ? new Date(clock.clockOut) : now;
             const minutes = Math.max(0, Math.round((clockOut - clockIn) / 60000));
 
-            // Global Stats
+            // Global Stats for current period
             totalCurrentMinutes += minutes;
             userStatsMap[userId].totalMin += minutes;
-
-            if (clockIn >= singleCurrentStart && clockIn <= singleCurrentEnd) {
-              singleCurrentMinutes += minutes;
-            } else if (clockIn >= singlePreviousStart && clockIn <= singlePreviousEnd) {
-              singlePreviousMinutes += minutes;
-            }
 
             // Daily Map (Actual)
             const dayKey = toParis(clockIn).toISOString().split('T')[0];
             dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
           });
         });
+
+        // Fetch previous period hours for evolution calculation
+        try {
+          for (const userId of uniqueMemberIds) {
+            const previousHoursData = await reportsApi.getUserHours(
+              userId,
+              previousPeriodStart.toISOString(),
+              previousPeriodEnd.toISOString()
+            );
+            totalPreviousMinutes += Math.round((previousHoursData.netHours || 0) * 60);
+          }
+        } catch (e) {
+          console.warn('[ManagerDashboard] Erreur chargement heures période précédente:', e);
+        }
 
         // 3. Calculate Scheduled Hours from Schedule Templates
         scheduleResults.forEach(({ teamId, schedule }) => {
@@ -455,17 +451,18 @@ export default function ManagerDashboard() {
 
         const scheduledHoursDisplay = Math.round(totalScheduledMinutes / 60);
 
-        // Evolution logic
-        const singleCurrentHours = singleCurrentMinutes / 60;
-        const singlePreviousHours = singlePreviousMinutes / 60;
-        const evolutionRate = singlePreviousHours > 0
-          ? ((singleCurrentHours - singlePreviousHours) / singlePreviousHours) * 100
+        // Evolution: compare le total de la période actuelle vs le total de la période précédente
+        const totalCurrentHours = totalCurrentMinutes / 60;
+        const totalPreviousHours = totalPreviousMinutes / 60;
+        const evolutionRate = totalPreviousHours > 0
+          ? ((totalCurrentHours - totalPreviousHours) / totalPreviousHours) * 100
           : 0;
 
+        // Labels corrigés pour refléter la comparaison de périodes complètes
         let evolutionLabel = "vs période précédente";
-        if (selectedGranularity === 'week') evolutionLabel = "vs jour précédent";
-        if (selectedGranularity === 'month') evolutionLabel = "vs semaine précédente";
-        if (selectedGranularity === 'year') evolutionLabel = "vs mois précédent";
+        if (selectedGranularity === 'week') evolutionLabel = "vs 7 jours précédents";
+        if (selectedGranularity === 'month') evolutionLabel = "vs 4 semaines précédentes";
+        if (selectedGranularity === 'year') evolutionLabel = "vs 12 mois précédents";
 
         setHoursTotals({
           current: hoursAverageDisplay,

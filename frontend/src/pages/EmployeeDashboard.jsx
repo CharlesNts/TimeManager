@@ -240,31 +240,23 @@ export default function EmployeeDashboard() {
         const startOfCurrentPeriod = periodBoundaries[0].startDate;
         const endOfCurrentPeriod = now;
 
-        // Evolution (Single Period)
-        const latestPeriod = periodBoundaries[periodBoundaries.length - 1];
-        const singleCurrentStart = latestPeriod.startDate;
-        const singleCurrentEnd = latestPeriod.endDate;
-
-        let singlePreviousStart, singlePreviousEnd;
-        if (periodBoundaries.length >= 2) {
-          const prev = periodBoundaries[periodBoundaries.length - 2];
-          singlePreviousStart = prev.startDate;
-          singlePreviousEnd = prev.endDate;
-        } else {
-          singlePreviousStart = new Date(singleCurrentStart);
-          if (selectedGranularity === 'week') singlePreviousStart.setDate(singlePreviousStart.getDate() - 1);
-          else if (selectedGranularity === 'month') singlePreviousStart.setDate(singlePreviousStart.getDate() - 7);
-          singlePreviousEnd = new Date(singleCurrentStart);
-        }
+        // Evolution: Comparer la période TOTALE actuelle vs la période TOTALE précédente
+        // Ex: Semaine = comparer les 7 derniers jours vs les 7 jours avant
+        // Ex: Mois = comparer les 4 dernières semaines vs les 4 semaines avant
+        const periodDurationMs = endOfCurrentPeriod.getTime() - startOfCurrentPeriod.getTime();
+        const previousPeriodEnd = new Date(startOfCurrentPeriod.getTime() - 1); // Juste avant le début de la période actuelle
+        const previousPeriodStart = new Date(previousPeriodEnd.getTime() - periodDurationMs);
+        previousPeriodStart.setHours(0, 0, 0, 0);
+        previousPeriodEnd.setHours(23, 59, 59, 999);
 
         // Fetch Clocks
         const clocksRange = await fetchClocksRange(targetUserId, startOfCurrentPeriod, endOfCurrentPeriod);
 
         // Fetch Net Hours from API (grossHours - pauseHours)
         let totalNetMinutes = 0;
-        let currentPeriodNetMinutes = 0;
         let previousPeriodNetMinutes = 0;
         try {
+          // Heures nettes pour la période actuelle complète
           const hoursData = await reportsApi.getUserHours(
             targetUserId,
             startOfCurrentPeriod.toISOString(),
@@ -272,21 +264,13 @@ export default function EmployeeDashboard() {
           );
           totalNetMinutes = Math.round((hoursData.netHours || 0) * 60);
 
-          // Get net hours for current single period (for evolution)
-          const currentPeriodHours = await reportsApi.getUserHours(
+          // Heures nettes pour la période précédente complète (pour évolution)
+          const previousHoursData = await reportsApi.getUserHours(
             targetUserId,
-            singleCurrentStart.toISOString(),
-            singleCurrentEnd.toISOString()
+            previousPeriodStart.toISOString(),
+            previousPeriodEnd.toISOString()
           );
-          currentPeriodNetMinutes = Math.round((currentPeriodHours.netHours || 0) * 60);
-
-          // Get net hours for previous single period (for evolution)
-          const previousPeriodHours = await reportsApi.getUserHours(
-            targetUserId,
-            singlePreviousStart.toISOString(),
-            singlePreviousEnd.toISOString()
-          );
-          previousPeriodNetMinutes = Math.round((previousPeriodHours.netHours || 0) * 60);
+          previousPeriodNetMinutes = Math.round((previousHoursData.netHours || 0) * 60);
         } catch (e) {
           console.warn('[Dashboard] Error fetching net hours, falling back to gross:', e);
         }
@@ -354,8 +338,6 @@ export default function EmployeeDashboard() {
         setRecentClocks(relevantClocks.slice(0, 20));
 
         let totalCurrentMinutes = 0;
-        let singleCurrentMinutes = 0;
-        let singlePreviousMinutes = 0;
         const dailyHoursMap = {};
 
         let dailyScheduledMap = {};
@@ -367,8 +349,6 @@ export default function EmployeeDashboard() {
           const minutes = Math.max(0, Math.round((outD - inD) / 60000));
 
           totalCurrentMinutes += minutes;
-          if (inD >= singleCurrentStart && inD <= singleCurrentEnd) singleCurrentMinutes += minutes;
-          else if (inD >= singlePreviousStart && inD <= singlePreviousEnd) singlePreviousMinutes += minutes;
 
           const clockInParis = toParis(inD);
           const yearStr = clockInParis.getFullYear();
@@ -439,16 +419,18 @@ export default function EmployeeDashboard() {
         const avgChart = buildChartSeries(avgStats, 12, periodCount);
 
         // Final Stats using Net Hours (gross - pauses)
-        const netCurrentHours = (totalNetMinutes > 0 ? currentPeriodNetMinutes : singleCurrentMinutes) / 60;
-        const netPreviousHours = (totalNetMinutes > 0 ? previousPeriodNetMinutes : singlePreviousMinutes) / 60;
+        // Evolution: compare le total de la période actuelle vs le total de la période précédente
+        const netCurrentHours = totalNetMinutes / 60;
+        const netPreviousHours = previousPeriodNetMinutes / 60;
         const evolutionRate = netPreviousHours > 0
           ? ((netCurrentHours - netPreviousHours) / netPreviousHours) * 100
           : 0;
 
+        // Labels corrigés pour refléter la comparaison de périodes complètes
         let evolutionLabel = "vs période précédente";
-        if (selectedGranularity === 'week') evolutionLabel = "vs jour précédent";
-        if (selectedGranularity === 'month') evolutionLabel = "vs semaine précédente";
-        if (selectedGranularity === 'year') evolutionLabel = "vs mois précédent";
+        if (selectedGranularity === 'week') evolutionLabel = "vs 7 jours précédents";
+        if (selectedGranularity === 'month') evolutionLabel = "vs 4 semaines précédentes";
+        if (selectedGranularity === 'year') evolutionLabel = "vs 12 mois précédents";
 
         // Use netHours for the main KPI (hours with pauses subtracted)
         const displayMinutes = totalNetMinutes > 0 ? totalNetMinutes : totalCurrentMinutes;
