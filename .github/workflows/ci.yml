@@ -160,7 +160,7 @@ jobs:
             -Dsonar.projectKey=CharlesNts_TimeManager
             -Dsonar.organization=charlesnts
             -Dsonar.sources=frontend/src,backend/TimeManager1/src/main
-            -Dsonar.tests=frontend/src,backend/TimeManager1/src/test
+            -Dsonar.tests=frontend/src/tests,backend/TimeManager1/src/test
             -Dsonar.java.binaries=backend/TimeManager1/target/classes
             -Dsonar.coverage.jacoco.xmlReportPaths=backend/TimeManager1/target/site/jacoco/jacoco.xml
             -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info
