@@ -15,6 +15,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import api from '../api/client';
+import { getClocksInRange } from '../api/clocks.api';
 import reportsApi from '../api/reportsApi';
 import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
 import TeamFormModal from '../components/manager/TeamFormModal';
@@ -161,25 +162,20 @@ export default function ManagerDashboard() {
               activeMembersCount++;
             }
 
-            // Calculer les heures de cette semaine (NET HOURS)
+            // Calculer les heures de cette semaine (Calcul Local via Workaround)
             const now = new Date();
             const startOfWeek = new Date(now);
             startOfWeek.setDate(now.getDate() - 6);
             startOfWeek.setHours(0, 0, 0, 0);
 
             try {
-              const hoursData = await reportsApi.getUserHours(
+              // WORKAROUND: Use the client-side range fetcher to avoid Server 500
+              const weekClocks = await getClocksInRange(
                 userId,
                 startOfWeek.toISOString(),
                 now.toISOString()
               );
-              minutesForUser = Math.round((hoursData.netHours || 0) * 60);
-            } catch (e) {
-              console.warn(`[ManagerDashboard] Erreur getUserHours pour ${userId}:`, e);
-              // Fallback au calcul manuel si endpoint échoue (ex: ancienne version API cache)
-              const { data: weekClocks } = await api.get(`/api/users/${userId}/clocks/range`, {
-                params: { from: startOfWeek.toISOString(), to: now.toISOString() }
-              });
+              
               if (Array.isArray(weekClocks)) {
                 weekClocks.forEach(clock => {
                   const clockIn = new Date(clock.clockIn);
@@ -188,6 +184,8 @@ export default function ManagerDashboard() {
                   minutesForUser += Math.max(0, minutes);
                 });
               }
+            } catch (e) {
+              console.warn(`[ManagerDashboard] Erreur calcul heures pour ${userId}:`, e);
             }
 
             memberMinutesMap[userId] = minutesForUser;
@@ -269,13 +267,18 @@ export default function ManagerDashboard() {
 
         // 1. Parallel Fetch: Clocks for all users AND Schedule Templates for all teams
         const allResults = await Promise.all([
-          // Fetch Clocks for all users
+          // Fetch Clocks for all users (Current Period)
           Promise.all(uniqueMemberIds.map(async (userId) => {
             try {
-              const { data } = await api.get(`/api/users/${userId}/clocks/range`, {
-                params: { from: startOfCurrentPeriod.toISOString(), to: endOfCurrentPeriod.toISOString() }
-              });
-              return { userId, clocks: Array.isArray(data) ? data : [] };
+              const clocks = await getClocksInRange(userId, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString());
+              return { userId, clocks };
+            } catch (e) { return { userId, clocks: [] }; }
+          })),
+          // Fetch Clocks for all users (Previous Period for Evolution)
+          Promise.all(uniqueMemberIds.map(async (userId) => {
+            try {
+              const clocks = await getClocksInRange(userId, previousPeriodStart.toISOString(), previousPeriodEnd.toISOString());
+              return { userId, clocks };
             } catch (e) { return { userId, clocks: [] }; }
           })),
           // Fetch Active Schedule Templates for all teams
@@ -295,8 +298,9 @@ export default function ManagerDashboard() {
         ]);
 
         const clocksResults = allResults[0];
-        const scheduleResults = allResults[1];
-        const latenessResults = allResults[2];
+        const previousClocksResults = allResults[1];
+        const scheduleResults = allResults[2];
+        const latenessResults = allResults[3];
 
         // --- Calculate Aggregated Lateness ---
         const totalLatenessStats = latenessResults.reduce((acc, curr) => {
@@ -337,19 +341,15 @@ export default function ManagerDashboard() {
           });
         });
 
-        // Fetch previous period hours for evolution calculation
-        try {
-          for (const userId of uniqueMemberIds) {
-            const previousHoursData = await reportsApi.getUserHours(
-              userId,
-              previousPeriodStart.toISOString(),
-              previousPeriodEnd.toISOString()
-            );
-            totalPreviousMinutes += Math.round((previousHoursData.netHours || 0) * 60);
-          }
-        } catch (e) {
-          console.warn('[ManagerDashboard] Erreur chargement heures période précédente:', e);
-        }
+        // Process Previous Clocks (for Evolution)
+        previousClocksResults.forEach(({ clocks }) => {
+          clocks.forEach(clock => {
+            const clockIn = new Date(clock.clockIn);
+            const clockOut = clock.clockOut ? new Date(clock.clockOut) : previousPeriodEnd;
+            const minutes = Math.max(0, Math.round((clockOut - clockIn) / 60000));
+            totalPreviousMinutes += minutes;
+          });
+        });
 
         // 3. Calculate Scheduled Hours from Schedule Templates
         scheduleResults.forEach(({ teamId, schedule }) => {

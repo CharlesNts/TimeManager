@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 
 import api from '../api/client';
+import { getClocksInRange } from '../api/clocks.api';
 import {
   updateTeam,
 } from '../api/teamApi';
@@ -109,14 +110,6 @@ async function fetchTeamById(teamId) {
     managerName: data.manager ? `${data.manager.firstName} ${data.manager.lastName}` : '—',
     createdAt: data.createdAt || null,
   };
-}
-
-// ---- récupère les clocks pour un user entre 2 dates
-async function fetchClocksRange(userId, from, to) {
-  const { data } = await api.get(`/api/users/${userId}/clocks/range`, {
-    params: { from: toISO(from), to: toISO(to) },
-  });
-  return Array.isArray(data) ? data : [];
 }
 
 // ---- récupère le dernier clock (page 0, 1 élément)
@@ -279,23 +272,20 @@ export default function TeamDetail() {
           if (!userId) return;
 
           try {
-            const [clocks, lastClock, hoursData] = await Promise.all([
-              fetchClocksRange(userId, startOfCurrentPeriod, endOfCurrentPeriod),
-              fetchLastClock(userId).catch(() => null),
-              reportsApi.getUserHours(userId, startOfCurrentPeriod.toISOString(), endOfCurrentPeriod.toISOString()).catch(() => ({ netHours: 0 }))
+            const [clocks, lastClock] = await Promise.all([
+              getClocksInRange(userId, startOfCurrentPeriod, endOfCurrentPeriod),
+              fetchLastClock(userId).catch(() => null)
             ]);
 
-            let userTotal = Math.round((hoursData.netHours || 0) * 60);
-
-            // Get net hours for single periods (evolution) - optional optimization could be needed for large teams
-            // For now, we use gross from clocks for single period evolution to save API calls
-            // Or we could do extra calls here. Let's stick to clocks for evolution details to avoid +2N API calls.
+            let userTotal = 0;
 
             clocks.forEach(c => {
               const inD = toParis(new Date(c.clockIn));
               const clockOutDate = c.clockOut ? new Date(c.clockOut) : new Date();
               const outD = toParis(clockOutDate);
               const minutes = minutesBetween(inD, outD);
+
+              userTotal += minutes;
 
               // Only use clocks for daily distribution (graph) and approximate evolution
               if (inD >= singleCurrentStart && inD <= singleCurrentEnd) singleCurrentMinutes += minutes;
