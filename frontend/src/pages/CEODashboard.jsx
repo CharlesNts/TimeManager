@@ -10,6 +10,11 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import api from '../api/client';
+import { getClocksInRange } from '../api/clocks.api';
+import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
+import { getLatenessThresholdFromSchedule } from '../utils/scheduleUtils';
+import { toParis, toISO } from '../utils/dateUtils';
+import { getDisplayPeriodBoundaries } from '../utils/granularityUtils';
 import reportsApi from '../api/reportsApi';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import KPICard from '../components/dashboard/KPICard';

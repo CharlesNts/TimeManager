@@ -321,34 +321,49 @@ export default function ManagerDashboard() {
         // --- Calculate Aggregated Lateness Locally ---
         let globalTotalDays = 0;
         let globalLateDays = 0;
+        let prevGlobalTotalDays = 0;
+        let prevGlobalLateDays = 0;
 
         clocksResults.forEach(({ userId, clocks }) => {
            const schedule = userScheduleMap[userId];
-           // Group clocks by day to find first clock-in
            const daysMap = {};
            clocks.forEach(c => {
              const d = new Date(c.clockIn);
              const dayKey = d.toDateString();
-             if (!daysMap[dayKey] || d < daysMap[dayKey]) {
-               daysMap[dayKey] = d;
-             }
+             if (!daysMap[dayKey] || d < daysMap[dayKey]) daysMap[dayKey] = d;
            });
 
            Object.values(daysMap).forEach(firstClockDate => {
-             // Check if late
-             // Tolerance 5 mins default
              const limitMinutes = getLatenessThresholdFromSchedule(schedule, firstClockDate, 5);
              const actualMinutes = firstClockDate.getHours() * 60 + firstClockDate.getMinutes();
-             
              globalTotalDays++;
-             if (actualMinutes > limitMinutes) {
-               globalLateDays++;
-             }
+             if (actualMinutes > limitMinutes) globalLateDays++;
            });
         });
 
-        const aggregatedLatenessRate = globalTotalDays > 0
-          ? (globalLateDays / globalTotalDays) * 100
+        // Previous Period Lateness
+        previousClocksResults.forEach(({ userId, clocks }) => {
+           const schedule = userScheduleMap[userId];
+           const daysMap = {};
+           clocks.forEach(c => {
+             const d = new Date(c.clockIn);
+             const dayKey = d.toDateString();
+             if (!daysMap[dayKey] || d < daysMap[dayKey]) daysMap[dayKey] = d;
+           });
+
+           Object.values(daysMap).forEach(firstClockDate => {
+             const limitMinutes = getLatenessThresholdFromSchedule(schedule, firstClockDate, 5);
+             const actualMinutes = firstClockDate.getHours() * 60 + firstClockDate.getMinutes();
+             prevGlobalTotalDays++;
+             if (actualMinutes > limitMinutes) prevGlobalLateDays++;
+           });
+        });
+
+        const aggregatedLatenessRate = globalTotalDays > 0 ? (globalLateDays / globalTotalDays) * 100 : 0;
+        const prevAggregatedLatenessRate = prevGlobalTotalDays > 0 ? (prevGlobalLateDays / prevGlobalTotalDays) * 100 : 0;
+        
+        const latenessEvolution = prevAggregatedLatenessRate > 0 
+          ? ((aggregatedLatenessRate - prevAggregatedLatenessRate) / prevAggregatedLatenessRate) * 100
           : 0;
 
         setLatenessData({
@@ -356,7 +371,7 @@ export default function ManagerDashboard() {
           lateDays: globalLateDays,
           totalDays: globalTotalDays,
           chartSeries: [], 
-          evolutionRate: 0 
+          evolutionRate: latenessEvolution
         });
 
         // 2. Process Clocks (Actual Volume)
@@ -486,6 +501,17 @@ export default function ManagerDashboard() {
           ? adherencePerPeriod.reduce((sum, p) => sum + p.value, 0) / adherencePerPeriod.length
           : 0;
 
+        // Calcul de l'évolution d'adhérence (dernière période vs avant-dernière)
+        let adherenceEvolution = 0;
+        if (adherencePerPeriod.length >= 2) {
+          const currentAdh = adherencePerPeriod[adherencePerPeriod.length - 1].value;
+          const previousAdh = adherencePerPeriod[adherencePerPeriod.length - 2].value;
+          if (previousAdh > 10 && currentAdh > 0) {
+            adherenceEvolution = ((currentAdh - previousAdh) / previousAdh) * 100;
+            if (currentAdh >= 100 && adherenceEvolution < 0) adherenceEvolution = 0;
+          }
+        }
+
         const scheduledHoursDisplay = Math.round(totalScheduledMinutes / 60);
 
         // Evolution: compare le total de la période actuelle vs le total de la période précédente
@@ -513,7 +539,8 @@ export default function ManagerDashboard() {
         setAdherenceData({
           rate: avgAdherenceRate,
           scheduledHours: scheduledHoursDisplay,
-          chartSeries: adherenceSeries
+          chartSeries: adherenceSeries,
+          evolutionRate: adherenceEvolution
         });
 
       } catch (err) {
@@ -826,31 +853,35 @@ export default function ManagerDashboard() {
                           </CardContent>
                         </Card>
 
-                        {/* Adhérence Planning */}
-                        <Card
-                          className="cursor-pointer hover:shadow-md transition-shadow"
-                          onClick={() => setChartModal({
-                            open: true,
-                            title: 'Adhérence moyenne',
-                            subtitle: getPeriodInfo(selectedGranularity).label,
-                            data: adherenceData.chartSeries,
-                            chartType: 'area',
-                            config: { color: '#10b981', gradientId: 'adhModalFill', tooltipType: 'adherence' }
-                          })}
-                        >
-                          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-gray-500">
-                              Adhérence moyenne
-                            </CardTitle>
-                            <CalendarCheck className="h-4 w-4 text-gray-400" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="text-2xl font-bold">{adherenceData.rate.toFixed(1)}%</div>
-                            <p className="text-xs text-gray-500 mt-2">
-                              Moyenne • {adherenceData.scheduledHours}h planifiées
-                            </p>
-                            <div className="h-[120px] mt-4">
-                              <ResponsiveContainer width="100%" height="100%">
+                                            {/* Adhérence Planning */}
+                                            <Card
+                                              className="cursor-pointer hover:shadow-md transition-shadow"
+                                              onClick={() => setChartModal({
+                                                open: true,
+                                                title: 'Adhérence moyenne',
+                                                subtitle: getPeriodInfo(selectedGranularity).label,
+                                                data: adherenceData.chartSeries,
+                                                chartType: 'area',
+                                                config: { color: '#10b981', gradientId: 'adhModalFill', tooltipType: 'adherence' }
+                                              })}
+                                            >
+                                              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                                <CardTitle className="text-sm font-medium text-gray-500">
+                                                  Adhérence moyenne
+                                                </CardTitle>
+                                                <CalendarCheck className="h-4 w-4 text-gray-400" />
+                                              </CardHeader>
+                                              <CardContent>
+                                                <div className="flex items-end gap-2">
+                                                  <div className="text-2xl font-bold">{adherenceData.rate.toFixed(1)}%</div>
+                                                  <div className={`text-sm mb-1 font-medium ${adherenceData.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    {adherenceData.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(adherenceData.evolutionRate).toFixed(1)}%
+                                                  </div>
+                                                </div>
+                                                <p className="text-xs text-gray-500 mt-2">
+                                                  Moyenne • {adherenceData.scheduledHours}h planifiées
+                                                </p>
+                                                <div className="h-[120px] mt-4">                              <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={adherenceData.chartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
                                   <defs>
                                     <linearGradient id="adhFill" x1="0" y1="0" x2="0" y2="1">
@@ -912,26 +943,26 @@ export default function ManagerDashboard() {
                           </CardContent>
                         </Card>
 
-                        {/* Taux de retard */}
-                        <Card>
-                          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-gray-500">
-                              Taux de retard de l&apos;équipe
-                            </CardTitle>
-                            <AlertCircle className="h-4 w-4 text-amber-500" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="text-2xl font-bold text-amber-600">{latenessData.rate.toFixed(1)}%</div>
-                            <p className="text-xs text-gray-500 mt-2">
-                              {latenessData.lateDays} jour(s) en retard • {latenessData.totalDays} jours travaillés
-                            </p>
-                            <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-100">
-                              <p className="text-xs text-amber-700">
-                                Taux agrégé pour tous les membres de vos équipes sur le mois en cours.
-                              </p>
-                            </div>
-                          </CardContent>
-                        </Card>
+                    {/* Taux de retard - KPI Simple */}
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">
+                          Taux de retard
+                        </CardTitle>
+                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-end gap-2">
+                          <div className="text-2xl font-bold text-amber-600">{latenessData.rate.toFixed(1)}%</div>
+                          <div class={`text-sm mb-1 font-medium ${latenessData.evolutionRate <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {latenessData.evolutionRate <= 0 ? "↘" : "↗"} {Math.abs(latenessData.evolutionRate).toFixed(1)}%
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          {latenessData.lateDays} jour(s) en retard sur {latenessData.totalDays} jours travaillés
+                        </p>
+                      </CardContent>
+                    </Card>
 
                       </div>
                     </CardContent>

@@ -846,7 +846,6 @@ export default function EmployeeDashboard() {
       <ClockCalendarView
         open={isCalendarOpen}
         onClose={() => setIsCalendarOpen(false)}
-        clocks={recentClocks}
         userName={`${targetUser?.firstName || ''} ${targetUser?.lastName || ''}`.trim() || 'Employé'}
         schedule={teamsForUser.length > 0 ? schedulesByTeam[teamsForUser[0].id] : null}
         userId={targetUserId}
