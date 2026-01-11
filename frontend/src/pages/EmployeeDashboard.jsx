@@ -34,7 +34,7 @@ import {
   getDisplayPeriodBoundaries
 } from '../utils/granularityUtils';
 
-import { calculateScheduledMinutesFromTemplate } from '../utils/scheduleUtils';
+import { calculateScheduledMinutesFromTemplate, getLatenessThresholdFromSchedule } from '../utils/scheduleUtils';
 
 // Helper functions for charts
 function fmtMinutes(v) {
@@ -311,9 +311,8 @@ export default function EmployeeDashboard() {
           clocksByDay[dayKey].push(d);
         });
 
-        const THRESHOLD_H = 9;
-        const THRESHOLD_M = 5;
-        const limitMinutes = THRESHOLD_H * 60 + THRESHOLD_M; // 09:05
+        // Récupérer le schedule template actif pour le seuil de retard
+        const activeSchedule = Object.values(schedulesByTeam)[0] || null;
 
         // 2. Déterminer le statut de retard pour chaque jour
         // eslint-disable-next-line no-unused-vars
@@ -323,6 +322,9 @@ export default function EmployeeDashboard() {
           dates.sort((a, b) => a - b);
           const firstClock = dates[0];
           const firstMinutes = firstClock.getHours() * 60 + firstClock.getMinutes();
+
+          // Seuil dynamique basé sur le schedule template (avec 5 min de tolérance)
+          const limitMinutes = getLatenessThresholdFromSchedule(activeSchedule, firstClock, 5);
           const isLate = firstMinutes > limitMinutes;
 
           // Vérifier si ce jour est dans la période affichée

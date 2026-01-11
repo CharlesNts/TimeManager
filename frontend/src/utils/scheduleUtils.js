@@ -25,6 +25,65 @@ export function parseWeeklyPattern(weeklyPatternJson) {
 // Day mappings are handled directly in getScheduledMinutesForDate
 
 /**
+ * Get the lateness threshold (expected start time) for a specific day from a schedule template
+ * @param {object} scheduleTemplate - The schedule template object with weeklyPatternJson
+ * @param {Date} date - The date to check (uses day of week)
+ * @param {number} toleranceMinutes - Grace period in minutes (default: 5)
+ * @returns {number} - Minutes since midnight representing the lateness threshold, or 545 (09:05) as fallback
+ */
+export function getLatenessThresholdFromSchedule(scheduleTemplate, date, toleranceMinutes = 5) {
+    const DEFAULT_THRESHOLD = 9 * 60 + 5; // 09:05 as fallback
+
+    if (!scheduleTemplate || !date) return DEFAULT_THRESHOLD;
+
+    const pattern = parseWeeklyPattern(scheduleTemplate.weeklyPatternJson);
+    if (!pattern) return DEFAULT_THRESHOLD;
+
+    const jsDay = date.getDay(); // 0=Sunday, 1=Monday, etc.
+    const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const dayKey = dayKeys[jsDay];
+
+    const daySchedule = pattern[dayKey];
+    if (!daySchedule || !Array.isArray(daySchedule) || daySchedule.length === 0) {
+        return DEFAULT_THRESHOLD; // No schedule for this day
+    }
+
+    // Find the earliest start time for this day
+    let earliestStart = null;
+    daySchedule.forEach(slot => {
+        if (Array.isArray(slot) && slot.length >= 2) {
+            const startTime = slot[0];
+            const startMinutes = parseTimeToMinutesExported(startTime);
+            if (startMinutes !== null) {
+                if (earliestStart === null || startMinutes < earliestStart) {
+                    earliestStart = startMinutes;
+                }
+            }
+        }
+    });
+
+    if (earliestStart === null) return DEFAULT_THRESHOLD;
+
+    // Add tolerance (grace period)
+    return earliestStart + toleranceMinutes;
+}
+
+/**
+ * Parse a time string (HH:MM) to minutes since midnight (exported version)
+ * @param {string} timeStr - Time string like "09:00" or "17:30"
+ * @returns {number|null} - Minutes since midnight or null if invalid
+ */
+export function parseTimeToMinutesExported(timeStr) {
+    if (!timeStr || typeof timeStr !== 'string') return null;
+    const parts = timeStr.split(':');
+    if (parts.length < 2) return null;
+    const hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1], 10);
+    if (isNaN(hours) || isNaN(minutes)) return null;
+    return hours * 60 + minutes;
+}
+
+/**
  * Get the scheduled minutes for a specific date based on the weekly pattern
  * @param {Date} date - The date to check
  * @param {object} pattern - The parsed weekly pattern
