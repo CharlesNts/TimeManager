@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import LoginPage from '../pages/LoginPage';
 import api from '../api/client';
 
@@ -9,6 +8,7 @@ const mockNavigate = vi.fn();
 // Mocking react-router-dom
 vi.mock('react-router-dom', () => ({
     useNavigate: () => mockNavigate,
+    Link: ({ children, to }) => <a href={to}>{children}</a>,
 }));
 
 // Mocking AuthContext
@@ -90,7 +90,7 @@ describe('LoginPage', () => {
             data: { accessToken: 'fake_token_123', expiresIn: 3600 }
         });
         api.get.mockResolvedValueOnce({
-            data: { id: 1, email: 'test@primebank.com', role: 'EMPLOYEE' }
+            data: { id: 1, email: 'test@primebank.com', role: 'EMPLOYEE', active: true }
         });
 
         render(<LoginPage />);
@@ -111,7 +111,7 @@ describe('LoginPage', () => {
         await waitFor(() => {
             expect(localStorage.getItem('access_token')).toBe('fake_token_123');
             expect(api.get).toHaveBeenCalledWith('/auth/me');
-            expect(mockSetUser).toHaveBeenCalledWith({ id: 1, email: 'test@primebank.com', role: 'EMPLOYEE' });
+            expect(mockSetUser).toHaveBeenCalledWith({ id: 1, email: 'test@primebank.com', role: 'EMPLOYEE', active: true });
             expect(mockNavigate).toHaveBeenCalledWith('/my-clocks', { replace: true });
         });
     });

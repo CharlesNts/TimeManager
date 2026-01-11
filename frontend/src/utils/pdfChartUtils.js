@@ -96,7 +96,6 @@ export const drawLineChart = (doc, data, startX, startY, width, height, options 
         valueFormatter = (v) => v.toString(),
         color = [37, 99, 235], // Bleu
         unit = '',
-        showArea = true,
     } = options;
 
     if (!data || data.length === 0) {

@@ -1,126 +1,109 @@
-// src/pages/ForgotPasswordPage.jsx
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
+import { Mail, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
+import { forgotPassword } from '../api/passwordApi';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
-import { requestPasswordReset } from '../api/passwordApi';
 
-/**
- * Page pour demander la réinitialisation du mot de passe
- * L'utilisateur entre son email, le backend envoie un lien de reset
- */
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
+    if (!email) return;
 
     try {
-      await requestPasswordReset(email);
-      setSuccess(true);
+      setLoading(true);
+      setError('');
+      await forgotPassword(email);
+      setSubmitted(true);
     } catch (err) {
-      setError(err.response?.data?.message || 'Erreur lors de l\'envoi de l\'email');
+      // Even if email is not found, security best practice often says "If account exists...",
+      // but if the API returns an error, we can show it or a generic message.
+      // The backend controller says: "Always 200, even if email not found", so we shouldn't fail often.
+      setError('Une erreur est survenue. Veuillez réessayer plus tard.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (success) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="pt-6 text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-8 h-8 text-green-600" />
-            </div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2">Email envoyé !</h2>
-            <p className="text-gray-600 mb-6">
-              Si un compte existe avec l&apos;adresse <strong>{email}</strong>, vous recevrez un email avec un lien pour réinitialiser votre mot de passe.
-            </p>
-            <p className="text-sm text-gray-500 mb-6">
-              Le lien est valable pendant 1 heure.
-            </p>
-            <Button asChild>
-              <Link to="/login">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Retour à la connexion
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div
+      className="min-h-screen flex items-center justify-center p-4 bg-cover bg-center"
+      style={{ backgroundImage: "url('/images/LoginBG.png')" }}
+    >
       <Card className="max-w-md w-full">
         <CardHeader>
-          <div className="text-center">
-            <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center mx-auto mb-4">
-              <Mail className="w-8 h-8 text-white" />
-            </div>
-            <CardTitle>Mot de passe oublié ?</CardTitle>
-            <p className="text-gray-600 mt-2 text-sm">
-              Entrez votre email pour recevoir un lien de réinitialisation
-            </p>
-          </div>
+          <CardTitle className="text-center">Mot de passe oublié</CardTitle>
+          <p className="text-sm text-gray-600 text-center">
+            Entrez votre email pour recevoir un lien de réinitialisation.
+          </p>
         </CardHeader>
 
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-                {error}
+          {submitted ? (
+            <div className="text-center space-y-6">
+              <div className="flex justify-center">
+                <CheckCircle className="w-16 h-16 text-green-500" />
               </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Adresse email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="votre@email.com"
-                required
-              />
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium">Email envoyé</h3>
+                <p className="text-sm text-gray-600">
+                  Si un compte est associé à <strong>{email}</strong>, vous recevrez un email contenant les instructions pour réinitialiser votre mot de passe.
+                </p>
+              </div>
+              <Button asChild className="w-full" variant="outline">
+                <Link to="/login">Retour à la connexion</Link>
+              </Button>
             </div>
-
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Envoi en cours...
-                </>
-              ) : (
-                'Envoyer le lien'
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <div className="p-3 bg-red-50 text-red-700 text-sm rounded-md">
+                  {error}
+                </div>
               )}
-            </Button>
+              
+              <div className="space-y-2">
+                <Label htmlFor="email">Email professionnel</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="prenom.nom@primebank.com"
+                    className="pl-10"
+                    required
+                  />
+                </div>
+              </div>
 
-            <div className="text-center">
-              <Link
-                to="/login"
-                className="text-sm text-gray-600 hover:text-gray-900 inline-flex items-center"
-              >
-                <ArrowLeft className="w-4 h-4 mr-1" />
-                Retour à la connexion
-              </Link>
-            </div>
-          </form>
+              <Button type="submit" disabled={loading} className="w-full">
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Envoi en cours...
+                  </>
+                ) : (
+                  'Envoyer le lien'
+                )}
+              </Button>
+
+              <div className="text-center">
+                <Link to="/login" className="inline-flex items-center text-sm text-gray-600 hover:text-black">
+                  <ArrowLeft className="w-4 h-4 mr-1" />
+                  Retour à la connexion
+                </Link>
+              </div>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>

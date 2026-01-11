@@ -10,7 +10,7 @@ import ClockActions from '../components/employee/ClockActions';
 import ClockCalendarView from '../components/employee/ClockCalendarView';
 import RequestLeaveModal from '../components/employee/RequestLeaveModal';
 import PeriodSelector from '../components/manager/PeriodSelector';
-import { Clock, AlertTriangle, Briefcase, ArrowLeft, Calendar, CalendarCheck, AlertCircle, TrendingUp } from 'lucide-react';
+import { Clock, AlertTriangle, Briefcase, ArrowLeft, Calendar, CalendarCheck, AlertCircle } from 'lucide-react';
 import api from '../api/client';
 import reportsApi from '../api/reportsApi';
 import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
@@ -175,7 +175,7 @@ export default function EmployeeDashboard() {
   // KPIs & Charts State
   const [recentClocks, setRecentClocks] = useState([]);
   const [hoursChartSeries, setHoursChartSeries] = useState([]);
-  const [avgChartSeries, setAvgChartSeries] = useState([]);
+  const [, setAvgChartSeries] = useState([]);
   const [adherenceData, setAdherenceData] = useState({ rate: 0, scheduledHours: 0, chartSeries: [], evolutionRate: 0 });
   const [stats, setStats] = useState({
     hoursCurrent: 0,
@@ -292,9 +292,7 @@ export default function EmployeeDashboard() {
         }
 
         // Fetch Lateness Rate with Chart Series based on granularity
-        let latenessChartSeries = [];
         let currentLatenessRate = 0;
-        let previousLatenessRate = 0;
         let totalLateDays = 0;
         let totalDaysWithClock = 0;
 
@@ -318,6 +316,7 @@ export default function EmployeeDashboard() {
         const limitMinutes = THRESHOLD_H * 60 + THRESHOLD_M; // 09:05
 
         // 2. Déterminer le statut de retard pour chaque jour
+        // eslint-disable-next-line no-unused-vars
         const dayLatenessMap = {};
         Object.entries(clocksByDay).forEach(([dayKey, dates]) => {
           // Trouver le premier clock-in de la journée

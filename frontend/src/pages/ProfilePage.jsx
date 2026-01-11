@@ -6,12 +6,14 @@ import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import { User, Mail, Phone, Briefcase, Key, Save, Loader2, CheckCircle2, AlertCircle, Edit2, Trash2 } from 'lucide-react';
 import { getUserById, updateUserById /*, updateUserPassword*/ } from '../api/userApi';
+import { forgotPassword } from '../api/passwordApi';
 import { deleteUser } from '../api/userAdminApi';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { toast } from 'sonner';
 
 export default function ProfilePage() {
   const { user, setUser, logout } = useAuth();
@@ -107,14 +109,16 @@ export default function ProfilePage() {
     // On rechargera au besoin; sinon garde l’état courant
   };
 
-  const handleResetPassword = () => {
-    // Si tu ajoutes l'endpoint POST /api/users/{id}/password côté backend, tu peux décommenter ci-dessous
-    // const newPass = prompt('Nouveau mot de passe :');
-    // if (!newPass) return;
-    // updateUserPassword(user.id, newPass)
-    //   .then(() => setOk('Mot de passe mis à jour'))
-    //   .catch(e => setError(e?.message || 'Échec de la mise à jour du mot de passe'));
-    alert("Action à implémenter côté backend (POST /api/users/{id}/password)"); 
+  const handleResetPassword = async () => {
+    if (!profileData.email) return;
+    try {
+      setError(''); setOk('');
+      await forgotPassword(profileData.email);
+      toast.success(`Un email de réinitialisation a été envoyé à ${profileData.email}`);
+    } catch (e) {
+      setError("Erreur lors de l'envoi de l'email de réinitialisation.");
+      toast.error("Erreur lors de l'envoi de l'email");
+    }
   };
 
   const [confirmDelete, setConfirmDelete] = useState(false);

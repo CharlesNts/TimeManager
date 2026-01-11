@@ -113,7 +113,7 @@ describe('TeamsList', () => {
     });
 
     it('handles team deletion', async () => {
-        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        window.confirm = vi.fn(() => true);
         teamApi.deleteTeam.mockResolvedValueOnce(true);
         renderComponent();
 

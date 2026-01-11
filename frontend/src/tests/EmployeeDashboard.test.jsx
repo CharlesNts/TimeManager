@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import EmployeeDashboard from '../pages/EmployeeDashboard';
-import { AuthProvider } from '../contexts/AuthContext'; // We will mock useAuth directly actually
 
 // --- MOCKS ---
 

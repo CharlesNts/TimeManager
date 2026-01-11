@@ -67,6 +67,7 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
       console.warn('Erreur parsing schedule.weeklyPatternJson dans WorkScheduleConfigurator:', e);
       return { workDays: [1, 2, 3, 4, 5], startTime: '09:00', endTime: '17:30', pauseDuration: '', startDate: '', endDate: '' };
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schedule]);
 
   const [scheduleName, setScheduleName] = useState(schedule?.name || `Planning ${teamName || 'équipe'}`);
