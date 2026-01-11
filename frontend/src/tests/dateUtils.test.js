@@ -30,25 +30,28 @@ describe('dateUtils', () => {
 
     describe('toParis', () => {
         it('converts a date to Paris timezone', () => {
-            const date = new Date('2025-01-15T12:00:00Z');
+            const date = new Date('2025-01-15T12:00:00Z'); // 12:00 UTC
             const parisDate = toParis(date);
             expect(parisDate).toBeInstanceOf(Date);
+            // In Jan (Standard time), Paris is UTC+1, so 13:00
+            expect(parisDate.getHours()).toBe(13);
         });
     });
 
     describe('toISO', () => {
         it('formats date as ISO string with time (LocalDateTime format)', () => {
-            const date = new Date(2025, 0, 15, 9, 30, 45); // Jan 15, 2025 09:30:45
+            // Use absolute ISO to ensure 9:30 Paris
+            const date = new Date('2025-01-15T09:30:45+01:00');
             const isoStr = toISO(date);
-            expect(isoStr).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
+            expect(isoStr).toBe('2025-01-15T09:30:45');
         });
     });
 
     describe('dateToISO', () => {
         it('formats date as ISO date string only (no time)', () => {
-            const date = new Date(2025, 0, 15, 9, 30, 45);
+            const date = new Date('2025-01-15T09:30:45+01:00');
             const isoStr = dateToISO(date);
-            expect(isoStr).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+            expect(isoStr).toBe('2025-01-15');
         });
     });
 
@@ -171,7 +174,9 @@ describe('dateUtils', () => {
 
     describe('minutesSinceMidnightParis', () => {
         it('calculates minutes since midnight', () => {
-            const date = new Date(2025, 0, 15, 2, 30);
+            // Use an absolute ISO string to avoid local timezone shifts on CI
+            // Jan 15, 2025 at 02:30 Paris (Standard Time is UTC+1)
+            const date = new Date('2025-01-15T02:30:00+01:00');
             const minutes = minutesSinceMidnightParis(date);
             expect(minutes).toBe(150); // 2*60 + 30
         });
