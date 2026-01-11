@@ -379,6 +379,9 @@ export default function ClockCalendarView({ open, onClose, clocks = [], userName
                     <div
                       key={idx}
                       onClick={() => handleDayClick(day)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleDayClick(day); } }}
+                      role="button"
+                      tabIndex={day.status !== 'empty' && day.status !== 'weekend' ? 0 : -1}
                       className={`
                         aspect-square rounded border-2 p-0.5 flex flex-col items-center justify-center
                         transition-all cursor-pointer text-[10px]

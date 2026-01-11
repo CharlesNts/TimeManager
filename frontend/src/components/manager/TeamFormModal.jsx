@@ -35,10 +35,10 @@ import { createTeam, updateTeam } from '../../api/teamApi';
  *   onSave={(data) => console.log(data)}
  * />
  */
-export default function TeamFormModal({ 
-  isOpen, 
-  onClose, 
-  onSave, 
+export default function TeamFormModal({
+  isOpen,
+  onClose,
+  onSave,
   team = null,
   mode = 'create',
   userRole = 'MANAGER',
@@ -62,7 +62,7 @@ export default function TeamFormModal({
   useEffect(() => {
     const fetchManagers = async () => {
       if (!isOpen) return; // Ne charge que si le modal est ouvert
-      
+
       setLoadingManagers(true);
       try {
         const { data } = await api.get('/api/users');
@@ -109,37 +109,37 @@ export default function TeamFormModal({
   // Soumettre le formulaire
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.name.trim()) {
       setError('Le nom de l\'équipe est obligatoire');
       return;
     }
-    
+
     if (!formData.managerId) {
       setError('Un manager doit être sélectionné');
       return;
     }
-    
+
     setLoading(true);
     setError('');
-    
+
     try {
       const payload = {
         name: formData.name,
         description: formData.description,
         managerId: parseInt(formData.managerId),
       };
-      
+
       let savedTeam;
       if (mode === 'create') {
         savedTeam = await createTeam(payload);
       } else {
         savedTeam = await updateTeam(team.id, payload);
       }
-      
+
       if (onSave) onSave(savedTeam);
       onClose();
-      
+
     } catch (err) {
       console.error('Erreur sauvegarde équipe:', err);
       setError(err.message || 'Erreur lors de la sauvegarde');
@@ -154,15 +154,18 @@ export default function TeamFormModal({
   return (
     <>
       {/* Overlay sombre */}
-      <div 
+      <div
         className="fixed inset-0 bg-black bg-opacity-50 z-40"
         onClick={onClose}
+        onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+        role="presentation"
+        aria-hidden="true"
       />
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-          
+
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <div className="flex items-center space-x-3">
@@ -183,7 +186,7 @@ export default function TeamFormModal({
 
           {/* Formulaire */}
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            
+
             {/* Message d'erreur */}
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
@@ -226,7 +229,7 @@ export default function TeamFormModal({
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Manager <span className="text-red-500">*</span>
               </label>
-              
+
               {userRole === 'CEO' ? (
                 // CEO peut choisir n'importe quel manager
                 <>
@@ -257,11 +260,11 @@ export default function TeamFormModal({
                     value={
                       currentUserId && availableManagers.length > 0
                         ? (() => {
-                            const currentManager = availableManagers.find(m => m.id === currentUserId);
-                            return currentManager 
-                              ? `${currentManager.firstName} ${currentManager.lastName}` 
-                              : 'Vous-même';
-                          })()
+                          const currentManager = availableManagers.find(m => m.id === currentUserId);
+                          return currentManager
+                            ? `${currentManager.firstName} ${currentManager.lastName}`
+                            : 'Vous-même';
+                        })()
                         : loadingManagers ? 'Chargement...' : 'Vous-même'
                     }
                     disabled
@@ -273,7 +276,7 @@ export default function TeamFormModal({
                 </>
               )}
             </div>
-            
+
             {/* Section Planning Obligatoire */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">

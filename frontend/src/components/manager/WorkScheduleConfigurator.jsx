@@ -219,6 +219,9 @@ export default function WorkScheduleConfigurator({ open, onClose, teamId, teamNa
                     : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
                     }`}
                   onClick={() => toggleWorkDay(day.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleWorkDay(day.value); } }}
+                  role="button"
+                  tabIndex={0}
                 >
                   <Checkbox
                     checked={workDays.includes(day.value)}

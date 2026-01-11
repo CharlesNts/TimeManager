@@ -87,7 +87,7 @@ describe('ProfilePage', () => {
         renderComponent();
         await waitFor(() => expect(getUserById).toHaveBeenCalled());
 
-        const editBtn = screen.getByRole('button', { name: /Modifier le profil/i });
+        const editBtn = await screen.findByRole('button', { name: /Modifier le profil/i });
         fireEvent.click(editBtn);
 
         // Buttons change to Sauvegarder and Annuler
@@ -95,7 +95,7 @@ describe('ProfilePage', () => {
         const cancelBtn = screen.getByRole('button', { name: /Annuler/i });
         
         fireEvent.click(cancelBtn);
-        expect(screen.getByRole('button', { name: /Modifier le profil/i })).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: /Modifier le profil/i })).toBeInTheDocument();
     });
 
     it('successfully updates user information', async () => {
@@ -105,7 +105,8 @@ describe('ProfilePage', () => {
         renderComponent();
         await waitFor(() => expect(getUserById).toHaveBeenCalled());
 
-        fireEvent.click(screen.getByRole('button', { name: /Modifier le profil/i }));
+        const editBtn = await screen.findByRole('button', { name: /Modifier le profil/i });
+        fireEvent.click(editBtn);
 
         const firstNameInput = screen.getByLabelText(/Prénom/i);
         fireEvent.change(firstNameInput, { target: { value: 'Johnny' } });
