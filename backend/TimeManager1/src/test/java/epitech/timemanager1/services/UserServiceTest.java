@@ -3,6 +3,7 @@ package epitech.timemanager1.services;
 import epitech.timemanager1.dto.UserDTO;
 import epitech.timemanager1.entities.Role;
 import epitech.timemanager1.entities.User;
+import epitech.timemanager1.events.UserRegisteredEvent;
 import epitech.timemanager1.exception.ConflictException;
 import epitech.timemanager1.exception.NotFoundException;
 import epitech.timemanager1.mapper.UserMapper;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
@@ -37,12 +39,23 @@ class UserServiceTest {
 
     private UserService userService;
 
+    @Mock
+    private KafkaTemplate<String, UserRegisteredEvent> userRegisteredKafkaTemplate;
+
+    @Mock
+    private KafkaTemplate<String, Object> genericKafkaTemplate;
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        userService = new UserService(userRepository, userMapper, passwordEncoder, teamMemberRepository, null, null);
+        userService = new UserService(
+                userRepository,
+                userMapper,
+                passwordEncoder,
+                teamMemberRepository,
+                userRegisteredKafkaTemplate,
+                genericKafkaTemplate
+        );
     }
-
     private UserDTO getSampleUserDTO() {
         return UserDTO.builder()
                 .firstName("John")
