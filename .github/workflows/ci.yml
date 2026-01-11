@@ -164,7 +164,7 @@ jobs:
             -Dsonar.java.binaries=backend/TimeManager1/target/classes
             -Dsonar.coverage.jacoco.xmlReportPaths=backend/TimeManager1/target/site/jacoco/jacoco.xml
             -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info
-            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/target/**
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/target/**,**/tests/**,**/*.test.js,**/*.test.jsx,**/*.spec.js,**/*.spec.jsx
             -Dsonar.sourceEncoding=UTF-8
             -Dsonar.qualitygate.wait=true
 
