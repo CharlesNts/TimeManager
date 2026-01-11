@@ -33,6 +33,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final TeamMemberRepository teamMemberRepository;
 
+    /** OPTIONAL Kafka beans (NOT created in tests) */
     @Autowired(required = false)
     private KafkaTemplate<String, UserRegisteredEvent> kafkaTemplate;
 
@@ -56,22 +57,66 @@ public class UserService {
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
         user.setActive(false);
 
-        User saved = userRepository.save(user);
+        User savedUser = userRepository.save(user);
 
         if (kafkaEnabled && kafkaTemplate != null) {
             kafkaTemplate.send(
                     KafkaTopics.USER_REGISTERED,
-                    "user-" + saved.getId(),
+                    "user-" + savedUser.getId(),
                     new UserRegisteredEvent(
-                            saved.getId(),
-                            saved.getEmail(),
-                            saved.getFirstName(),
+                            savedUser.getId(),
+                            savedUser.getEmail(),
+                            savedUser.getFirstName(),
                             LocalDateTime.now()
                     )
             );
         }
 
-        return userMapper.toDTO(saved);
+        return userMapper.toDTO(savedUser);
+    }
+
+    @Transactional(readOnly = true)
+    public UserDTO get(Long id) {
+        return userRepository.findById(id)
+                .map(userMapper::toDTO)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+    }
+
+    @Transactional(readOnly = true)
+    public UserDTO getByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .map(userMapper::toDTO)
+                .orElseThrow(() -> new NotFoundException("User not found with email " + email));
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserDTO> list() {
+        return userRepository.findAll()
+                .stream()
+                .map(userMapper::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    public UserDTO update(Long id, UserDTO dto) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        user.setFirstName(dto.getFirstName());
+        user.setLastName(dto.getLastName());
+        user.setPhoneNumber(dto.getPhoneNumber());
+        user.setRole(dto.getRole());
+
+        return userMapper.toDTO(userRepository.save(user));
+    }
+
+    public void delete(Long id) {
+        if (!userRepository.existsById(id)) {
+            throw new NotFoundException("User not found");
+        }
+        if (teamMemberRepository.existsByUserId(id)) {
+            throw new ConflictException("User is member of at least one team and cannot be deleted");
+        }
+        userRepository.deleteById(id);
     }
 
     public void approveUser(Long id) {
@@ -113,5 +158,14 @@ public class UserService {
                     )
             );
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserDTO> findAllPending() {
+        return userRepository.findAll()
+                .stream()
+                .filter(u -> !u.isActive())
+                .map(userMapper::toDTO)
+                .collect(Collectors.toList());
     }
 }
