@@ -12,9 +12,9 @@ import api from '../../api/client';
  * @param {Array} currentMembers - Liste des membres actuels (pour les exclure)
  * @param {Array} availableUsers - Liste des utilisateurs disponibles (optionnel, sinon chargé depuis API)
  */
-const AddMemberModal = ({ 
-  isOpen, 
-  onClose, 
+const AddMemberModal = ({
+  isOpen,
+  onClose,
   onAddMember,
   currentMembers = [],
   availableUsers = null // Si null, on charge depuis l'API
@@ -28,13 +28,13 @@ const AddMemberModal = ({
   useEffect(() => {
     const fetchUsers = async () => {
       if (!isOpen) return;
-      
+
       // Si availableUsers fourni en props, on les utilise
       if (availableUsers !== null) {
         setUsers(availableUsers);
         return;
       }
-      
+
       // Sinon, charger depuis l'API
       setLoadingUsers(true);
       try {
@@ -134,6 +134,9 @@ const AddMemberModal = ({
                 <div
                   key={user.id}
                   onClick={() => toggleUser(user.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleUser(user.id); } }}
+                  role="button"
+                  tabIndex={0}
                   className={`
                     flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-all
                     ${selectedUsers.includes(user.id)
@@ -158,7 +161,7 @@ const AddMemberModal = ({
                       px-2 py-1 text-xs font-medium rounded
                       ${user.role === 'CEO' ? 'bg-purple-100 text-purple-700' :
                         user.role === 'MANAGER' ? 'bg-gray-200 text-gray-700' :
-                        'bg-gray-100 text-gray-600'}
+                          'bg-gray-100 text-gray-600'}
                     `}>
                       {user.role}
                     </span>

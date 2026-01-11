@@ -91,7 +91,9 @@ export const getPeriodBoundaries = (granularity, startDate, endDate) => {
 
   if (granularity === 'day') {
     let current = new Date(startDate);
-    while (current <= endDate) {
+    let iterations = 0;
+    const MAX_ITERATIONS = 366; // Safety guard against infinite loops
+    while (current <= endDate && iterations < MAX_ITERATIONS) {
       const dayStart = startOfDay(current);
       const dayEnd = new Date(dayStart);
       dayEnd.setHours(23, 59, 59, 999);
@@ -101,13 +103,16 @@ export const getPeriodBoundaries = (granularity, startDate, endDate) => {
         label: current.toLocaleDateString('fr-FR', { weekday: 'short', month: 'short', day: 'numeric' })
       });
       current.setDate(current.getDate() + 1);
+      iterations++;
     }
     return periods;
   }
 
   if (granularity === 'week') {
     let current = startOfWeekMon(startDate);
-    while (current <= endDate) {
+    let iterations = 0;
+    const MAX_ITERATIONS = 53; // Safety guard against infinite loops
+    while (current <= endDate && iterations < MAX_ITERATIONS) {
       const weekStart = startOfWeekMon(current);
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
@@ -119,13 +124,16 @@ export const getPeriodBoundaries = (granularity, startDate, endDate) => {
         label: `S${weekNum}`
       });
       current.setDate(current.getDate() + 7);
+      iterations++;
     }
     return periods;
   }
 
   if (granularity === 'month') {
     let current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-    while (current <= endDate) {
+    let iterations = 0;
+    const MAX_ITERATIONS = 120; // Safety guard against infinite loops (10 years)
+    while (current <= endDate && iterations < MAX_ITERATIONS) {
       const monthStart = new Date(current.getFullYear(), current.getMonth(), 1);
       monthStart.setHours(0, 0, 0, 0);
       const monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0);
@@ -136,13 +144,16 @@ export const getPeriodBoundaries = (granularity, startDate, endDate) => {
         label: monthStart.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })
       });
       current.setMonth(current.getMonth() + 1);
+      iterations++;
     }
     return periods;
   }
 
   if (granularity === 'year') {
     let current = new Date(startDate.getFullYear(), 0, 1);
-    while (current <= endDate) {
+    let iterations = 0;
+    const MAX_ITERATIONS = 100; // Safety guard against infinite loops
+    while (current <= endDate && iterations < MAX_ITERATIONS) {
       const yearStart = new Date(current.getFullYear(), 0, 1);
       yearStart.setHours(0, 0, 0, 0);
       const yearEnd = new Date(current.getFullYear(), 11, 31);
@@ -153,6 +164,7 @@ export const getPeriodBoundaries = (granularity, startDate, endDate) => {
         label: yearStart.getFullYear().toString()
       });
       current.setFullYear(current.getFullYear() + 1);
+      iterations++;
     }
     return periods;
   }
