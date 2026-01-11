@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Build / IDE
+target/
+.idea/
+*.iml
+.DS_Store
+**/.DS_Store
+teamManager/
+.env

@@ -1,0 +1,141 @@
+package epitech.timemanager1.controllers;
+
+import epitech.timemanager1.dto.LeaveDecisionDTO;
+import epitech.timemanager1.dto.LeaveRequestCreateDTO;
+import epitech.timemanager1.entities.LeaveRequest;
+import epitech.timemanager1.entities.LeaveStatus;
+import epitech.timemanager1.services.LeaveRequestService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/leaves")
+@RequiredArgsConstructor
+public class LeavesController {
+
+    private final LeaveRequestService leaves;
+
+    /** Employee creates a leave request. */
+    @PostMapping
+    public ResponseEntity<LeaveRequest> requestLeave(
+            @RequestParam Long employeeId,
+            @Valid @RequestBody LeaveRequestCreateDTO body,
+            @RequestParam(defaultValue = "UTC") String zone // if frontend sends local datetimes
+    ) {
+        ZoneId z = ZoneId.of(zone);
+        LocalDate start = body.getStartAt()
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(z)
+                .toLocalDate();
+        LocalDate end = body.getEndAt()
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(z)
+                .toLocalDate();
+
+        LeaveRequest created = leaves.requestLeave(
+                employeeId,
+                body.getType(),
+                start,
+                end,
+                body.getReason()
+        );
+        return ResponseEntity.ok(created);
+    }
+
+    /** Employee cancels their own pending leave. */
+    @PostMapping("/{leaveId}/cancel")
+    public ResponseEntity<LeaveRequest> cancel(
+            @PathVariable Long leaveId,
+            @RequestParam Long employeeId
+    ) {
+        return ResponseEntity.ok(leaves.cancelPending(employeeId, leaveId));
+    }
+
+    /** Manager/CEO decides: approve or reject (with optional note). */
+    @PostMapping("/{leaveId}/decision")
+    public ResponseEntity<LeaveRequest> decide(
+            @PathVariable Long leaveId,
+            @Valid @RequestBody LeaveDecisionDTO body
+    ) {
+        if (body.getDecision() == LeaveStatus.APPROVED) {
+            return ResponseEntity.ok(leaves.approve(leaveId));
+        }
+        if (body.getDecision() == LeaveStatus.REJECTED) {
+            return ResponseEntity.ok(leaves.reject(leaveId, body.getNote()));
+        }
+        return ResponseEntity.badRequest().build();
+    }
+
+    /** All requests for an employee (newest first). */
+    @GetMapping
+    public ResponseEntity<List<LeaveRequest>> listForEmployee(@RequestParam Long employeeId) {
+        return ResponseEntity.ok(leaves.listForEmployee(employeeId));
+    }
+
+    /** All pending requests visible to approvers (scope with security if needed). */
+    @GetMapping("/pending")
+    public ResponseEntity<List<LeaveRequest>> listPending() {
+        return ResponseEntity.ok(leaves.listPendingForApprover());
+    }
+
+    /**
+     * List all leave requests for an employee between two dates (inclusive).
+     * Example:
+     * GET /api/leaves/window?employeeId=1&from=2025-12-01&to=2026-03-31
+     */
+    @GetMapping("/window")
+    public ResponseEntity<List<LeaveRequest>> listForEmployeeInWindow(
+            @RequestParam Long employeeId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+    ) {
+        return ResponseEntity.ok(leaves.listForEmployeeInWindow(employeeId, from, to));
+    }
+
+    /**
+     * Update an existing leave request (only if PENDING).
+     * Dates are interpreted similarly to creation: the frontend sends datetimes,
+     * we convert them to dates in the requested zone.
+     */
+    @PutMapping("/{leaveId}")
+    public ResponseEntity<LeaveRequest> updateLeave(
+            @PathVariable Long leaveId,
+            @Valid @RequestBody LeaveRequestCreateDTO body,
+            @RequestParam(defaultValue = "UTC") String zone
+    ) {
+        ZoneId z = ZoneId.of(zone);
+        LocalDate start = body.getStartAt()
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(z)
+                .toLocalDate();
+        LocalDate end = body.getEndAt()
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(z)
+                .toLocalDate();
+
+        LeaveRequest updated = leaves.update(
+                leaveId,
+                body.getType(),
+                start,
+                end,
+                body.getReason()
+        );
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * Delete a leave request (only if PENDING).
+     */
+    @DeleteMapping("/{leaveId}")
+    public ResponseEntity<Void> deleteLeave(@PathVariable Long leaveId) {
+        leaves.delete(leaveId);
+        return ResponseEntity.noContent().build();
+    }
+}

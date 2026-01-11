@@ -1,0 +1,169 @@
+// src/pages/LoginPage.jsx
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import api from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Label } from '../components/ui/label';
+import { Input } from '../components/ui/input';
+
+export default function LoginPage() {
+  const navigate = useNavigate();
+  const { setUser } = useAuth();
+
+  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setError('');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.email.endsWith('@primebank.com')) {
+      setError('Seuls les emails @primebank.com sont autorisés'); return;
+    }
+    if (formData.password.length < 6) {
+      setError('Le mot de passe doit contenir au moins 6 caractères'); return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+
+      // 1) Login → token
+      const res = await api.post('/auth/login', {
+        email: formData.email,
+        password: formData.password,
+      });
+
+      const { accessToken, expiresIn } = res.data;
+
+      // Stocker le token AVANT d'appeler /auth/me
+      localStorage.setItem('access_token', accessToken);
+      if (expiresIn) {
+        const expiresAt = Date.now() + expiresIn * 1000;
+        localStorage.setItem('token_expires_at', expiresAt.toString());
+      }
+
+      // ⚠️ Ne PAS passer de headers explicites, l'interceptor s'en charge !
+      const me = await api.get('/auth/me');
+      
+      // Check if account is active
+      /* if (!me.data.active) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('token_expires_at');
+        setError('Votre compte est inactif. Veuillez contacter l\'administrateur.');
+        return;
+      } */
+      
+      setUser(me.data);
+
+      // 4) Navigation + fallback dur si un guard bloque
+      try {
+        navigate('/my-clocks', { replace: true });
+      } catch {
+        window.location.replace('/my-clocks');
+      }
+    } catch (err) {
+      if (err.response) {
+        if (err.response.status === 401) setError('Identifiants incorrects');
+        else if (err.response.status === 403) setError('Accès refusé');
+        else setError(err.response.data?.message || 'Erreur serveur');
+      } else {
+        setError('Impossible de contacter le serveur');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center p-4 bg-cover bg-center"
+      style={{ backgroundImage: "url('/images/LoginBG.png')" }}
+    >
+      <Card className="max-w-md w-full">
+        <CardHeader>
+          <CardTitle className="text-center">Connexion</CardTitle>
+          <p className="text-sm text-gray-600 text-center">Accédez à votre espace Time Manager</p>
+        </CardHeader>
+
+        <CardContent>
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
+              <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4" data-testid="login-form">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email professionnel</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="prenom.nom@primebank.com"
+                  className="pl-10"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Mot de passe</Label>
+                <Link to="/forgot-password" className="text-sm text-gray-600 hover:text-black">
+                  Mot de passe oublié ?
+                </Link>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="••••••••"
+                  className="pl-10"
+                  required
+                />
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Connexion...
+                </>
+              ) : (
+                'Se connecter'
+              )}
+            </Button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Pas de compte ? <Link to="/register" className="text-black font-medium hover:underline">S&apos;inscrire</Link>
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
