@@ -27,13 +27,13 @@ export function AuthProvider({ children }) {
         }
         const { data } = await api.get('/auth/me');
         // Check if account is active
-        if (!data.active) {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('token_type');
-          localStorage.removeItem('expires_in');
-          setUser(null);
-          return;
-        }
+        // if (!data.active) {
+        //   localStorage.removeItem('access_token');
+        //   localStorage.removeItem('token_type');
+        //   localStorage.removeItem('expires_in');
+        //   setUser(null);
+        //   return;
+        // }
         setUser(data);
       } catch (err) {
         // Token invalide/expiré → on nettoie et on repart propre
