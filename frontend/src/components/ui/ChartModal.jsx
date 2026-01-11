@@ -1,20 +1,11 @@
 // src/components/ui/ChartModal.jsx
 import React from 'react';
+import PropTypes from 'prop-types';
 import { X } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 
 /**
  * ChartModal - Modal pour afficher un graphique en plein écran
- * 
- * Props:
- * - open: boolean - si le modal est ouvert
- * - onClose: () => void - callback pour fermer le modal
- * - title: string - titre du graphique
- * - subtitle: string - sous-titre optionnel
- * - data: array - données du graphique
- * - type: 'area' | 'bar' - type de graphique
- * - chartConfig: object - configuration du graphique (color, gradientId, tooltipType)
- * - CustomTooltip: component - composant tooltip personnalisé
  */
 const ChartModal = ({
     open,
@@ -49,6 +40,7 @@ const ChartModal = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby="chart-modal-title"
+            tabIndex="-1"
         >
             <div className="bg-white rounded-xl shadow-2xl w-[90vw] max-w-5xl max-h-[85vh] overflow-hidden">
                 {/* Header */}
@@ -139,6 +131,22 @@ const ChartModal = ({
             </div>
         </div>
     );
+};
+
+ChartModal.propTypes = {
+    open: PropTypes.bool.isRequired,
+    onClose: PropTypes.func.isRequired,
+    title: PropTypes.string.isRequired,
+    subtitle: PropTypes.string,
+    data: PropTypes.array,
+    type: PropTypes.oneOf(['area', 'bar']),
+    chartConfig: PropTypes.shape({
+        color: PropTypes.string,
+        gradientId: PropTypes.string,
+        tooltipType: PropTypes.string,
+        barColors: PropTypes.arrayOf(PropTypes.string),
+    }),
+    CustomTooltip: PropTypes.elementType,
 };
 
 export default ChartModal;
