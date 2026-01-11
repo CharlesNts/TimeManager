@@ -1,70 +1,102 @@
-# Rapport sur l'approche du projet *Time Manager*
+# TimeManager
 
-Ce document résume l’approche décidée pour le développement du projet **Time Manager**.
+**TimeManager** est une application web moderne dédiée à la gestion des plannings et du temps de travail en entreprise.  
+Elle a été conçue pour offrir une expérience claire, fluide et efficace aussi bien pour les administrateurs, les managers que pour les employés.
 
----
-
-## 1. 🎯 Objectif du projet
-
-Le projet **Time Manager** est une application de gestion du temps permettant :
-- aux **employés** de saisir leurs heures d’arrivée et de départ,
-- aux **managers** de gérer leurs équipes,
-- et à l’entreprise de suivre les **indicateurs de performance (KPIs)**.
+L’objectif principal est de **simplifier l’organisation des équipes**, d’améliorer la visibilité des horaires et de centraliser la gestion du temps dans un outil unique.
 
 ---
 
-## 2. ⚙️ Architecture générale
+## 💡 Vision du projet
 
-- **Backend :** Spring Boot (Java) — API RESTful.  
-- **Frontend :** React.js — déployé sur **Vercel**.  
-- **Base de données :** PostgreSQL (conteneurisée avec Docker).  
-- **DevOps :** GitHub Actions pour l’intégration continue (build, tests, couverture).  
-- **Reverse Proxy :** Nginx pour router les requêtes et exposer le backend publiquement.  
+TimeManager répond à un besoin concret :  
+permettre aux entreprises de gérer leurs équipes et leurs horaires de manière **structurée, flexible et évolutive**.
 
----
-
-## 3. 🧩 Approche choisie
-
-- **Application monolithique modulaire :**  
-  Le backend est un monolithe structuré en modules (utilisateurs, équipes, pointages, rapports).
-
-- **Architecture REST :**  
-  Toutes les interactions entre le frontend et le backend se font via des endpoints REST sécurisés avec **JWT**.
-
-- **CORS :**  
-  Géré via la configuration Spring ou via un proxy côté Vercel (`vercel.json` rewrite).
-
-- **Pipeline CI/CD :**  
-  GitHub Actions compile, teste et déploie automatiquement le backend.
-
-- **Déploiement frontend :**  
-  Vercel construit et déploie automatiquement le frontend à chaque push sur `main`.
+L’application met l’accent sur :
+- la clarté des plannings
+- la simplicité d’utilisation
+- une séparation nette des responsabilités
+- une architecture prête à évoluer
 
 ---
 
-## 4. 💡 Justification des choix techniques
+## 👥 Une application pensée par rôle
 
-- **REST** plutôt que **GraphQL** → plus simple, plus rapide à implémenter, adapté à la structure CRUD du projet.  
-- **Architecture monolithique** plutôt que microservices → plus cohérente pour un projet de cette taille et plus simple à déployer.  
-- **Vercel** pour le frontend → gratuit, rapide, optimisé pour React.  
-- **Docker** pour le backend → standardise les environnements et simplifie la mise en production.  
+### Administrateur (Admin)
+- Vision globale de l’application
+- Supervision des utilisateurs et des équipes
+- Accès aux données clés de l’entreprise
+- Pilotage de l’organisation à grande échelle
+
+### Manager
+- Gestion complète de ses équipes
+- Création de **plusieurs modèles de planning** par équipe  
+  (ex : planning hiver, planning été, période de rush)
+- Activation du planning en vigueur en un clic
+- Modification et suppression des plannings existants
+- Les changements sont automatiquement reflétés pour les employés
+
+### Employé
+- Consultation claire de son planning actif
+- Accès immédiat aux horaires appliqués par son manager
+- Vision simple et lisible de son organisation de travail
 
 ---
 
-## 5. 🚀 Plan de déploiement
+## 📅 Gestion intelligente des plannings
 
-1. **Backend + Base de données** : déployés via **Docker Compose** sur un serveur distant (ou cloud).  
-2. **Nginx** : agit comme **reverse proxy**, exposant l’API publique via HTTPS (Let’s Encrypt).  
-3. **Frontend (React)** : déployé sur **Vercel**, communique avec l’API via une URL publique (`https://api.mondomaine.com/api/...`)  
-   ou via un rewrite proxy (`vercel.json`) pour éviter les problèmes de CORS.  
+TimeManager permet aux managers de créer plusieurs plannings pour une même équipe, tout en garantissant qu’un **seul planning est actif à la fois**.
+
+Cette approche offre :
+- une grande flexibilité organisationnelle
+- une adaptation rapide aux périodes spécifiques
+- une cohérence totale côté employé
 
 ---
 
-## 6. 🧰 Stack technique finale
+## ⏱️ WorkShifts : la base du temps réel
 
-| Composant | Technologies principales |
-|------------|---------------------------|
-| **Backend** | Spring Boot, Java 17, Spring Security, JWT, PostgreSQL |
-| **Frontend** | React.js, Axios, JWT token management, Vercel |
-| **DevOps** | GitHub Actions, Docker, Nginx |
+Les **WorkShifts** représentent les horaires concrets appliqués dans le temps.  
+Ils constituent une base solide pour :
+- l’application des plannings sur le calendrier
+- l’évolution future vers le suivi précis du temps de travail
+- la gestion des ajustements et des cas particuliers
 
+---
+
+## 🔐 Sécurité et fiabilité
+
+- Authentification sécurisée par token (JWT)
+- Accès contrôlé selon le rôle utilisateur
+- Séparation claire entre les droits Admin, Manager et Employé
+- API sécurisée et structurée
+
+---
+
+## 🧱 Choix techniques (aperçu)
+
+- **Backend** : API REST robuste basée sur Spring Boot  
+- **Frontend** : Application React moderne et responsive  
+- **Architecture** claire, modulaire et maintenable  
+- Communication fluide entre le front et le back  
+
+Les choix techniques ont été faits pour garantir :
+- la stabilité
+- la lisibilité
+- la facilité d’évolution du projet
+
+---
+
+## 🚀 Un projet prêt à évoluer
+
+TimeManager repose sur une base saine et professionnelle, pensée pour :
+- accueillir de nouvelles fonctionnalités
+- intégrer des outils de qualité (audit, monitoring, reporting)
+- évoluer vers un produit complet de gestion du temps
+
+---
+
+## ✨ Conclusion
+
+TimeManager est bien plus qu’un simple outil de planning :  
+c’est une solution structurée, moderne et évolutive, pensée pour accompagner les entreprises dans la gestion quotidienne de leurs équipes.
