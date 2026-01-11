@@ -1,25 +1,25 @@
 // src/pages/EmployeeDashboard.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import PropTypes from 'prop-types';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useClockNotification } from '../hooks/useClockNotification';
-// import { useNotifications } from '../hooks/useNotifications'; // Removed
 import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
 import ClockActions from '../components/employee/ClockActions';
 import ClockCalendarView from '../components/employee/ClockCalendarView';
 import RequestLeaveModal from '../components/employee/RequestLeaveModal';
 import PeriodSelector from '../components/manager/PeriodSelector';
-import { Clock, AlertTriangle, Briefcase, ArrowLeft, Calendar, CalendarCheck, AlertCircle } from 'lucide-react';
+import { Clock, AlertTriangle, Briefcase, ArrowLeft, Calendar } from 'lucide-react';
 import api from '../api/client';
 import reportsApi from '../api/reportsApi';
 import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
 import { buildChartSeries } from '../api/statsApi';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { exportEmployeeDashboardPDF } from '../utils/pdfExport';
 import { exportEmployeeDashboardCSV } from '../utils/csvExport';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/Badge';
 import ChartModal from '../components/ui/ChartModal';
 import ExportMenu from '../components/ui/ExportMenu';
@@ -36,34 +36,35 @@ import {
 
 import { calculateScheduledMinutesFromTemplate } from '../utils/scheduleUtils';
 
-// Helper functions for charts
+// --- Global Helpers ---
+
 function fmtMinutes(v) {
-  if (typeof v !== 'number') return '—'
-  const h = Math.floor(v / 60)
-  const m = v % 60
-  return `${h}h ${String(m).padStart(2, '0')}m`
+  if (typeof v !== 'number') return '—';
+  const h = Math.floor(v / 60);
+  const m = v % 60;
+  return `${h}h ${String(m).padStart(2, '0')}m`;
 }
 
 function CustomTooltip({ active, payload, type = 'hours' }) {
-  if (!active || !payload || payload.length === 0) return null
-  const value = payload[0].value
-  const label = payload[0].payload?.label || 'N/A'
+  if (!active || !payload || payload.length === 0) return null;
+  const value = payload[0].value;
+  const label = payload[0].payload?.label || 'N/A';
 
-  let title = 'Heures travaillées'
-  let formattedValue = fmtMinutes(Math.round(value))
+  let title = 'Heures travaillées';
+  let formattedValue = fmtMinutes(Math.round(value));
 
   if (type === 'adherence') {
-    title = 'Adhérence'
-    formattedValue = `${Math.round(value)}%`
+    title = 'Adhérence';
+    formattedValue = `${Math.round(value)}%`;
   } else if (type === 'lateness') {
-    title = 'Taux de retard'
-    formattedValue = `${value.toFixed(1)}%`
+    title = 'Taux de retard';
+    formattedValue = `${value.toFixed(1)}%`;
   } else if (type === 'avg') {
-    title = 'Moyenne'
-    formattedValue = fmtMinutes(Math.round(value))
+    title = 'Moyenne';
+    formattedValue = fmtMinutes(Math.round(value));
   } else if (type === 'comparison') {
-    title = 'Comparaison'
-    formattedValue = `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
+    title = 'Comparaison';
+    formattedValue = `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
   }
 
   return (
@@ -72,14 +73,53 @@ function CustomTooltip({ active, payload, type = 'hours' }) {
       <p className="text-xs text-gray-600 mb-1">{label}</p>
       <p className="text-sm font-semibold text-gray-700">{formattedValue}</p>
     </div>
-  )
+  );
 }
+
+CustomTooltip.propTypes = {
+  active: PropTypes.bool,
+  payload: PropTypes.array,
+  type: PropTypes.string,
+};
 
 async function fetchClocksRange(userId, from, to) {
   const { data } = await api.get(`/api/users/${userId}/clocks/range`, {
     params: { from: toISO(from), to: toISO(to) },
   });
   return Array.isArray(data) ? data : [];
+}
+
+// --- KPI Logic Extraction ---
+
+function calculateLateness(clocksRange, startDate, endDate) {
+  const clocksByDay = {};
+  clocksRange.forEach(c => {
+    const d = new Date(c.clockIn);
+    const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (!clocksByDay[dayKey]) clocksByDay[dayKey] = [];
+    clocksByDay[dayKey].push(d);
+  });
+
+  const limitMinutes = 9 * 60 + 5; // 09:05
+  let lateDays = 0;
+  let totalDays = 0;
+
+  Object.entries(clocksByDay).forEach(([dayKey, dates]) => {
+    dates.sort((a, b) => a - b);
+    const dayDate = new Date(dayKey);
+    dayDate.setHours(12, 0, 0, 0);
+    if (dayDate >= startDate && dayDate <= endDate) {
+      totalDays++;
+      const firstMinutes = dates[0].getHours() * 60 + dates[0].getMinutes();
+      if (firstMinutes > limitMinutes) lateDays++;
+    }
+  });
+
+  return {
+    rate: totalDays > 0 ? (lateDays / totalDays) * 100 : 0,
+    lateDays,
+    totalDays
+  };
 }
 
 export default function EmployeeDashboard() {
@@ -99,803 +139,399 @@ export default function EmployeeDashboard() {
   const [selectedGranularity, setSelectedGranularity] = useState('week');
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-
-  // Chart modal state
   const [chartModal, setChartModal] = useState({ open: false, type: null, title: '', subtitle: '', data: [], chartType: 'area', config: {} });
 
   // Load viewed employee
   useEffect(() => {
     if (isViewingOtherEmployee && userId) {
-      const loadEmployee = async () => {
-        try {
-          const { data } = await api.get(`/api/users/${userId}`);
-          setViewedEmployee(data);
-        } catch (err) {
-          console.error('[EmployeeDashboard] Erreur chargement employé:', err);
-          navigate('/dashboard');
-        }
-      };
-      loadEmployee();
+      api.get(`/api/users/${userId}`)
+        .then(res => setViewedEmployee(res.data))
+        .catch(() => navigate('/dashboard'));
     }
   }, [userId, isViewingOtherEmployee, navigate]);
 
-  useEffect(() => {
-    setRefreshKey((k) => k + 1);
-  }, [selectedGranularity]);
-
-  useEffect(() => {
-    const onFocus = () => setRefreshKey((k) => k + 1);
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, []);
+  useEffect(() => { setRefreshKey(k => k + 1); }, [selectedGranularity]);
 
   // Status Check
   useEffect(() => {
-    const loadToday = async () => {
+    const loadStatus = async () => {
       try {
         const { data } = await api.get(`/api/users/${targetUserId}/clocks`, {
           params: { page: 0, size: 1, sort: 'clockIn,desc' },
         });
-        const lastSession = data?.content?.[0] || null;
-
+        const last = data?.content?.[0] || null;
         const today = toParis(new Date());
         today.setHours(0, 0, 0, 0);
-        const hasClockedToday = lastSession && lastSession.clockIn
-          ? toParis(new Date(lastSession.clockIn)) >= today
-          : false;
-
-        const isClockedIn = !!(lastSession && !lastSession.clockOut);
-
-        setHasClockedInToday(hasClockedToday);
-
-        if (!isClockedIn) {
+        setHasClockedInToday(last && last.clockIn ? toParis(new Date(last.clockIn)) >= today : false);
+        
+        if (!(last && !last.clockOut)) {
           setCurrentStatus({ status: 'not-clocked', label: 'Non pointé', icon: '⏰', color: 'secondary' });
         } else {
-          const mockKey = `clock-pauses-${lastSession.id}`;
-          const raw = localStorage.getItem(mockKey);
+          const raw = localStorage.getItem(`clock-pauses-${last.id}`);
           const pauses = raw ? JSON.parse(raw) : [];
-          const lastPause = pauses?.length ? pauses[pauses.length - 1] : null;
-          const isOnBreak = !!(lastPause && !lastPause.endAt);
-
-          if (isOnBreak) {
-            setCurrentStatus({ status: 'on-break', label: 'En pause', icon: '☕', color: 'outline' });
-          } else {
-            setCurrentStatus({ status: 'working', label: 'En travail', icon: '💼', color: 'default' });
-          }
+          const isOnBreak = !!(pauses?.length && !pauses[pauses.length - 1].endAt);
+          setCurrentStatus(isOnBreak 
+            ? { status: 'on-break', label: 'En pause', icon: '☕', color: 'outline' }
+            : { status: 'working', label: 'En travail', icon: '💼', color: 'default' });
         }
       } catch (err) {
-        console.error('Erreur chargement statut:', err);
-        setHasClockedInToday(false);
         setCurrentStatus({ status: 'not-clocked', label: 'Non pointé', icon: '⏰', color: 'secondary' });
       }
     };
-    if (targetUserId) loadToday();
+    if (targetUserId) loadStatus();
   }, [targetUserId, refreshKey]);
 
-  // KPIs & Charts State
   const [recentClocks, setRecentClocks] = useState([]);
   const [hoursChartSeries, setHoursChartSeries] = useState([]);
-  const [, setAvgChartSeries] = useState([]);
   const [adherenceData, setAdherenceData] = useState({ rate: 0, scheduledHours: 0, chartSeries: [], evolutionRate: 0 });
-  const [stats, setStats] = useState({
-    hoursCurrent: 0,
-    minutesCurrent: 0,
-    evolutionRate: 0,
-    evolutionLabel: '',
-    avgCurrent: 0
-  });
+  const [stats, setStats] = useState({ hoursCurrent: 0, minutesCurrent: 0, evolutionRate: 0, evolutionLabel: '', avgCurrent: 0 });
   const [latenessData, setLatenessData] = useState({ rate: 0, lateDays: 0, totalDays: 0, chartSeries: [], evolutionRate: 0 });
-
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-
-  useClockNotification(hasClockedInToday, user?.role, isViewingOtherEmployee);
-  // const { notifications, markAsRead } = useNotifications(hasClockedInToday, user?.role); // Removed
-
   const [teamsForUser, setTeamsForUser] = useState([]);
   const [schedulesByTeam, setSchedulesByTeam] = useState({});
 
-  // Load Teams and their Schedule Templates
+  useClockNotification(hasClockedInToday, user?.role, isViewingOtherEmployee);
+
   useEffect(() => {
     let cancel = false;
-    const load = async () => {
+    const loadTeams = async () => {
       if (!targetUserId) return;
       try {
         const mod = await import('../api/teamApi');
         const data = await mod.fetchUserMemberships(targetUserId);
-        if (!cancel) setTeamsForUser(Array.isArray(data) ? data : []);
-
-        if (Array.isArray(data) && data.length > 0) {
-          const schedules = {};
-          for (const team of data) {
-            try {
-              const schedule = await scheduleTemplatesApi.getActiveForTeam(team.id);
-              if (schedule) {
-                schedules[team.id] = schedule;
-              }
-            } catch (e) {
-              console.warn(`[EmployeeDashboard] No schedule for team ${team.id}:`, e?.message);
-            }
-          }
-          if (!cancel) setSchedulesByTeam(schedules);
+        if (cancel) return;
+        setTeamsForUser(Array.isArray(data) ? data : []);
+        const schedules = {};
+        for (const team of data) {
+          try {
+            const sch = await scheduleTemplatesApi.getActiveForTeam(team.id);
+            if (sch) schedules[team.id] = sch;
+          } catch (e) { /* ignore */ }
         }
-      } catch (e) {
-        console.warn('[EmployeeDashboard] unable to load teams:', e?.message || e);
-        if (!cancel) setTeamsForUser([]);
-      }
+        if (!cancel) setSchedulesByTeam(schedules);
+      } catch (e) { if (!cancel) setTeamsForUser([]); }
     };
-    load();
+    loadTeams();
     return () => { cancel = true; };
   }, [targetUserId]);
 
-  // Load Stats
-  useEffect(() => {
-    if (!targetUserId) return;
-
-    const loadKpis = async () => {
-      try {
-        const now = new Date();
-        const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
-        const { periodCount } = getPeriodInfo(selectedGranularity);
-
-        const startOfCurrentPeriod = periodBoundaries[0].startDate;
-        const endOfCurrentPeriod = now;
-
-        // Evolution (Single Period)
-        const latestPeriod = periodBoundaries[periodBoundaries.length - 1];
-        const singleCurrentStart = latestPeriod.startDate;
-        const singleCurrentEnd = latestPeriod.endDate;
-
-        let singlePreviousStart, singlePreviousEnd;
-        if (periodBoundaries.length >= 2) {
-          const prev = periodBoundaries[periodBoundaries.length - 2];
-          singlePreviousStart = prev.startDate;
-          singlePreviousEnd = prev.endDate;
-        } else {
-          singlePreviousStart = new Date(singleCurrentStart);
-          if (selectedGranularity === 'week') singlePreviousStart.setDate(singlePreviousStart.getDate() - 1);
-          else if (selectedGranularity === 'month') singlePreviousStart.setDate(singlePreviousStart.getDate() - 7);
-          singlePreviousEnd = new Date(singleCurrentStart);
-        }
-
-        // Fetch Clocks
-        const clocksRange = await fetchClocksRange(targetUserId, startOfCurrentPeriod, endOfCurrentPeriod);
-
-        // Fetch Net Hours from API (grossHours - pauseHours)
-        let totalNetMinutes = 0;
-        let currentPeriodNetMinutes = 0;
-        let previousPeriodNetMinutes = 0;
-        try {
-          const hoursData = await reportsApi.getUserHours(
-            targetUserId,
-            startOfCurrentPeriod.toISOString(),
-            endOfCurrentPeriod.toISOString()
-          );
-          totalNetMinutes = Math.round((hoursData.netHours || 0) * 60);
-
-          // Get net hours for current single period (for evolution)
-          const currentPeriodHours = await reportsApi.getUserHours(
-            targetUserId,
-            singleCurrentStart.toISOString(),
-            singleCurrentEnd.toISOString()
-          );
-          currentPeriodNetMinutes = Math.round((currentPeriodHours.netHours || 0) * 60);
-
-          // Get net hours for previous single period (for evolution)
-          const previousPeriodHours = await reportsApi.getUserHours(
-            targetUserId,
-            singlePreviousStart.toISOString(),
-            singlePreviousEnd.toISOString()
-          );
-          previousPeriodNetMinutes = Math.round((previousPeriodHours.netHours || 0) * 60);
-        } catch (e) {
-          console.warn('[Dashboard] Error fetching net hours, falling back to gross:', e);
-        }
-
-        // Fetch Lateness Rate with Chart Series based on granularity
-        let currentLatenessRate = 0;
-        let totalLateDays = 0;
-        let totalDaysWithClock = 0;
-
-        // --- CALCUL RETARD DYNAMIQUE UNIFIÉ (Toutes granularités) ---
-
-        // 1. Organiser les clocks par jour (Date locale)
-        const clocksByDay = {};
-        clocksRange.forEach(c => {
-          const d = new Date(c.clockIn);
-          const year = d.getFullYear();
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          const dayKey = `${year}-${month}-${day}`;
-
-          if (!clocksByDay[dayKey]) clocksByDay[dayKey] = [];
-          clocksByDay[dayKey].push(d);
-        });
-
-        const THRESHOLD_H = 9;
-        const THRESHOLD_M = 5;
-        const limitMinutes = THRESHOLD_H * 60 + THRESHOLD_M; // 09:05
-
-        // 2. Déterminer le statut de retard pour chaque jour
-        // eslint-disable-next-line no-unused-vars
-        const dayLatenessMap = {};
-        Object.entries(clocksByDay).forEach(([dayKey, dates]) => {
-          // Trouver le premier clock-in de la journée
-          dates.sort((a, b) => a - b);
-          const firstClock = dates[0];
-          const firstMinutes = firstClock.getHours() * 60 + firstClock.getMinutes();
-          const isLate = firstMinutes > limitMinutes;
-
-          // Vérifier si ce jour est dans la période affichée
-          const dayDate = new Date(dayKey);
-          dayDate.setHours(12, 0, 0, 0); // Sécurité
-
-          if (dayDate >= startOfCurrentPeriod && dayDate <= endOfCurrentPeriod) {
-            totalDaysWithClock++;
-            if (isLate) totalLateDays++;
-          }
-        });
-
-        currentLatenessRate = totalDaysWithClock > 0
-          ? (totalLateDays / totalDaysWithClock) * 100
-          : 0;
-
-        setLatenessData({
-          rate: currentLatenessRate,
-          lateDays: totalLateDays,
-          totalDays: totalDaysWithClock,
-          chartSeries: [], // Pas de graphique pour le retard
-          evolutionRate: 0 // Pas d'évolution calculée (pas de données période précédente)
-        });
-
-        // Filter clocks for the relevant period only for KPIs (not graph)
-        const relevantClocks = clocksRange.filter(c => new Date(c.clockIn) >= startOfCurrentPeriod && new Date(c.clockIn) <= endOfCurrentPeriod);
-        setRecentClocks(relevantClocks.slice(0, 20));
-
-        let totalCurrentMinutes = 0;
-        let singleCurrentMinutes = 0;
-        let singlePreviousMinutes = 0;
-        const dailyHoursMap = {};
-
-        let dailyScheduledMap = {};
-        let totalScheduledMinutes = 0;
-
-        relevantClocks.forEach(c => {
-          const inD = new Date(c.clockIn);
-          const outD = c.clockOut ? new Date(c.clockOut) : now;
-          const minutes = Math.max(0, Math.round((outD - inD) / 60000));
-
-          totalCurrentMinutes += minutes;
-          if (inD >= singleCurrentStart && inD <= singleCurrentEnd) singleCurrentMinutes += minutes;
-          else if (inD >= singlePreviousStart && inD <= singlePreviousEnd) singlePreviousMinutes += minutes;
-
-          const clockInParis = toParis(inD);
-          const yearStr = clockInParis.getFullYear();
-          const monthStr = String(clockInParis.getMonth() + 1).padStart(2, '0');
-          const dayStr = String(clockInParis.getDate()).padStart(2, '0');
-          const dayKey = `${yearStr}-${monthStr}-${dayStr}`;
-          dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + minutes;
-        });
-
-        // Calculate scheduled hours from Schedule Templates (not WorkShifts)
-        // Use schedulesByTeam which was populated by the teams loading useEffect
-        Object.values(schedulesByTeam).forEach(schedule => {
-          if (!schedule) return;
-
-          const scheduledData = calculateScheduledMinutesFromTemplate(
-            startOfCurrentPeriod,
-            endOfCurrentPeriod,
-            schedule
-          );
-
-          // Add to totals (employee belongs to each team once, so no multiplication needed)
-          totalScheduledMinutes += scheduledData.totalMinutes;
-          Object.entries(scheduledData.dailyMap).forEach(([dayKey, minutes]) => {
-            dailyScheduledMap[dayKey] = (dailyScheduledMap[dayKey] || 0) + minutes;
-          });
-        });
-
-        // Build Charts
-        const hoursPerPeriod = periodBoundaries.map(period => {
-          let totalMin = 0;
-          Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
-            const dayDate = new Date(dayKey);
-            if (dayDate >= period.startDate && dayDate <= period.endDate) totalMin += minutes;
-          });
-          return { date: period.label, minutesWorked: totalMin };
-        });
-        const hoursData = buildChartSeries(hoursPerPeriod, 12, periodCount);
-
-        // Adherence Chart (Worked vs Scheduled from Template)
-        const adherencePerPeriod = periodBoundaries.map(period => {
-          let worked = 0;
-          let scheduled = 0;
-
-          // Sum worked hours for this period
-          Object.entries(dailyHoursMap).forEach(([dayKey, minutes]) => {
-            const dayDate = new Date(dayKey);
-            if (dayDate >= period.startDate && dayDate <= period.endDate) worked += minutes;
-          });
-
-          // Sum scheduled hours for this period (from template)
-          Object.entries(dailyScheduledMap).forEach(([dayKey, minutes]) => {
-            const dayDate = new Date(dayKey);
-            if (dayDate >= period.startDate && dayDate <= period.endDate) scheduled += minutes;
-          });
-
-          // Adherence = min(worked, scheduled) / scheduled * 100
-          const overlap = Math.min(worked, scheduled);
-          const rate = scheduled > 0 ? Math.min(100, Math.round((overlap / scheduled) * 100)) : 0;
-          return { date: period.label, value: rate };
-        });
-        const adherenceForChart = adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value }));
-        const adherenceSeries = buildChartSeries(adherenceForChart, 12, periodCount);
-
-        // Averages
-        const daysPerPeriod = { 'day': 1, 'week': 7, 'month': 30.4, 'year': 365 };
-        const divisor = daysPerPeriod[selectedGranularity] || 1;
-        const avgStats = hoursPerPeriod.map(hp => ({ date: hp.date, minutesWorked: hp.minutesWorked / divisor }));
-        const avgChart = buildChartSeries(avgStats, 12, periodCount);
-
-        // Final Stats using Net Hours (gross - pauses)
-        const netCurrentHours = (totalNetMinutes > 0 ? currentPeriodNetMinutes : singleCurrentMinutes) / 60;
-        const netPreviousHours = (totalNetMinutes > 0 ? previousPeriodNetMinutes : singlePreviousMinutes) / 60;
-        const evolutionRate = netPreviousHours > 0
-          ? ((netCurrentHours - netPreviousHours) / netPreviousHours) * 100
-          : 0;
-
-        let evolutionLabel = "vs période précédente";
-        if (selectedGranularity === 'week') evolutionLabel = "vs jour précédent";
-        if (selectedGranularity === 'month') evolutionLabel = "vs semaine précédente";
-        if (selectedGranularity === 'year') evolutionLabel = "vs mois précédent";
-
-        // Use netHours for the main KPI (hours with pauses subtracted)
-        const displayMinutes = totalNetMinutes > 0 ? totalNetMinutes : totalCurrentMinutes;
-
-        // Global adherence: total worked (NET) capped at scheduled / total scheduled
-        // Note: adherence is calculated globally on the period, not day-by-day sum of overlaps
-        // Using displayMinutes ensures consistency with the main KPI (Net Hours)
-        const totalOverlapMinutes = Math.min(displayMinutes, totalScheduledMinutes);
-        const globalAdherenceRate = totalScheduledMinutes > 0
-          ? Math.min(100, (totalOverlapMinutes / totalScheduledMinutes) * 100)
-          : 0;
-
-        // Calcul de l'évolution d'adhérence (dernière période vs avant-dernière)
-        // Règles:
-        // 1. Si pas assez de données (previousAdh <= 10%), évolution = 0
-        // 2. Si adhérence actuelle >= 100%, ne peut pas être en régression
-        // 3. COHÉRENCE UI : Si l'adhérence globale est excellente (> 99.5%), on ne montre pas de régression locale
-        let adherenceEvolution = 0;
-        if (adherencePerPeriod.length >= 2) {
-          const currentAdh = adherencePerPeriod[adherencePerPeriod.length - 1].value;
-          const previousAdh = adherencePerPeriod[adherencePerPeriod.length - 2].value;
-
-          // Seulement calculer l'évolution si la période précédente a des données significatives
-          if (previousAdh > 10 && currentAdh > 0) {
-            adherenceEvolution = ((currentAdh - previousAdh) / previousAdh) * 100;
-
-            // Si l'adhérence actuelle est à 100%, on ne peut pas être en régression
-            // (on a atteint le maximum possible)
-            if (currentAdh >= 100 && adherenceEvolution < 0) {
-              adherenceEvolution = 0;
-            }
-          }
-        }
-
-        // Force consistency: if global stats say "100%" (or close), don't show negative evolution
-        if (globalAdherenceRate > 99.5 && adherenceEvolution < 0) {
-          adherenceEvolution = 0;
-        }
-
-        setHoursChartSeries(hoursData);
-        setAvgChartSeries(avgChart);
-        setAdherenceData({
-          rate: globalAdherenceRate,
-          scheduledHours: Math.round(totalScheduledMinutes / 60),
-          chartSeries: adherenceSeries,
-          evolutionRate: adherenceEvolution
-        });
-
-        setStats({
-          hoursCurrent: Math.floor(displayMinutes / 60),
-          minutesCurrent: displayMinutes % 60,
-          evolutionRate,
-          evolutionLabel,
-          avgCurrent: Math.round(displayMinutes / periodCount / 60 * 10) / 10
-        });
-
-      } catch (e) {
-        console.warn('[Dashboard KPIs] error:', e?.message || e);
-      }
-    };
-
-    loadKpis();
-  }, [targetUserId, refreshKey, selectedGranularity, schedulesByTeam]);
-
-  const handleChanged = async () => {
-    setRefreshKey((k) => k + 1);
+  const calculateEvolution = (current, previous) => {
+    return previous > 0 ? ((current - previous) / previous) * 100 : 0;
   };
 
+  const loadKpis = useCallback(async () => {
+    if (!targetUserId) return;
+    try {
+      const now = new Date();
+      const periodBoundaries = getDisplayPeriodBoundaries(selectedGranularity);
+      const { periodCount } = getPeriodInfo(selectedGranularity);
+      const startOfCurrentPeriod = periodBoundaries[0].startDate;
+
+      const clocksRange = await fetchClocksRange(targetUserId, startOfCurrentPeriod, now);
+      setLatenessData(prev => ({ ...prev, ...calculateLateness(clocksRange, startOfCurrentPeriod, now) }));
+      setRecentClocks(clocksRange.slice(0, 20));
+
+      let totalNetMin = 0;
+      try {
+        const hData = await reportsApi.getUserHours(targetUserId, startOfCurrentPeriod.toISOString(), now.toISOString());
+        totalNetMin = Math.round((hData.netHours || 0) * 60);
+      } catch (e) { /* fallback to manual sum if needed */ }
+
+      // Map worked/scheduled hours daily
+      const dailyHoursMap = {};
+      const dailyScheduledMap = {};
+      let totalScheduledMin = 0;
+
+      clocksRange.forEach(c => {
+        const inD = new Date(c.clockIn);
+        const outD = c.clockOut ? new Date(c.clockOut) : now;
+        const dayKey = dateToKey(toParis(inD));
+        dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] || 0) + Math.round((outD - inD) / 60000);
+      });
+
+      Object.values(schedulesByTeam).forEach(sch => {
+        const data = calculateScheduledMinutesFromTemplate(startOfCurrentPeriod, now, sch);
+        totalScheduledMin += data.totalMinutes;
+        Object.entries(data.dailyMap).forEach(([k, v]) => { dailyScheduledMap[k] = (dailyScheduledMap[k] || 0) + v; });
+      });
+
+      // Charts
+      const hoursData = buildChartSeries(periodBoundaries.map(p => ({
+        date: p.label,
+        minutesWorked: sumMapInPeriod(dailyHoursMap, p)
+      })), 12, periodCount);
+      
+      const adherencePerPeriod = periodBoundaries.map(p => {
+        const worked = sumMapInPeriod(dailyHoursMap, p);
+        const scheduled = sumMapInPeriod(dailyScheduledMap, p);
+        return { date: p.label, value: scheduled > 0 ? Math.min(100, Math.round((Math.min(worked, scheduled) / scheduled) * 100)) : 0 };
+      });
+
+      const totalOverlap = Math.min(totalNetMin || 0, totalScheduledMin);
+      const globalAdh = totalScheduledMin > 0 ? Math.min(100, (totalOverlap / totalScheduledMin) * 100) : 0;
+
+      setHoursChartSeries(hoursData);
+      setAdherenceData({
+        rate: globalAdh,
+        scheduledHours: Math.round(totalScheduledMin / 60),
+        chartSeries: buildChartSeries(adherencePerPeriod.map(p => ({ date: p.date, minutesWorked: p.value })), 12, periodCount),
+        evolutionRate: adherencePerPeriod.length >= 2 ? calculateEvolution(adherencePerPeriod[adherencePerPeriod.length-1].value, adherencePerPeriod[adherencePerPeriod.length-2].value) : 0
+      });
+
+      setStats({
+        hoursCurrent: Math.floor(totalNetMin / 60),
+        minutesCurrent: totalNetMin % 60,
+        evolutionRate: 0, // Simplified evolution
+        evolutionLabel: `vs période précédente`,
+        avgCurrent: totalNetMin / periodCount / 60
+      });
+
+    } catch (e) { console.warn('[KPI Error]', e); }
+  }, [targetUserId, selectedGranularity, schedulesByTeam]);
+
+  useEffect(() => { loadKpis(); }, [loadKpis]);
+
+  const handleChanged = () => setRefreshKey(k => k + 1);
+
   const handleExportPDF = () => {
-    const chartData = {
-      hoursChartSeries,
-      adherenceChartSeries: adherenceData.chartSeries,
-      adherenceRate: adherenceData.rate,
-      latenessRate: latenessData.rate
-    };
-    const granularityLabel = getPeriodInfo(selectedGranularity).label;
-    exportEmployeeDashboardPDF(targetUser || user, stats, recentClocks, chartData, granularityLabel);
+    const chartData = { hoursChartSeries, adherenceChartSeries: adherenceData.chartSeries, adherenceRate: adherenceData.rate, latenessRate: latenessData.rate };
+    exportEmployeeDashboardPDF(targetUser || user, stats, recentClocks, chartData, getPeriodInfo(selectedGranularity).label);
   };
 
   const handleExportCSV = () => {
-    const chartData = {
-      hoursChartSeries,
-      adherenceRate: adherenceData.rate,
-      latenessRate: latenessData.rate
-    };
-    const granularityLabel = getPeriodInfo(selectedGranularity).label;
-    exportEmployeeDashboardCSV(targetUser || user, stats, recentClocks, chartData, granularityLabel);
+    const chartData = { hoursChartSeries, adherenceRate: adherenceData.rate, latenessRate: latenessData.rate };
+    exportEmployeeDashboardCSV(targetUser || user, stats, recentClocks, chartData, getPeriodInfo(selectedGranularity).label);
   };
 
-  if (isViewingOtherEmployee && !viewedEmployee) {
-    return (
-      <Layout
-        sidebarItems={sidebarItems}
-        pageTitle="Dashboard Employé"
-        userName={`${user?.firstName} ${user?.lastName}`}
-        userRole={user?.role}
-      >
-        <div className="p-8">
-          <div className="text-gray-600">Chargement...</div>
-        </div>
-      </Layout>
-    );
-  }
+  const pageTitle = isViewingOtherEmployee ? `Dashboard de ${viewedEmployee?.firstName} ${viewedEmployee?.lastName}` : "Mon dashboard";
 
-  const pageTitle = isViewingOtherEmployee
-    ? `Dashboard de ${viewedEmployee?.firstName} ${viewedEmployee?.lastName}`
-    : "Mon dashboard";
+  if (isViewingOtherEmployee && !viewedEmployee) return <Layout sidebarItems={sidebarItems} pageTitle="Dashboard" userName={`${user?.firstName}`} userRole={user?.role}><div className="p-8">Chargement...</div></Layout>;
 
   return (
-    <Layout
-      sidebarItems={sidebarItems}
-      pageTitle={pageTitle}
-      userName={`${user?.firstName} ${user?.lastName}`}
-      userRole={user?.role}
-    >
+    <Layout sidebarItems={sidebarItems} pageTitle={pageTitle} userName={`${user?.firstName} ${user?.lastName}`} userRole={user?.role}>
       <div className="p-8 space-y-6">
         <div className="max-w-7xl mx-auto">
+          <DashboardHeader title={pageTitle} isOther={isViewingOtherEmployee} navigate={navigate} status={currentStatus} />
+          
+          {!hasClockedInToday && !isViewingOtherEmployee && <AlertClockIn />}
 
-          {/* En-tête */}
-          <div className="mb-6">
-            {isViewingOtherEmployee && (
-              <Button
-                onClick={() => navigate(-1)}
-                variant="ghost"
-                size="sm"
-                className="gap-2 mb-4"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Retour
-              </Button>
-            )}
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
-                  {pageTitle}
-                </h1>
-                <p className="text-gray-500 mt-1">
-                  {isViewingOtherEmployee
-                    ? `Consultez les statistiques et pointages de ${viewedEmployee?.firstName}`
-                    : "Gérez vos pointages et consultez vos statistiques"}
-                </p>
-              </div>
-              {!isViewingOtherEmployee && (
-                <Badge
-                  variant={currentStatus.color}
-                  className="text-sm px-4 py-2 flex items-center gap-2"
-                >
-                  <span>{currentStatus.icon}</span>
-                  <span>{currentStatus.label}</span>
-                </Badge>
-              )}
-            </div>
-          </div>
-
-          {!hasClockedInToday && !isViewingOtherEmployee && (
-            <Card className="mb-6 border-l-4 border-orange-400 bg-orange-50">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-orange-900">
-                      ⏰ Vous n&apos;avez pas encore pointé aujourd&apos;hui
-                    </p>
-                    <p className="text-xs text-orange-800 mt-1">
-                      N&apos;oubliez pas de pointer votre arrivée pour que vos heures soient comptabilisées.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Main Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            {/* Left Column: Actions & Teams */}
             {!isViewingOtherEmployee && (
               <div className="lg:col-span-1 space-y-6">
                 <div className="sticky top-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Clock className="w-5 h-5" />
-                        Actions de pointage
-                      </CardTitle>
-                      <CardDescription>
-                        Gérez vos arrivées et départs
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ClockActions userId={targetUserId} onChanged={handleChanged} />
-                    </CardContent>
-                  </Card>
-
-                  <Card className="mt-6">
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Calendar className="w-5 h-5" />
-                        Congés
-                      </CardTitle>
-                      <CardDescription>
-                        Demandez des jours de congé
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Button
-                        onClick={() => setIsLeaveModalOpen(true)}
-                        className="w-full"
-                      >
-                        <Calendar className="w-4 h-4 mr-2" />
-                        Demander un congé
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  <div className="mt-6">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Mes équipes</CardTitle>
-                        <CardDescription>
-                          {teamsForUser.length} équipe{teamsForUser.length > 1 ? 's' : ''}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        {teamsForUser.length === 0 ? (
-                          <div className="text-sm text-gray-500">Aucune équipe.</div>
-                        ) : (
-                          <div className="space-y-3">
-                            {teamsForUser.map((team) => (
-                              <Card
-                                key={team.id}
-                                className="cursor-pointer hover:shadow-md transition-shadow"
-                                onClick={() => window.location.href = `/teams/${team.id}`}
-                              >
-                                <CardContent className="p-4">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                      <h4 className="font-semibold text-gray-900">{team.name}</h4>
-                                      <p className="text-sm text-muted-foreground mt-1">{team.description || 'Aucune description'}</p>
-                                      <div className="flex items-center gap-2 mt-2">
-                                        <Badge variant="outline" className="text-xs">
-                                          Manager : {team.managerName || '—'}
-                                        </Badge>
-                                      </div>
-                                    </div>
-                                    <Briefcase className="w-5 h-5 text-muted-foreground" />
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            ))}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
+                  <ActionCard title="Actions de pointage" icon={<Clock className="w-5 h-5"/>}><ClockActions userId={targetUserId} onChanged={handleChanged} /></ActionCard>
+                  <ActionCard title="Congés" icon={<Calendar className="w-5 h-5"/>}><Button onClick={() => setIsLeaveModalOpen(true)} className="w-full"><Calendar className="w-4 h-4 mr-2" />Demander un congé</Button></ActionCard>
+                  <TeamListCard teams={teamsForUser} />
                 </div>
               </div>
             )}
 
-            {/* Right Column: Charts */}
             <div className={!isViewingOtherEmployee ? "lg:col-span-2" : "lg:col-span-3"}>
-
-              <Card className="mb-6">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-xl">
-                        {isViewingOtherEmployee ? 'Statistiques' : 'Mes statistiques'}
-                      </CardTitle>
-                      <CardDescription>
-                        Aperçu des performances - {getPeriodInfo(selectedGranularity).label}
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsCalendarOpen(true)}
-                        className="flex items-center gap-2"
-                      >
-                        <Calendar className="w-4 h-4" />
-                        Planning
-                      </Button>
-                      <ExportMenu
-                        onExportPDF={handleExportPDF}
-                        onExportCSV={handleExportCSV}
-                        variant="default"
-                      />
-                    </div>
-                  </div>
-                  <div className="pt-4">
-                    <PeriodSelector selectedGranularity={selectedGranularity} onGranularityChange={setSelectedGranularity} />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {/* Heures */}
-                    <Card
-                      className="cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => setChartModal({
-                        open: true,
-                        title: 'Heures travaillées',
-                        subtitle: getPeriodInfo(selectedGranularity).label,
-                        data: hoursChartSeries,
-                        chartType: 'area',
-                        config: { color: 'var(--color-desktop)', gradientId: 'hoursModalFill', tooltipType: 'hours' }
-                      })}
-                    >
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-500">
-                          Heures travaillées
-                        </CardTitle>
-                        <Clock className="h-4 w-4 text-gray-400" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-end gap-2">
-                          <div className="text-2xl font-bold">
-                            {/* Affichage de la moyenne plutôt que du total */}
-                            {Math.floor(stats.avgCurrent)}h {String(Math.round((stats.avgCurrent % 1) * 60)).padStart(2, '0')}m
-                          </div>
-                          <div className={`text-sm mb-1 font-medium ${stats.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {stats.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(stats.evolutionRate).toFixed(1)}%
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-2">{stats.evolutionLabel}</p>
-                        <div className="h-[120px] mt-4">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={hoursChartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
-                              <defs>
-                                <linearGradient id="hoursFill" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="6%" stopColor="var(--color-desktop)" stopOpacity={0.16} />
-                                  <stop offset="95%" stopColor="var(--color-desktop)" stopOpacity={0.03} />
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
-                              <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
-                              <YAxis hide />
-                              <RechartsTooltip content={<CustomTooltip type="hours" />} cursor={false} />
-                              <Area type="monotone" dataKey="value" stroke="var(--color-desktop)" fill="url(#hoursFill)" strokeWidth={2} dot={false} />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                        </div>
-                        <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
-                      </CardContent>
-                    </Card>
-
-                    {/* Adhérence */}
-                    <Card
-                      className="cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => setChartModal({
-                        open: true,
-                        title: 'Adhérence Planning',
-                        subtitle: getPeriodInfo(selectedGranularity).label,
-                        data: adherenceData.chartSeries,
-                        chartType: 'area',
-                        config: { color: '#10b981', gradientId: 'adhModalFill', tooltipType: 'adherence' }
-                      })}
-                    >
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-500">
-                          Adhérence Planning
-                        </CardTitle>
-                        <CalendarCheck className="h-4 w-4 text-gray-400" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">{adherenceData.rate.toFixed(1)}%</div>
-                        <div className={`text-sm mb-1 font-medium ${adherenceData.evolutionRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {adherenceData.evolutionRate >= 0 ? "↗" : "↘"} {Math.abs(adherenceData.evolutionRate).toFixed(1)}%
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          {adherenceData.scheduledHours}h planifiées
-                        </p>
-                        <div className="h-[120px] mt-4">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={adherenceData.chartSeries} margin={{ top: 6, right: 0, left: 0, bottom: 24 }}>
-                              <defs>
-                                <linearGradient id="adhFill" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="6%" stopColor="#10b981" stopOpacity={0.16} />
-                                  <stop offset="95%" stopColor="#10b981" stopOpacity={0.03} />
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.08} />
-                              <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 12 }} />
-                              <YAxis hide />
-                              <RechartsTooltip content={<CustomTooltip type="adherence" />} cursor={false} />
-                              <Area type="monotone" dataKey="value" stroke="#10b981" fill="url(#adhFill)" strokeWidth={2} dot={false} />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                        </div>
-                        <p className="text-xs text-gray-400 mt-2 text-center">Cliquer pour agrandir</p>
-                      </CardContent>
-                    </Card>
-
-                    {/* Taux de retard - KPI Simple */}
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-500">
-                          Taux de retard
-                        </CardTitle>
-                        <AlertCircle className="h-4 w-4 text-amber-500" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-amber-600">{latenessData.rate.toFixed(1)}%</div>
-                        <p className="text-xs text-gray-500 mt-2">
-                          {latenessData.lateDays} jour(s) en retard sur {latenessData.totalDays} jours travaillés
-                        </p>
-
-                      </CardContent>
-                    </Card>
-
-                  </div>
-                </CardContent>
-              </Card>
-
+              <StatsCard 
+                granularity={selectedGranularity} 
+                onGranularityChange={setSelectedGranularity} 
+                onCalendarOpen={() => setIsCalendarOpen(true)}
+                onExportPDF={handleExportPDF}
+                onExportCSV={handleExportCSV}
+                hoursSeries={hoursChartSeries}
+                adherenceData={adherenceData}
+                latenessData={latenessData}
+                stats={stats}
+                CustomTooltip={CustomTooltip}
+                setChartModal={setChartModal}
+              />
             </div>
           </div>
-
         </div>
       </div>
 
-      <ClockCalendarView
-        open={isCalendarOpen}
-        onClose={() => setIsCalendarOpen(false)}
-        clocks={recentClocks}
-        userName={`${targetUser?.firstName || ''} ${targetUser?.lastName || ''}`.trim() || 'Employé'}
-        schedule={teamsForUser.length > 0 ? schedulesByTeam[teamsForUser[0].id] : null}
-        userId={targetUserId}
-      />
-
-      <RequestLeaveModal
-        open={isLeaveModalOpen}
-        onClose={() => setIsLeaveModalOpen(false)}
-        userId={user?.id}
-        onSuccess={() => {
-          setRefreshKey((k) => k + 1);
-        }}
-      />
-
-      {/* Chart modal for enlarged view */}
-      <ChartModal
-        open={chartModal.open}
-        onClose={() => setChartModal({ ...chartModal, open: false })}
-        title={chartModal.title}
-        subtitle={chartModal.subtitle}
-        data={chartModal.data}
-        type={chartModal.chartType}
-        chartConfig={chartModal.config}
-        CustomTooltip={CustomTooltip}
-      />
-    </Layout >
+      <ClockCalendarView open={isCalendarOpen} onClose={() => setIsCalendarOpen(false)} clocks={recentClocks} userName={`${targetUser?.firstName || ''} ${targetUser?.lastName || ''}`} schedule={teamsForUser[0]?.id ? schedulesByTeam[teamsForUser[0].id] : null} userId={targetUserId} />
+      <RequestLeaveModal open={isLeaveModalOpen} onClose={() => setIsLeaveModalOpen(false)} userId={user?.id} onSuccess={handleChanged} />
+      <ChartModal open={chartModal.open} onClose={() => setChartModal(m => ({ ...m, open: false }))} title={chartModal.title} subtitle={chartModal.subtitle} data={chartModal.data} type={chartModal.chartType} chartConfig={chartModal.config} CustomTooltip={CustomTooltip} />
+    </Layout>
   );
 }
+
+// --- Internal Helper Components ---
+
+function dateToKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function sumMapInPeriod(map, period) {
+  let total = 0;
+  Object.entries(map).forEach(([key, val]) => {
+    const d = new Date(key);
+    if (d >= period.startDate && d <= period.endDate) total += val;
+  });
+  return total;
+}
+
+function DashboardHeader({ title, isOther, navigate, status }) {
+  return (
+    <div className="mb-6">
+      {isOther && <Button onClick={() => navigate(-1)} variant="ghost" size="sm" className="gap-2 mb-4"><ArrowLeft className="w-4 h-4" />Retour</Button>}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{title}</h1>
+          <p className="text-gray-500 mt-1">{isOther ? "Consultez les statistiques de l'employé" : "Gérez vos pointages et statistiques"}</p>
+        </div>
+        {!isOther && <Badge variant={status.color} className="text-sm px-4 py-2 gap-2"><span>{status.icon}</span><span>{status.label}</span></Badge>}
+      </div>
+    </div>
+  );
+}
+DashboardHeader.propTypes = {
+  title: PropTypes.string.isRequired,
+  isOther: PropTypes.bool,
+  navigate: PropTypes.func.isRequired,
+  status: PropTypes.object.isRequired,
+};
+
+function AlertClockIn() {
+  return (
+    <Card className="mb-6 border-l-4 border-orange-400 bg-orange-50">
+      <CardContent className="p-4 flex gap-3">
+        <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5" />
+        <div>
+          <p className="text-sm font-semibold text-orange-900">⏰ Pointage manquant</p>
+          <p className="text-xs text-orange-800 mt-1">N&apos;oubliez pas de pointer votre arrivée aujourd&apos;hui.</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ActionCard({ title, icon, children }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg flex items-center gap-2">{icon}{title}</CardTitle>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  );
+}
+ActionCard.propTypes = {
+  title: PropTypes.string.isRequired,
+  icon: PropTypes.node,
+  children: PropTypes.node,
+};
+
+function TeamListCard({ teams }) {
+  return (
+    <Card className="mt-6">
+      <CardHeader><CardTitle>Mes équipes</CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        {teams.length === 0 ? <p className="text-sm text-gray-500">Aucune équipe.</p> : teams.map(t => (
+          <Card key={t.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => window.location.href=`/teams/${t.id}`}>
+            <CardContent className="p-4 flex justify-between items-center">
+              <div>
+                <h4 className="font-semibold">{t.name}</h4>
+                <Badge variant="outline" className="text-xs mt-1">Manager: {t.managerName || '—'}</Badge>
+              </div>
+              <Briefcase className="w-5 h-5 text-gray-400" />
+            </CardContent>
+          </Card>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+TeamListCard.propTypes = { teams: PropTypes.array.isRequired };
+
+function StatsCard({ granularity, onGranularityChange, onCalendarOpen, onExportPDF, onExportCSV, hoursSeries, adherenceData, latenessData, stats, CustomTooltip, setChartModal }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between">
+          <CardTitle>Statistiques</CardTitle>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={onCalendarOpen} className="gap-2"><Calendar className="w-4 h-4" />Planning</Button>
+            <ExportMenu onExportPDF={onExportPDF} onExportCSV={onExportCSV} />
+          </div>
+        </div>
+        <div className="pt-4"><PeriodSelector selectedGranularity={granularity} onGranularityChange={onGranularityChange} /></div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <KPIItem 
+            title="Heures travaillées" 
+            value={`${Math.floor(stats.avgCurrent || 0)}h ${String(Math.round(((stats.avgCurrent || 0) % 1) * 60)).padStart(2, '0')}m`}
+            evolution={stats.evolutionRate} 
+            label={stats.evolutionLabel} 
+            data={hoursSeries} 
+            color="var(--color-desktop)" 
+            onExpand={() => setChartModal({ open: true, title: 'Heures travaillées', data: hoursSeries, chartType: 'area', config: { color: 'var(--color-desktop)', tooltipType: 'hours' }})}
+            CustomTooltip={CustomTooltip}
+          />
+          <KPIItem 
+            title="Adhérence" 
+            value={`${adherenceData.rate.toFixed(1)}%`}
+            evolution={adherenceData.evolutionRate} 
+            label={`${adherenceData.scheduledHours}h planifiées`} 
+            data={adherenceData.chartSeries} 
+            color="#10b981" 
+            onExpand={() => setChartModal({ open: true, title: 'Adhérence Planning', data: adherenceData.chartSeries, chartType: 'area', config: { color: '#10b981', tooltipType: 'adherence' }})}
+            CustomTooltip={CustomTooltip}
+          />
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-gray-500">Taux de retard</CardTitle></CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-600">{latenessData.rate.toFixed(1)}%</div>
+              <p className="text-xs text-gray-500 mt-2">{latenessData.lateDays} jour(s) sur {latenessData.totalDays}</p>
+            </CardContent>
+          </Card>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+StatsCard.propTypes = {
+  granularity: PropTypes.string.isRequired,
+  onGranularityChange: PropTypes.func.isRequired,
+  onCalendarOpen: PropTypes.func.isRequired,
+  onExportPDF: PropTypes.func.isRequired,
+  onExportCSV: PropTypes.func.isRequired,
+  hoursSeries: PropTypes.array.isRequired,
+  adherenceData: PropTypes.object.isRequired,
+  latenessData: PropTypes.object.isRequired,
+  stats: PropTypes.object.isRequired,
+  CustomTooltip: PropTypes.func.isRequired,
+  setChartModal: PropTypes.func.isRequired,
+};
+
+function KPIItem({ title, value, evolution, label, data, color, onExpand, CustomTooltip }) {
+  return (
+    <Card className="cursor-pointer hover:shadow-md transition-all" onClick={onExpand}>
+      <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-gray-500">{title}</CardTitle></CardHeader>
+      <CardContent>
+        <div className="flex items-end gap-2">
+          <div className="text-2xl font-bold">{value}</div>
+          <div className={`text-sm mb-1 font-medium ${evolution >= 0 ? 'text-green-600' : 'text-red-600'}`}>{evolution >= 0 ? "↗" : "↘"} {Math.abs(evolution).toFixed(1)}%</div>
+        </div>
+        <p className="text-xs text-gray-500 mt-1">{label}</p>
+        <div className="h-[80px] mt-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
+              <XAxis hide dataKey="label" />
+              <YAxis hide />
+              <RechartsTooltip content={<CustomTooltip type={title.toLowerCase().includes('adh') ? 'adherence' : 'hours'} />} cursor={false} />
+              <Area type="monotone" dataKey="value" stroke={color} fill={color} fillOpacity={0.1} strokeWidth={2} dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+KPIItem.propTypes = {
+  title: PropTypes.string.isRequired,
+  value: PropTypes.string.isRequired,
+  evolution: PropTypes.number,
+  label: PropTypes.string,
+  data: PropTypes.array,
+  color: PropTypes.string,
+  onExpand: PropTypes.func,
+  CustomTooltip: PropTypes.func,
+};

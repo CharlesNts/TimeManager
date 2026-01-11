@@ -158,8 +158,9 @@ export default function TeamFormModal({
         className="fixed inset-0 bg-black bg-opacity-50 z-40"
         onClick={onClose}
         onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
-        role="presentation"
-        aria-hidden="true"
+        role="button"
+        tabIndex="-1"
+        aria-label="Fermer le modal"
       />
 
       {/* Modal */}
