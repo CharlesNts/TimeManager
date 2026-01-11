@@ -60,6 +60,7 @@ describe('ProfilePage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         getUserById.mockResolvedValue(mockUser);
+        forgotPassword.mockResolvedValue();
     });
 
     const renderComponent = () => {
