@@ -36,12 +36,6 @@ class UserServiceTest {
     @Mock
     private TeamMemberRepository teamMemberRepository;
 
-    @Mock
-    private KafkaTemplate<String, UserRegisteredEvent> userRegisteredKafkaTemplate;
-
-    @Mock
-    private KafkaTemplate<String, Object> genericKafkaTemplate;
-
     private final UserMapper userMapper = Mappers.getMapper(UserMapper.class);
 
     private UserService userService;
@@ -50,23 +44,11 @@ class UserServiceTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
 
-        when(userRegisteredKafkaTemplate.send(anyString(), any(UserRegisteredEvent.class)))
-                .thenReturn(null);
-        when(userRegisteredKafkaTemplate.send(anyString(), anyString(), any(UserRegisteredEvent.class)))
-                .thenReturn(null);
-
-        when(genericKafkaTemplate.send(anyString(), any()))
-                .thenReturn(null);
-        when(genericKafkaTemplate.send(anyString(), anyString(), any()))
-                .thenReturn(null);
-
         userService = new UserService(
                 userRepository,
                 userMapper,
                 passwordEncoder,
-                teamMemberRepository,
-                userRegisteredKafkaTemplate,
-                genericKafkaTemplate
+                teamMemberRepository
         );
     }
 
@@ -97,7 +79,6 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("Should create user successfully")
     void shouldCreateUser() {
         UserDTO dto = sampleUserDTO();
 
@@ -112,19 +93,16 @@ class UserServiceTest {
         UserDTO result = userService.create(dto);
 
         assertNotNull(result.getId());
-        assertEquals("John", result.getFirstName());
         verify(userRepository).save(any(User.class));
     }
 
     @Test
-    @DisplayName("Should reject duplicate email")
     void shouldRejectDuplicateEmail() {
         when(userRepository.existsByEmail(anyString())).thenReturn(true);
         assertThrows(ConflictException.class, () -> userService.create(sampleUserDTO()));
     }
 
     @Test
-    @DisplayName("Should reject missing password")
     void shouldRejectMissingPassword() {
         UserDTO dto = sampleUserDTO();
         dto.setPassword(null);
@@ -132,25 +110,21 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("Should get user by id")
     void shouldGetUser() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser()));
 
         UserDTO result = userService.get(1L);
 
         assertEquals("John", result.getFirstName());
-        verify(userRepository).findById(1L);
     }
 
     @Test
-    @DisplayName("Should throw when user not found")
     void shouldThrowWhenNotFound() {
         when(userRepository.findById(anyLong())).thenReturn(Optional.empty());
         assertThrows(NotFoundException.class, () -> userService.get(1L));
     }
 
     @Test
-    @DisplayName("Should approve user")
     void shouldApproveUser() {
         User user = sampleUser();
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));

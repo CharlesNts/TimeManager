@@ -39,8 +39,10 @@ class TeamIntegrationTest {
 
     @BeforeEach
     void clean() {
-        // nukes everything in the right order and resets IDs
-        jdbc.execute("TRUNCATE TABLE team_members, clocks, teams, users RESTART IDENTITY CASCADE");
+        jdbc.execute("DELETE FROM team_members");
+        jdbc.execute("DELETE FROM clocks");
+        jdbc.execute("DELETE FROM teams");
+        jdbc.execute("DELETE FROM users");
     }
 
 

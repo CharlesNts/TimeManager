@@ -35,7 +35,10 @@ public class UserIntegrationTest {
 
     @BeforeEach
     void clean() {
-        jdbc.execute("TRUNCATE TABLE team_members, clocks, teams, users RESTART IDENTITY CASCADE");
+        jdbc.execute("DELETE FROM team_members");
+        jdbc.execute("DELETE FROM clocks");
+        jdbc.execute("DELETE FROM teams");
+        jdbc.execute("DELETE FROM users");
     }
 
     @BeforeEach
