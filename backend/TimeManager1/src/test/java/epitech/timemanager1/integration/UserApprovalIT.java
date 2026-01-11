@@ -8,6 +8,7 @@ import epitech.timemanager1.services.mail.MailService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.annotation.DirtiesContext;
@@ -23,6 +24,7 @@ import static org.mockito.Mockito.verify;
         partitions = 1
 )
 @DirtiesContext
+@ActiveProfiles("test")
 class UserApprovalKafkaIT {
 
     @Autowired

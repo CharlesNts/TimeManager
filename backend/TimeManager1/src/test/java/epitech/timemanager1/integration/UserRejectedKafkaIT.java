@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.kafka.test.context.EmbeddedKafka;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.UUID;
@@ -23,6 +24,7 @@ import static org.mockito.Mockito.verify;
         topics = "timemanager.user-rejected",
         partitions = 1
 )
+@ActiveProfiles("test")
 class UserRejectedKafkaIT {
 
     @Autowired

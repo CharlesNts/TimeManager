@@ -18,7 +18,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import static org.awaitility.Awaitility.await;
 
-
+@ActiveProfiles("test")
 public class PasswordResetKafkaIT {
     @Nested
     @SpringBootTest

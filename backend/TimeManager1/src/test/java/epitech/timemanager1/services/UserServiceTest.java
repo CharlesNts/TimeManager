@@ -89,6 +89,12 @@ class UserServiceTest {
 
         when(userRepository.existsByEmail(dto.getEmail())).thenReturn(false);
         when(passwordEncoder.encode(any())).thenReturn("encodedPass");
+
+        when(userRegisteredKafkaTemplate.send(anyString(), any(UserRegisteredEvent.class)))
+                .thenReturn(null);
+        when(genericKafkaTemplate.send(anyString(), any(), any()))
+                .thenReturn(null);
+
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User saved = invocation.getArgument(0);
             saved.setId(1L);
@@ -101,7 +107,6 @@ class UserServiceTest {
         assertEquals("John", result.getFirstName());
         verify(userRepository).save(any(User.class));
     }
-
     @Test
     @DisplayName("Should throw when email already used")
     void shouldRejectDuplicateEmail() {
