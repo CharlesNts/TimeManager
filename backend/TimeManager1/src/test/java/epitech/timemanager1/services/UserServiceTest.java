@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class UserServiceTest {
@@ -35,18 +36,30 @@ class UserServiceTest {
     @Mock
     private TeamMemberRepository teamMemberRepository;
 
-    private final UserMapper userMapper = Mappers.getMapper(UserMapper.class);
-
-    private UserService userService;
-
     @Mock
     private KafkaTemplate<String, UserRegisteredEvent> userRegisteredKafkaTemplate;
 
     @Mock
     private KafkaTemplate<String, Object> genericKafkaTemplate;
+
+    private final UserMapper userMapper = Mappers.getMapper(UserMapper.class);
+
+    private UserService userService;
+
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+
+        when(userRegisteredKafkaTemplate.send(anyString(), any(UserRegisteredEvent.class)))
+                .thenReturn(null);
+        when(userRegisteredKafkaTemplate.send(anyString(), anyString(), any(UserRegisteredEvent.class)))
+                .thenReturn(null);
+
+        when(genericKafkaTemplate.send(anyString(), any()))
+                .thenReturn(null);
+        when(genericKafkaTemplate.send(anyString(), anyString(), any()))
+                .thenReturn(null);
+
         userService = new UserService(
                 userRepository,
                 userMapper,
@@ -56,7 +69,8 @@ class UserServiceTest {
                 genericKafkaTemplate
         );
     }
-    private UserDTO getSampleUserDTO() {
+
+    private UserDTO sampleUserDTO() {
         return UserDTO.builder()
                 .firstName("John")
                 .lastName("Doe")
@@ -68,37 +82,31 @@ class UserServiceTest {
                 .build();
     }
 
-    private User getSampleUser() {
+    private User sampleUser() {
         User user = new User();
         user.setId(1L);
         user.setFirstName("John");
         user.setLastName("Doe");
         user.setEmail("john@example.com");
         user.setPhoneNumber("0600000000");
-        user.setPassword("encodedPass");
+        user.setPassword("encoded");
         user.setRole(Role.EMPLOYEE);
-        user.setCreatedAt(LocalDateTime.now());
         user.setActive(false);
+        user.setCreatedAt(LocalDateTime.now());
         return user;
     }
 
     @Test
     @DisplayName("Should create user successfully")
     void shouldCreateUser() {
-        UserDTO dto = getSampleUserDTO();
+        UserDTO dto = sampleUserDTO();
 
         when(userRepository.existsByEmail(dto.getEmail())).thenReturn(false);
-        when(passwordEncoder.encode(any())).thenReturn("encodedPass");
-
-        when(userRegisteredKafkaTemplate.send(anyString(), any(UserRegisteredEvent.class)))
-                .thenReturn(null);
-        when(genericKafkaTemplate.send(anyString(), any(), any()))
-                .thenReturn(null);
-
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
-            User saved = invocation.getArgument(0);
-            saved.setId(1L);
-            return saved;
+        when(passwordEncoder.encode(any())).thenReturn("encoded");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            u.setId(1L);
+            return u;
         });
 
         UserDTO result = userService.create(dto);
@@ -107,29 +115,26 @@ class UserServiceTest {
         assertEquals("John", result.getFirstName());
         verify(userRepository).save(any(User.class));
     }
+
     @Test
-    @DisplayName("Should throw when email already used")
+    @DisplayName("Should reject duplicate email")
     void shouldRejectDuplicateEmail() {
-        UserDTO dto = getSampleUserDTO();
-        when(userRepository.existsByEmail(dto.getEmail())).thenReturn(true);
-
-        assertThrows(ConflictException.class, () -> userService.create(dto));
+        when(userRepository.existsByEmail(anyString())).thenReturn(true);
+        assertThrows(ConflictException.class, () -> userService.create(sampleUserDTO()));
     }
 
     @Test
-    @DisplayName("Should throw when password is missing")
-    void shouldRejectNoPassword() {
-        UserDTO dto = getSampleUserDTO();
+    @DisplayName("Should reject missing password")
+    void shouldRejectMissingPassword() {
+        UserDTO dto = sampleUserDTO();
         dto.setPassword(null);
-
         assertThrows(ConflictException.class, () -> userService.create(dto));
     }
 
     @Test
-    @DisplayName("Should get user by ID")
+    @DisplayName("Should get user by id")
     void shouldGetUser() {
-        User user = getSampleUser();
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser()));
 
         UserDTO result = userService.get(1L);
 
@@ -139,15 +144,15 @@ class UserServiceTest {
 
     @Test
     @DisplayName("Should throw when user not found")
-    void shouldThrowNotFound() {
-        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+    void shouldThrowWhenNotFound() {
+        when(userRepository.findById(anyLong())).thenReturn(Optional.empty());
         assertThrows(NotFoundException.class, () -> userService.get(1L));
     }
 
     @Test
     @DisplayName("Should approve user")
     void shouldApproveUser() {
-        User user = getSampleUser();
+        User user = sampleUser();
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
         userService.approveUser(1L);
