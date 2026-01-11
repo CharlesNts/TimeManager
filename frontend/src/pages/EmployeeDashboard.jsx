@@ -12,6 +12,7 @@ import RequestLeaveModal from '../components/employee/RequestLeaveModal';
 import PeriodSelector from '../components/manager/PeriodSelector';
 import { Clock, AlertTriangle, Briefcase, ArrowLeft, Calendar, CalendarCheck, AlertCircle } from 'lucide-react';
 import api from '../api/client';
+import { getClocksInRange } from '../api/clocks.api';
 import reportsApi from '../api/reportsApi';
 import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
 import { buildChartSeries } from '../api/statsApi';
@@ -73,13 +74,6 @@ function CustomTooltip({ active, payload, type = 'hours' }) {
       <p className="text-sm font-semibold text-gray-700">{formattedValue}</p>
     </div>
   )
-}
-
-async function fetchClocksRange(userId, from, to) {
-  const { data } = await api.get(`/api/users/${userId}/clocks/range`, {
-    params: { from: toISO(from), to: toISO(to) },
-  });
-  return Array.isArray(data) ? data : [];
 }
 
 export default function EmployeeDashboard() {
@@ -249,33 +243,39 @@ export default function EmployeeDashboard() {
         previousPeriodStart.setHours(0, 0, 0, 0);
         previousPeriodEnd.setHours(23, 59, 59, 999);
 
-        // Fetch Clocks
-        const clocksRange = await fetchClocksRange(targetUserId, startOfCurrentPeriod, endOfCurrentPeriod);
+        // Fetch Clocks Current Period
+        const clocksRange = await getClocksInRange(targetUserId, startOfCurrentPeriod, endOfCurrentPeriod);
 
-        // Fetch Net Hours from API (grossHours - pauseHours)
-        let totalNetMinutes = 0;
-        let previousPeriodNetMinutes = 0;
-        try {
-          // Heures nettes pour la période actuelle complète
-          const hoursData = await reportsApi.getUserHours(
-            targetUserId,
-            startOfCurrentPeriod.toISOString(),
-            endOfCurrentPeriod.toISOString()
-          );
-          totalNetMinutes = Math.round((hoursData.netHours || 0) * 60);
+        // Fetch Clocks Previous Period (for evolution) - Client side calculation to avoid server 500s
+        const previousClocksRange = await getClocksInRange(targetUserId, previousPeriodStart, previousPeriodEnd);
 
-          // Heures nettes pour la période précédente complète (pour évolution)
-          const previousHoursData = await reportsApi.getUserHours(
-            targetUserId,
-            previousPeriodStart.toISOString(),
-            previousPeriodEnd.toISOString()
-          );
-          previousPeriodNetMinutes = Math.round((previousHoursData.netHours || 0) * 60);
-        } catch (e) {
-          console.warn('[Dashboard] Error fetching net hours, falling back to gross:', e);
+        // Calculate Minutes Helper
+        const calcTotalMinutes = (clocks) => {
+          return clocks.reduce((acc, c) => {
+            const inD = new Date(c.clockIn);
+            // If currently working (no clockOut), use now, or ignore? 
+            // Usually for stats we count up to now if it's today.
+            const outD = c.clockOut ? new Date(c.clockOut) : (new Date().getDate() === inD.getDate() ? new Date() : inD); 
+            const minutes = Math.max(0, Math.round((outD - inD) / 60000));
+            return acc + minutes;
+          }, 0);
+        };
+
+        const totalCurrentMinutes = calcTotalMinutes(clocksRange);
+        const previousPeriodMinutes = calcTotalMinutes(previousClocksRange);
+
+        // Evolution Calculation
+        const currentHours = totalCurrentMinutes / 60;
+        const previousHours = previousPeriodMinutes / 60;
+        let evolutionRate = 0;
+
+        if (previousHours > 0) {
+          evolutionRate = ((currentHours - previousHours) / previousHours) * 100;
+        } else if (currentHours > 0) {
+          evolutionRate = 100;
         }
 
-        // Fetch Lateness Rate with Chart Series based on granularity
+        // Lateness Calculation (Client Side)
         let currentLatenessRate = 0;
         let totalLateDays = 0;
         let totalDaysWithClock = 0;
@@ -337,7 +337,7 @@ export default function EmployeeDashboard() {
         const relevantClocks = clocksRange.filter(c => new Date(c.clockIn) >= startOfCurrentPeriod && new Date(c.clockIn) <= endOfCurrentPeriod);
         setRecentClocks(relevantClocks.slice(0, 20));
 
-        let totalCurrentMinutes = 0;
+        // let totalCurrentMinutes = 0; // Already calculated above
         const dailyHoursMap = {};
 
         let dailyScheduledMap = {};
@@ -348,7 +348,7 @@ export default function EmployeeDashboard() {
           const outD = c.clockOut ? new Date(c.clockOut) : now;
           const minutes = Math.max(0, Math.round((outD - inD) / 60000));
 
-          totalCurrentMinutes += minutes;
+          // totalCurrentMinutes += minutes; // Already calculated above
 
           const clockInParis = toParis(inD);
           const yearStr = clockInParis.getFullYear();
@@ -418,22 +418,14 @@ export default function EmployeeDashboard() {
         const avgStats = hoursPerPeriod.map(hp => ({ date: hp.date, minutesWorked: hp.minutesWorked / divisor }));
         const avgChart = buildChartSeries(avgStats, 12, periodCount);
 
-        // Final Stats using Net Hours (gross - pauses)
-        // Evolution: compare le total de la période actuelle vs le total de la période précédente
-        const netCurrentHours = totalNetMinutes / 60;
-        const netPreviousHours = previousPeriodNetMinutes / 60;
-        const evolutionRate = netPreviousHours > 0
-          ? ((netCurrentHours - netPreviousHours) / netPreviousHours) * 100
-          : 0;
-
         // Labels corrigés pour refléter la comparaison de périodes complètes
         let evolutionLabel = "vs période précédente";
         if (selectedGranularity === 'week') evolutionLabel = "vs 7 jours précédents";
         if (selectedGranularity === 'month') evolutionLabel = "vs 4 semaines précédentes";
         if (selectedGranularity === 'year') evolutionLabel = "vs 12 mois précédents";
 
-        // Use netHours for the main KPI (hours with pauses subtracted)
-        const displayMinutes = totalNetMinutes > 0 ? totalNetMinutes : totalCurrentMinutes;
+        // Use locally calculated minutes
+        const displayMinutes = totalCurrentMinutes;
 
         // Global adherence: total worked (NET) capped at scheduled / total scheduled
         // Note: adherence is calculated globally on the period, not day-by-day sum of overlaps

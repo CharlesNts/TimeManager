@@ -188,22 +188,64 @@ export const calculateNetWorkTime = (clock, pauses = []) => {
 
 /**
  * Récupérer les pointages pour un utilisateur sur une période donnée
- * GET /api/users/{userId}/clocks/range?from=...&to=...
+ * WORKAROUND: The backend /range endpoint crashes (500) due to LazyInitializationException.
+ * We use the paginated endpoint instead and filter client-side.
  * @param {number} userId - ID de l'utilisateur
  * @param {string} from - Date de début (ISO)
  * @param {string} to - Date de fin (ISO)
  * @returns {Promise<Array>} Liste des clocks
  */
 export const getClocksInRange = async (userId, from, to) => {
-  try {
-    const { data } = await api.get(`/api/users/${userId}/clocks/range`, {
-      params: { from, to }
-    });
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    console.error('[clocksApi] getClocksInRange error:', error?.message || error);
-    return [];
+  const allClocks = [];
+  let page = 0;
+  let keepFetching = true;
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+
+  // Add 1 day buffer to toDate to ensure we catch everything on the boundary
+  const safeToDate = new Date(toDate);
+  safeToDate.setHours(23, 59, 59, 999);
+
+  while (keepFetching) {
+    try {
+      const { data } = await api.get(`/api/users/${userId}/clocks`, {
+        params: { 
+          page: page, 
+          size: 50, 
+          sort: 'clockIn,desc' 
+        },
+      });
+      
+      const content = data?.content || [];
+      if (content.length === 0) {
+        keepFetching = false;
+        break;
+      }
+
+      let olderFound = false;
+      for (const clock of content) {
+        const clockDate = new Date(clock.clockIn);
+        
+        if (clockDate < fromDate) {
+             olderFound = true;
+        } else if (clockDate <= safeToDate) {
+          allClocks.push(clock);
+        }
+      }
+
+      if (data.last || olderFound) {
+        keepFetching = false;
+      }
+      page++;
+      if (page > 50) keepFetching = false; // Safety limit
+
+    } catch (error) {
+      console.warn('[clocksApi] getClocksInRange workaround error:', error?.message || error);
+      keepFetching = false;
+    }
   }
+  
+  return allClocks;
 };
 
 /**
