@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import api from '../api/client';
 import { getClocksInRange } from '../api/clocks.api';
-import reportsApi from '../api/reportsApi';
 import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
 import TeamFormModal from '../components/manager/TeamFormModal';
 import WorkScheduleConfigurator from '../components/manager/WorkScheduleConfigurator';
@@ -954,7 +953,7 @@ export default function ManagerDashboard() {
                       <CardContent>
                         <div className="flex items-end gap-2">
                           <div className="text-2xl font-bold text-amber-600">{latenessData.rate.toFixed(1)}%</div>
-                          <div class={`text-sm mb-1 font-medium ${latenessData.evolutionRate <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <div className={`text-sm mb-1 font-medium ${latenessData.evolutionRate <= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {latenessData.evolutionRate <= 0 ? "↘" : "↗"} {Math.abs(latenessData.evolutionRate).toFixed(1)}%
                           </div>
                         </div>

@@ -13,7 +13,6 @@ import PeriodSelector from '../components/manager/PeriodSelector';
 import { Clock, AlertTriangle, Briefcase, ArrowLeft, Calendar, CalendarCheck, AlertCircle } from 'lucide-react';
 import api from '../api/client';
 import { getClocksInRange } from '../api/clocks.api';
-import reportsApi from '../api/reportsApi';
 import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
 import { buildChartSeries } from '../api/statsApi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
@@ -26,8 +25,7 @@ import ChartModal from '../components/ui/ChartModal';
 import ExportMenu from '../components/ui/ExportMenu';
 
 import {
-  toParis,
-  toISO
+  toParis
 } from '../utils/dateUtils';
 
 import {

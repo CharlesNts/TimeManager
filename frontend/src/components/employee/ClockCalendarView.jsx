@@ -145,6 +145,16 @@ function aggregateClocksToDaily(clocks) {
 }
 
 /**
+ * Format minutes to Xh YYm
+ */
+function formatMinutes(v) {
+  if (typeof v !== 'number') return '—';
+  const h = Math.floor(v / 60);
+  const m = v % 60;
+  return `${h}h ${String(m).padStart(2, '0')}m`;
+}
+
+/**
  * ClockCalendarView Component
  * Visual calendar showing clock-in history with color-coded days
  */
