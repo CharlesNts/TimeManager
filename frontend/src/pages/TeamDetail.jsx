@@ -38,7 +38,6 @@ import {
   removeMember,
 } from '../api/teamMembersApi';
 import scheduleTemplatesApi from '../api/scheduleTemplatesApi';
-import reportsApi from '../api/reportsApi';
 import { buildChartSeries } from '../api/statsApi';
 import { getDisplayPeriodBoundaries } from '../utils/granularityUtils';
 import { calculateScheduledMinutesFromTemplate, getLatenessThresholdFromSchedule } from '../utils/scheduleUtils';
@@ -91,11 +90,6 @@ const CustomTooltip = ({ active, payload, type = 'hours' }) => {
 
 // ---------- Utils time (Europe/Paris) ----------
 const toParis = (date) => new Date(date.toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
-const pad = (n) => String(n).padStart(2, '0');
-const toISO = (d) => {
-  const p = toParis(d);
-  return `${p.getFullYear()}-${pad(p.getMonth() + 1)}-${pad(p.getDate())}T${pad(p.getHours())}:${pad(p.getMinutes())}:${pad(p.getSeconds())}`;
-};
 
 const minutesBetween = (a, b) => Math.max(0, Math.round((b - a) / 60000));
 
@@ -430,6 +424,17 @@ export default function TeamDetail() {
         }
 
         // E. Calculate Lateness Locally (Consistent with Period)
+        // Re-fetch clocks for lateness calculation to ensure we have the data
+        const membersData = await Promise.all(members.map(async (m) => {
+            const userId = m.user?.id ?? m.userId;
+            if (!userId) return { userId, currentClocks: [], previousClocks: [] };
+            const [currentClocks, previousClocks] = await Promise.all([
+                getClocksInRange(userId, startOfCurrentPeriod, endOfCurrentPeriod),
+                getClocksInRange(userId, singlePreviousStart, singlePreviousEnd)
+            ]);
+            return { userId, currentClocks, previousClocks };
+        }));
+
         let totalLateDays = 0;
         let totalDaysWithClock = 0;
         let prevTotalLateDays = 0;
@@ -437,7 +442,7 @@ export default function TeamDetail() {
 
         // Current Period Lateness
         // We reuse 'membersData' which contains { userId, currentClocks, previousClocks }
-        membersData.forEach(({ userId, currentClocks, previousClocks }) => {
+        membersData.forEach(({ currentClocks, previousClocks }) => {
            // Group by day to check first clock-in
            const currentDaysMap = {};
            currentClocks.forEach(c => {

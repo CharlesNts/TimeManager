@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Clock, Calendar as CalendarIcon, AlertCircle
 import { toParis, toISO, dateToISO } from '../../utils/dateUtils';
 import { calculateDayStatus, getStatusStyle, isScheduledWorkDay } from '../../utils/workStatusUtils';
 import { getEmployeeLeaves } from '../../api/leavesApi';
+import { getClocksInRange } from '../../api/clocks.api';
 
 const DAYS_FR = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const MONTHS_FR = [
@@ -14,37 +15,27 @@ const MONTHS_FR = [
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
 ];
 
+const EMPTY_ARRAY = [];
+
 /**
  * Get calendar data for a specific month
- * @param {number} year
- * @param {number} month (0-11)
- * @param {Array} clocks - Clock entries (historique, aggregated by day)
- * @param {Object} schedule - Planning de l'équipe
- * @param {Array} approvedLeaves - Approved leaves
- * @returns {Array} Days of the month with status
  */
 function getCalendarDays(year, month, clocks, schedule, approvedLeaves) {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const daysInMonth = lastDay.getDate();
-  // Use Paris timezone for today
   const today = toParis(new Date());
   today.setHours(0, 0, 0, 0);
 
-  // Start from Monday (1) - adjust for Sunday (0)
   let startOffset = firstDay.getDay() - 1;
-  if (startOffset === -1) startOffset = 6; // Sunday adjustment
+  if (startOffset === -1) startOffset = 6; 
 
   const days = [];
-
-  // Previous month padding
   for (let i = 0; i < startOffset; i++) {
     days.push({ date: null, status: 'empty' });
   }
 
-  // Current month days
   for (let day = 1; day <= daysInMonth; day++) {
-    // Create date in Paris timezone
     const currentDate = toParis(new Date(year, month, day));
     const dateStr = dateToISO(currentDate);
     const dayOfWeek = currentDate.getDay();
@@ -53,26 +44,16 @@ function getCalendarDays(year, month, clocks, schedule, approvedLeaves) {
     const isToday = currentDate.getTime() === today.getTime();
 
     let status = 'no-data';
-
-    // Weekend
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       status = 'weekend';
     } else if (isFuture) {
-      // Future: check if it's a work day
       const isWorkDay = isScheduledWorkDay(currentDate, schedule);
-
-      if (isWorkDay) {
-        status = 'planned-work'; // Jour de travail prévu
-      } else {
-        status = 'no-data';
-      }
+      status = isWorkDay ? 'planned-work' : 'no-data';
     } else {
-      // Past/Today: only calculate status if we have a schedule
       if (schedule) {
         const dayClocks = dayData ? [dayData] : [];
         status = calculateDayStatus(currentDate, dayClocks, schedule, approvedLeaves);
       } else {
-        // No schedule defined - can't determine work status
         status = 'no-data';
       }
     }
@@ -86,19 +67,7 @@ function getCalendarDays(year, month, clocks, schedule, approvedLeaves) {
       isToday
     });
   }
-
   return days;
-}
-
-
-/**
- * Format minutes to hours
- */
-function formatMinutes(minutes) {
-  if (!minutes) return '0h 00m';
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${h}h ${String(m).padStart(2, '0')}m`;
 }
 
 /**
@@ -106,7 +75,6 @@ function formatMinutes(minutes) {
  */
 function parseScheduleTemplate(schedule) {
   if (!schedule) return null;
-
   try {
     let pattern = {};
     if (schedule.weeklyPatternJson) {
@@ -114,16 +82,10 @@ function parseScheduleTemplate(schedule) {
         ? JSON.parse(schedule.weeklyPatternJson)
         : schedule.weeklyPatternJson;
     }
-
-    // Map day names to numbers (1=Mon, 2=Tue, ..., 7=Sun)
-    const dayMap = {
-      mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0
-    };
-
+    const dayMap = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 };
     const workDays = [];
     let startTime = '09:00';
     let endTime = '17:30';
-
     Object.entries(pattern).forEach(([day, times]) => {
       if (dayMap[day] !== undefined && Array.isArray(times) && times.length > 0) {
         workDays.push(dayMap[day]);
@@ -134,7 +96,6 @@ function parseScheduleTemplate(schedule) {
         }
       }
     });
-
     return {
       workDays: workDays.length > 0 ? workDays : [1, 2, 3, 4, 5],
       startTime,
@@ -152,27 +113,18 @@ function parseScheduleTemplate(schedule) {
  */
 function aggregateClocksToDaily(clocks) {
   const map = new Map();
-
   clocks.forEach(clock => {
     if (!clock.clockIn) return;
-
     try {
       const inDate = new Date(clock.clockIn);
       const inParis = toParis(inDate);
       const dateStr = dateToISO(inDate);
-
-      if (!clock.clockOut) {
-        // Session still open, don't count
-        return;
-      }
-
+      if (!clock.clockOut) return;
       const outDate = new Date(clock.clockOut);
       const outParis = toParis(outDate);
-      if (outParis <= inParis) return; // Invalid
-
+      if (outParis <= inParis) return;
       const totalMinutes = Math.round((outParis - inParis) / 60000);
-      if (totalMinutes > 12 * 60) return; // Unrealistic
-
+      if (totalMinutes > 12 * 60) return;
       if (!map.has(dateStr)) {
         map.set(dateStr, {
           date: dateStr,
@@ -189,16 +141,31 @@ function aggregateClocksToDaily(clocks) {
       console.warn('Error processing clock:', e);
     }
   });
-
   return Array.from(map.values());
+}
+
+/**
+ * Format minutes to Xh YYm
+ */
+function formatMinutes(v) {
+  if (typeof v !== 'number') return '—';
+  const h = Math.floor(v / 60);
+  const m = v % 60;
+  return `${h}h ${String(m).padStart(2, '0')}m`;
 }
 
 /**
  * ClockCalendarView Component
  * Visual calendar showing clock-in history with color-coded days
  */
-export default function ClockCalendarView({ open, onClose, clocks = [], userName = 'Employé', schedule = null, userId = null }) {
-  const today = useMemo(() => {
+export default function ClockCalendarView({ 
+  open, 
+  onClose, 
+  clocks = EMPTY_ARRAY, 
+  userName = 'Employé', 
+  schedule = null, 
+  userId = null 
+}) {  const today = useMemo(() => {
     const t = toParis(new Date());
     t.setHours(0, 0, 0, 0);
     return t;
@@ -224,50 +191,44 @@ export default function ClockCalendarView({ open, onClose, clocks = [], userName
 
   // Load clocks and approved leaves
   useEffect(() => {
-    if (open && userId) {
+    if (!open) return;
+
+    if (userId) {
+      console.log(`[ClockCalendarView] Loading data for userId: ${userId}`);
       setLoading(true);
       const loadData = async () => {
         try {
-          const mod = await import('../../api/clocks.api');
-          // Load last 3 months of clocks (using Paris timezone)
+          // Load last 3 months of clocks
           const from = new Date();
           from.setMonth(from.getMonth() - 3);
-          const fromISO = toISO(from); // Use toISO for LocalDateTime format
+          const fromISO = toISO(from);
           const toISO_val = toISO(today);
 
-          console.log(`[ClockCalendarView] Loading clocks from ${fromISO} to ${toISO_val} for userId ${userId}`);
-
-          const clocksData = await mod.getClocksInRange(userId, fromISO, toISO_val);
-          console.log(`[ClockCalendarView] Loaded ${clocksData?.length || 0} clocks`);
-
+          const clocksData = await getClocksInRange(userId, fromISO, toISO_val);
           const daily = aggregateClocksToDaily(clocksData || []);
-          console.log(`[ClockCalendarView] Processed into ${daily.length} daily summaries`);
           setProcessedClocks(daily);
 
           // Load approved leaves
           try {
             const leavesData = await getEmployeeLeaves(userId);
-            // Filter only approved leaves
-            const approved = leavesData.filter(leave => leave.status === 'APPROVED');
-            console.log(`[ClockCalendarView] Loaded ${approved.length} approved leaves`);
+            const approved = Array.isArray(leavesData) ? leavesData.filter(leave => leave.status === 'APPROVED') : [];
             setApprovedLeaves(approved);
           } catch (e) {
             console.warn('[ClockCalendarView] Error loading leaves:', e);
-            setApprovedLeaves([]);
           }
         } catch (e) {
           console.error('[ClockCalendarView] Error loading clocks:', e);
-          setProcessedClocks([]);
         } finally {
           setLoading(false);
         }
       };
       loadData();
     } else if (clocks.length > 0) {
-      // Use provided clocks
-      console.log(`[ClockCalendarView] Using provided clocks (${clocks.length} clocks)`);
+      console.log(`[ClockCalendarView] Using provided clocks: ${clocks.length}`);
       const daily = aggregateClocksToDaily(clocks);
       setProcessedClocks(daily);
+      setLoading(false);
+    } else {
       setLoading(false);
     }
   }, [open, userId, clocks, today]);

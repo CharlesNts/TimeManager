@@ -38,10 +38,10 @@ const NotFoundPage = () => {
               Retour
             </Button>
             <Button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/my-clocks')}
             >
               <Home className="h-5 w-5 mr-2" />
-              Accueil
+              Tableau de bord
             </Button>
           </div>
 
