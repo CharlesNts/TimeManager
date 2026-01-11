@@ -26,8 +26,8 @@
         <!-- SonarCloud Configuration -->
         <sonar.organization>charlesnts</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
-        <sonar.projectKey>CharlesNts_TimeManager</sonar.projectKey>
-        <sonar.projectName>TimeManager</sonar.projectName>
+        <sonar.projectKey>timemanager-backend</sonar.projectKey>
+        <sonar.projectName>TimeManager Backend</sonar.projectName>
     </properties>
 
     <dependencies>
