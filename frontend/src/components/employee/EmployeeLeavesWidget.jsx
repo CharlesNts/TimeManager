@@ -37,12 +37,25 @@ const getStatusIcon = (status) => {
   }
 };
 
-export default function EmployeeLeavesWidget({ userId, onRequestLeave }) {
+export default function EmployeeLeavesWidget({ userId, onRequestLeave, showHistoryExternal = false, onCloseHistory }) {
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [cancellingId, setCancellingId] = useState(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // Gérer l'ouverture externe du modal (via raccourci clavier)
+  useEffect(() => {
+    if (showHistoryExternal) {
+      setShowHistoryModal(true);
+    }
+  }, [showHistoryExternal]);
+
+  // Quand le modal se ferme, notifier le parent
+  const handleCloseHistory = () => {
+    setShowHistoryModal(false);
+    onCloseHistory && onCloseHistory();
+  };
 
   const loadLeaves = async () => {
     if (!userId) return;
@@ -301,7 +314,7 @@ export default function EmployeeLeavesWidget({ userId, onRequestLeave }) {
       </Card>
 
       {/* Modal de l'historique */}
-      <Dialog open={showHistoryModal} onOpenChange={setShowHistoryModal}>
+      <Dialog open={showHistoryModal} onOpenChange={handleCloseHistory}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">

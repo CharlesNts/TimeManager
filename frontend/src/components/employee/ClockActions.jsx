@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { LogIn, LogOut, Coffee, Loader2, Briefcase } from 'lucide-react';
 import { Button } from '../ui/button';
 import { clockIn, clockOut, getCurrentClock, getClockHistory, getClockPauses, createPause, stopPause } from '../../api/clocks.api';
 
-export default function ClockActions({ userId, onChanged }) {
+const ClockActions = forwardRef(function ClockActions({ userId, onChanged }, ref) {
   const [loading, setLoading] = useState(false);
   const [openSession, setOpenSession] = useState(null); // {id, clockIn, clockOut}
   const [error, setError] = useState('');
@@ -189,6 +189,31 @@ export default function ClockActions({ userId, onChanged }) {
     }
   };
 
+  // Exposer les méthodes pour les raccourcis clavier
+  useImperativeHandle(ref, () => ({
+    // Toggle clock in/out
+    toggleClock: () => {
+      if (loading) return;
+      if (isClockedIn) {
+        handleClockOut();
+      } else {
+        handleClockIn();
+      }
+    },
+    // Toggle break
+    toggleBreak: () => {
+      if (!isClockedIn || pausesLoading) return;
+      handleBreak();
+    },
+    // Get current state
+    getState: () => ({
+      isClockedIn,
+      isOnBreak,
+      loading,
+      pausesLoading,
+    }),
+  }));
+
   const isClockedIn = !!openSession;
   const status = !isClockedIn
     ? { label: 'Hors service', cls: 'bg-gray-100 text-gray-800' }
@@ -307,4 +332,6 @@ export default function ClockActions({ userId, onChanged }) {
       )}
     </div>
   );
-}
+});
+
+export default ClockActions;

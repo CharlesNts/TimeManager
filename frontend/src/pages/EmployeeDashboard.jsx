@@ -1,8 +1,9 @@
 // src/pages/EmployeeDashboard.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useClockNotification } from '../hooks/useClockNotification';
+import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts';
 // import { useNotifications } from '../hooks/useNotifications'; // Removed
 import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
@@ -10,6 +11,7 @@ import ClockActions from '../components/employee/ClockActions';
 import ClockCalendarView from '../components/employee/ClockCalendarView';
 import RequestLeaveModal from '../components/employee/RequestLeaveModal';
 import EmployeeLeavesWidget from '../components/employee/EmployeeLeavesWidget';
+import KeyboardShortcutsHelp from '../components/ui/KeyboardShortcutsHelp';
 import PeriodSelector from '../components/manager/PeriodSelector';
 import { Clock, AlertTriangle, Briefcase, ArrowLeft, Calendar, CalendarCheck, AlertCircle } from 'lucide-react';
 import api from '../api/client';
@@ -79,6 +81,9 @@ export default function EmployeeDashboard() {
   const { user } = useAuth();
   const { userId } = useParams();
   const navigate = useNavigate();
+  
+  // Ref pour les actions de pointage (raccourcis clavier)
+  const clockActionsRef = useRef(null);
 
   const [viewedEmployee, setViewedEmployee] = useState(null);
   const isViewingOtherEmployee = !!userId;
@@ -180,6 +185,27 @@ export default function EmployeeDashboard() {
   const [latenessData, setLatenessData] = useState({ rate: 0, lateDays: 0, totalDays: 0, chartSeries: [], evolutionRate: 0 });
 
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [showLeavesHistory, setShowLeavesHistory] = useState(false);
+
+  // Raccourcis clavier (uniquement pour l'employé sur son propre dashboard)
+  const shortcuts = useMemo(() => {
+    if (isViewingOtherEmployee) return {};
+    return {
+      'ctrl+shift+ ': () => clockActionsRef.current?.toggleClock(),
+      'ctrl+shift+b': () => clockActionsRef.current?.toggleBreak(),
+      'ctrl+shift+l': () => setIsLeaveModalOpen(true),
+      'ctrl+shift+h': () => setShowLeavesHistory(true),
+      'ctrl+shift+p': () => setIsCalendarOpen(true),
+      'escape': () => {
+        setIsLeaveModalOpen(false);
+        setIsCalendarOpen(false);
+        setShowLeavesHistory(false);
+        setChartModal(prev => ({ ...prev, open: false }));
+      },
+    };
+  }, [isViewingOtherEmployee]);
+
+  useKeyboardShortcuts(shortcuts, !isViewingOtherEmployee);
 
   useClockNotification(hasClockedInToday, user?.role, isViewingOtherEmployee);
   // const { notifications, markAsRead } = useNotifications(hasClockedInToday, user?.role); // Removed
@@ -612,7 +638,7 @@ export default function EmployeeDashboard() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ClockActions userId={targetUserId} onChanged={handleChanged} />
+                      <ClockActions ref={clockActionsRef} userId={targetUserId} onChanged={handleChanged} />
                     </CardContent>
                   </Card>
 
@@ -620,6 +646,8 @@ export default function EmployeeDashboard() {
                     <EmployeeLeavesWidget
                       userId={targetUserId}
                       onRequestLeave={() => setIsLeaveModalOpen(true)}
+                      showHistoryExternal={showLeavesHistory}
+                      onCloseHistory={() => setShowLeavesHistory(false)}
                     />
                   </div>
 
@@ -856,6 +884,9 @@ export default function EmployeeDashboard() {
         chartConfig={chartModal.config}
         CustomTooltip={CustomTooltip}
       />
+
+      {/* Bouton d'aide raccourcis clavier */}
+      {!isViewingOtherEmployee && <KeyboardShortcutsHelp />}
     </Layout >
   );
 }
