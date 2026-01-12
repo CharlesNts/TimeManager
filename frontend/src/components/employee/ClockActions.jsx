@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useImperativeHandle, forwardRe
 import { LogIn, LogOut, Coffee, Loader2, Briefcase } from 'lucide-react';
 import { Button } from '../ui/button';
 import { clockIn, clockOut, getCurrentClock, getClockHistory, getClockPauses, createPause, stopPause } from '../../api/clocks.api';
+import { playSound } from '../../hooks/useNotificationSound';
 
 const ClockActions = forwardRef(function ClockActions({ userId, onChanged }, ref) {
   const [loading, setLoading] = useState(false);
@@ -79,8 +80,10 @@ const ClockActions = forwardRef(function ClockActions({ userId, onChanged }, ref
       setOpenSession(data);
       setPauses([]);
       setIsOnBreak(false);
+      playSound('clockIn');
       onChanged && onChanged();
     } catch (e) {
+      playSound('error');
       setError(e.message || 'Échec du pointage Arrivée');
     } finally {
       setLoading(false);
@@ -94,8 +97,10 @@ const ClockActions = forwardRef(function ClockActions({ userId, onChanged }, ref
       setOpenSession(null);
       setPauses([]);
       setIsOnBreak(false);
+      playSound('clockOut');
       onChanged && onChanged();
     } catch (e) {
+      playSound('error');
       setError(e.message || 'Échec du pointage Départ');
     } finally {
       setLoading(false);
@@ -130,6 +135,7 @@ const ClockActions = forwardRef(function ClockActions({ userId, onChanged }, ref
         const result = await stopPause(openSession.id, activePause.id, { endAt });
         console.log('[ClockActions] stopPause result:', result);
         setIsOnBreak(false);
+        playSound('breakEnd');
       } else {
         // START pause
         // Ensure startAt is not before clockIn (plus a safe buffer)
@@ -165,6 +171,7 @@ const ClockActions = forwardRef(function ClockActions({ userId, onChanged }, ref
         });
         console.log('[ClockActions] createPause result:', newPause);
         setIsOnBreak(true);
+        playSound('breakStart');
       }
 
       // Reload pauses from backend to get complete data
