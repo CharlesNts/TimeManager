@@ -1,6 +1,6 @@
 // src/components/ui/KeyboardShortcutsHelp.jsx
 import React, { useState } from 'react';
-import { Keyboard, X } from 'lucide-react';
+import { Keyboard } from 'lucide-react';
 import { Button } from './button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './dialog';
 import { SHORTCUTS_LIST, isMac } from '../../hooks/useKeyboardShortcuts';

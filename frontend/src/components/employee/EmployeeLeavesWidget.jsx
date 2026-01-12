@@ -1,7 +1,7 @@
 // src/components/employee/EmployeeLeavesWidget.jsx
 import React, { useEffect, useState } from 'react';
 import { Calendar, Loader2, AlertCircle, CheckCircle, XCircle, Clock, History } from 'lucide-react';
-import { getEmployeeLeaves, getLeaveTypeLabel, getLeaveStatusLabel, calculateLeaveDays, cancelLeave, LEAVE_STATUS } from '../../api/leavesApi';
+import { getEmployeeLeaves, getLeaveTypeLabel, getLeaveStatusLabel, cancelLeave, LEAVE_STATUS } from '../../api/leavesApi';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/Badge';
@@ -117,6 +117,7 @@ export default function EmployeeLeavesWidget({ userId, onRequestLeave, showHisto
 
   useEffect(() => {
     loadLeaves();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const handleCancel = async (leaveId) => {

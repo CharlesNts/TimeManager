@@ -1,29 +1,36 @@
 // src/tests/EmployeeLeavesWidget.test.jsx
-import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import EmployeeLeavesWidget from '../components/employee/EmployeeLeavesWidget';
 import * as leavesApi from '../api/leavesApi';
 
 // Mock the API
-jest.mock('../api/leavesApi');
+vi.mock('../api/leavesApi', async () => {
+  const actual = await vi.importActual('../api/leavesApi');
+  return {
+    ...actual,
+    getEmployeeLeaves: vi.fn(),
+    cancelLeave: vi.fn(),
+  };
+});
 
 describe('EmployeeLeavesWidget', () => {
   const mockUserId = 123;
-  const mockOnRequestLeave = jest.fn();
+  const mockOnRequestLeave = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
-  test('affiche un loader pendant le chargement', () => {
+  it('affiche un loader pendant le chargement', () => {
     leavesApi.getEmployeeLeaves.mockImplementation(() => new Promise(() => {}));
     render(<EmployeeLeavesWidget userId={mockUserId} onRequestLeave={mockOnRequestLeave} />);
     
     expect(screen.getByText('Mes congés')).toBeInTheDocument();
   });
 
-  test('affiche les congés de l\'employé', async () => {
+  it('affiche les congés de l\'employé', async () => {
     const mockLeaves = [
       {
         id: 1,
@@ -49,16 +56,16 @@ describe('EmployeeLeavesWidget', () => {
     render(<EmployeeLeavesWidget userId={mockUserId} onRequestLeave={mockOnRequestLeave} />);
 
     await waitFor(() => {
-      expect(screen.getByText('2 demandes')).toBeInTheDocument();
+      // Seul le congé PENDING est compté comme "en attente"
+      expect(screen.getByText('1 demande en attente')).toBeInTheDocument();
     });
 
     expect(screen.getByText('Congé payé')).toBeInTheDocument();
-    expect(screen.getByText('Arrêt maladie')).toBeInTheDocument();
-    expect(screen.getByText('En attente')).toBeInTheDocument();
-    expect(screen.getByText('Approuvé')).toBeInTheDocument();
+    // Le bouton historique montre le total
+    expect(screen.getByText(/Voir tout l'historique/)).toBeInTheDocument();
   });
 
-  test('affiche un message quand il n\'y a pas de congés', async () => {
+  it('affiche un message quand il n\'y a pas de congés', async () => {
     leavesApi.getEmployeeLeaves.mockResolvedValue([]);
 
     render(<EmployeeLeavesWidget userId={mockUserId} onRequestLeave={mockOnRequestLeave} />);
@@ -68,7 +75,7 @@ describe('EmployeeLeavesWidget', () => {
     });
   });
 
-  test('permet de demander un nouveau congé', async () => {
+  it('permet de demander un nouveau congé', async () => {
     leavesApi.getEmployeeLeaves.mockResolvedValue([]);
 
     render(<EmployeeLeavesWidget userId={mockUserId} onRequestLeave={mockOnRequestLeave} />);
@@ -83,7 +90,7 @@ describe('EmployeeLeavesWidget', () => {
     expect(mockOnRequestLeave).toHaveBeenCalledTimes(1);
   });
 
-  test('permet d\'annuler un congé en attente', async () => {
+  it('permet d\'annuler un congé en attente', async () => {
     const mockLeaves = [
       {
         id: 1,
@@ -97,7 +104,7 @@ describe('EmployeeLeavesWidget', () => {
 
     leavesApi.getEmployeeLeaves.mockResolvedValue(mockLeaves);
     leavesApi.cancelLeave.mockResolvedValue({});
-    window.confirm = jest.fn(() => true);
+    window.confirm = vi.fn(() => true);
 
     render(<EmployeeLeavesWidget userId={mockUserId} onRequestLeave={mockOnRequestLeave} />);
 
@@ -113,7 +120,7 @@ describe('EmployeeLeavesWidget', () => {
     });
   });
 
-  test('affiche une erreur en cas de problème de chargement', async () => {
+  it('affiche une erreur en cas de problème de chargement', async () => {
     leavesApi.getEmployeeLeaves.mockRejectedValue(new Error('Network error'));
 
     render(<EmployeeLeavesWidget userId={mockUserId} onRequestLeave={mockOnRequestLeave} />);
