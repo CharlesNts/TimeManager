@@ -68,6 +68,9 @@ describe('TeamsList', () => {
         api.get.mockImplementation((url) => {
             if (url === '/api/users') return Promise.resolve({ data: [{ id: 10, role: 'MANAGER', firstName: 'M', lastName: 'one' }] });
             if (url === '/api/teams') return Promise.resolve({ data: mockTeams });
+            // Return mock members based on team ID
+            if (url === '/api/teams/1/members') return Promise.resolve({ data: [{}, {}, {}, {}, {}] }); // 5 members
+            if (url === '/api/teams/2/members') return Promise.resolve({ data: [{}, {}, {}] }); // 3 members
             if (url.match(/\/api\/teams\/\d+\/members/)) return Promise.resolve({ data: [] });
             if (url.match(/\/api\/users\/\d+\/clocks\/range/)) return Promise.resolve({ data: [] });
             return Promise.resolve({ data: [] });

@@ -130,12 +130,21 @@ export default function TeamsList() {
         }
         const allTeams = Array.from(byId.values());
 
-        const normalized = allTeams.map((t) => ({
+        // Charger le nombre de membres pour chaque équipe
+        const memberCounts = await Promise.all(
+          allTeams.map((t) =>
+            api.get(`/api/teams/${t.id}/members`)
+              .then((res) => Array.isArray(res.data) ? res.data.length : 0)
+              .catch(() => 0)
+          )
+        );
+
+        const normalized = allTeams.map((t, index) => ({
           id: t.id,
           name: t.name,
           description: t.description || '',
           managerName: t.manager ? `${t.manager.firstName} ${t.manager.lastName}` : '—',
-          memberCount: t.memberCount ?? t.membersCount ?? 0,
+          memberCount: memberCounts[index],
         }));
 
         setTeams(normalized);
