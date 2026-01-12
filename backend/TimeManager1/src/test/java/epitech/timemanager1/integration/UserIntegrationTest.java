@@ -38,9 +38,9 @@ public class UserIntegrationTest {
         jdbc.execute("DELETE FROM team_members");
         jdbc.execute("DELETE FROM clocks");
         jdbc.execute("DELETE FROM teams");
+        jdbc.execute("DELETE FROM password_reset_tokens");
         jdbc.execute("DELETE FROM users");
     }
-
     @BeforeEach
     void setup() {
         userRepository.deleteAll();
