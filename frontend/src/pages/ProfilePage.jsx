@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getSidebarItems } from '../utils/navigationConfig';
 import Layout from '../components/layout/Layout';
-import { User, Mail, Phone, Briefcase, Key, Save, Loader2, CheckCircle2, AlertCircle, Edit2, Trash2 } from 'lucide-react';
+import { User, Mail, Phone, Briefcase, Key, Save, Loader2, CheckCircle2, AlertCircle, Edit2, Trash2, Volume2, VolumeX } from 'lucide-react';
 import { getUserById, updateUserById /*, updateUserPassword*/ } from '../api/userApi';
 import { forgotPassword } from '../api/passwordApi';
 import { deleteUser } from '../api/userAdminApi';
@@ -14,6 +14,84 @@ import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
+import { useSoundPreferences } from '../hooks/useUserPreferences';
+import { playSound } from '../hooks/useNotificationSound';
+import { Switch } from '../components/ui/switch';
+import { Slider } from '../components/ui/slider';
+
+/**
+ * Section des préférences utilisateur
+ */
+function PreferencesSection() {
+  const { soundEnabled, setSoundEnabled, soundVolume, setSoundVolume } = useSoundPreferences();
+
+  const handleToggleSound = (enabled) => {
+    setSoundEnabled(enabled);
+    if (enabled) {
+      // Jouer un son de test quand on active
+      setTimeout(() => playSound('success'), 100);
+    }
+  };
+
+  const handleVolumeChange = (value) => {
+    setSoundVolume(value[0]);
+  };
+
+  const handleVolumeCommit = () => {
+    // Jouer un son de test quand on relâche le slider
+    playSound('clockIn');
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+          Préférences
+        </CardTitle>
+        <CardDescription>
+          Personnalisez votre expérience
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Sons de notification */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-sm font-medium">Sons de notification</Label>
+            <p className="text-sm text-muted-foreground">
+              Jouer un son lors du pointage et des pauses
+            </p>
+          </div>
+          <Switch
+            checked={soundEnabled}
+            onCheckedChange={handleToggleSound}
+          />
+        </div>
+
+        {/* Volume */}
+        {soundEnabled && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Volume</Label>
+              <span className="text-sm text-muted-foreground">
+                {Math.round(soundVolume * 100)}%
+              </span>
+            </div>
+            <Slider
+              value={[soundVolume]}
+              onValueChange={handleVolumeChange}
+              onValueCommit={handleVolumeCommit}
+              max={1}
+              min={0.1}
+              step={0.1}
+              className="w-full"
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function ProfilePage() {
   const { user, setUser, logout } = useAuth();
@@ -327,6 +405,9 @@ export default function ProfilePage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Préférences */}
+          <PreferencesSection />
 
           {/* Sécurité */}
           <Card>
