@@ -71,10 +71,10 @@ export default function EmployeeLeavesWidget({ userId, onRequestLeave, showHisto
         console.log('[EmployeeLeavesWidget] Sample leave object keys:', Object.keys(data[0]));
         console.log('[EmployeeLeavesWidget] Sample leave object:', data[0]);
       }
-      // Trier par date de début décroissante (les plus récents en premier)
+      // Trier par date de création décroissante (les plus récents en premier)
       const sorted = data.sort((a, b) => {
-        const dateA = new Date(getStartDate(a) || 0);
-        const dateB = new Date(getStartDate(b) || 0);
+        const dateA = new Date(a.createdAt || getStartDate(a) || 0);
+        const dateB = new Date(b.createdAt || getStartDate(b) || 0);
         return dateB - dateA;
       });
       setLeaves(sorted);
