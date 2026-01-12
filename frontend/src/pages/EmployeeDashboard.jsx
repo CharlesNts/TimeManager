@@ -9,6 +9,7 @@ import Layout from '../components/layout/Layout';
 import ClockActions from '../components/employee/ClockActions';
 import ClockCalendarView from '../components/employee/ClockCalendarView';
 import RequestLeaveModal from '../components/employee/RequestLeaveModal';
+import EmployeeLeavesWidget from '../components/employee/EmployeeLeavesWidget';
 import PeriodSelector from '../components/manager/PeriodSelector';
 import { Clock, AlertTriangle, Briefcase, ArrowLeft, Calendar, CalendarCheck, AlertCircle } from 'lucide-react';
 import api from '../api/client';
@@ -615,26 +616,12 @@ export default function EmployeeDashboard() {
                     </CardContent>
                   </Card>
 
-                  <Card className="mt-6">
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Calendar className="w-5 h-5" />
-                        Congés
-                      </CardTitle>
-                      <CardDescription>
-                        Demandez des jours de congé
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Button
-                        onClick={() => setIsLeaveModalOpen(true)}
-                        className="w-full"
-                      >
-                        <Calendar className="w-4 h-4 mr-2" />
-                        Demander un congé
-                      </Button>
-                    </CardContent>
-                  </Card>
+                  <div className="mt-6">
+                    <EmployeeLeavesWidget
+                      userId={targetUserId}
+                      onRequestLeave={() => setIsLeaveModalOpen(true)}
+                    />
+                  </div>
 
                   <div className="mt-6">
                     <Card>
