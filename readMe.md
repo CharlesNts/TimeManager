@@ -6,7 +6,27 @@ Elle a été conçue pour offrir une expérience claire, fluide et efficace auss
 L’objectif principal est de **simplifier l’organisation des équipes**, d’améliorer la visibilité des horaires et de centraliser la gestion du temps dans un outil unique.
 
 ---
+## 🚀 Comment lancer l'application
 
+### Option 1 : Avec Docker Compose
+```bash
+docker compose up
+```
+
+### Option 2 : En développement local
+1. **Démarrer le backend :**
+```bash
+cd backend/TimeManager1
+./mvnw spring-boot:run
+```
+
+2. **Démarrer le frontend :**
+```bash
+cd frontend
+npm run dev
+```
+
+---
 ## 💡 Vision du projet
 
 TimeManager répond à un besoin concret :  
