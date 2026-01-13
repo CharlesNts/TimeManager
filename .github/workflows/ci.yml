@@ -141,7 +141,7 @@ jobs:
       - name: Build backend and generate coverage
         run: |
           cd backend/TimeManager1
-          mvn clean test -Dspring.profiles.active=ci -Dtest='**/services/**Test'
+          mvn clean test -Dspring.profiles.active=ci
           mvn jacoco:report -Dspring.profiles.active=ci
 
       - name: Install frontend dependencies and run tests with coverage

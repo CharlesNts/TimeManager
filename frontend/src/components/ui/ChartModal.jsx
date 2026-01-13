@@ -1,20 +1,11 @@
 // src/components/ui/ChartModal.jsx
 import React from 'react';
+import PropTypes from 'prop-types';
 import { X } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 
 /**
  * ChartModal - Modal pour afficher un graphique en plein écran
- * 
- * Props:
- * - open: boolean - si le modal est ouvert
- * - onClose: () => void - callback pour fermer le modal
- * - title: string - titre du graphique
- * - subtitle: string - sous-titre optionnel
- * - data: array - données du graphique
- * - type: 'area' | 'bar' - type de graphique
- * - chartConfig: object - configuration du graphique (color, gradientId, tooltipType)
- * - CustomTooltip: component - composant tooltip personnalisé
  */
 const ChartModal = ({
     open,
@@ -45,12 +36,17 @@ const ChartModal = ({
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
             onClick={handleBackdropClick}
+            onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="chart-modal-title"
+            tabIndex="-1"
         >
             <div className="bg-white rounded-xl shadow-2xl w-[90vw] max-w-5xl max-h-[85vh] overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
                     <div>
-                        <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+                        <h2 id="chart-modal-title" className="text-xl font-semibold text-gray-900">{title}</h2>
                         {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
                     </div>
                     <button
@@ -135,6 +131,22 @@ const ChartModal = ({
             </div>
         </div>
     );
+};
+
+ChartModal.propTypes = {
+    open: PropTypes.bool.isRequired,
+    onClose: PropTypes.func.isRequired,
+    title: PropTypes.string.isRequired,
+    subtitle: PropTypes.string,
+    data: PropTypes.array,
+    type: PropTypes.oneOf(['area', 'bar']),
+    chartConfig: PropTypes.shape({
+        color: PropTypes.string,
+        gradientId: PropTypes.string,
+        tooltipType: PropTypes.string,
+        barColors: PropTypes.arrayOf(PropTypes.string),
+    }),
+    CustomTooltip: PropTypes.elementType,
 };
 
 export default ChartModal;

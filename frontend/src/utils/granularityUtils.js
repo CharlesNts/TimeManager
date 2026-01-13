@@ -88,71 +88,88 @@ export const calculatePeriodDates = (granularity) => {
  */
 export const getPeriodBoundaries = (granularity, startDate, endDate) => {
   const periods = [];
+  const endLimitTime = startOfDay(endDate).getTime();
+  let current = new Date(startDate);
+  let safety = 0;
 
   if (granularity === 'day') {
-    let current = new Date(startDate);
-    while (current <= endDate) {
+    const MAX_DAYS = 366;
+    while (startOfDay(current).getTime() <= endLimitTime && safety < MAX_DAYS) {
       const dayStart = startOfDay(current);
       const dayEnd = new Date(dayStart);
       dayEnd.setHours(23, 59, 59, 999);
+
       periods.push({
         startDate: dayStart,
         endDate: dayEnd,
         label: current.toLocaleDateString('fr-FR', { weekday: 'short', month: 'short', day: 'numeric' })
       });
-      current.setDate(current.getDate() + 1);
+
+      current = addDays(current, 1);
+      safety++;
     }
     return periods;
   }
 
   if (granularity === 'week') {
-    let current = startOfWeekMon(startDate);
-    while (current <= endDate) {
-      const weekStart = startOfWeekMon(current);
+    const MAX_WEEKS = 53;
+    let weekStart = startOfWeekMon(startDate);
+    while (startOfDay(weekStart).getTime() <= endLimitTime && safety < MAX_WEEKS) {
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
       weekEnd.setHours(23, 59, 59, 999);
-      const weekNum = Math.ceil((current.getDate()) / 7);
+
+      const weekNum = Math.ceil((weekStart.getDate()) / 7);
       periods.push({
-        startDate: weekStart,
+        startDate: new Date(weekStart),
         endDate: weekEnd,
         label: `S${weekNum}`
       });
-      current.setDate(current.getDate() + 7);
+
+      weekStart = addDays(weekStart, 7);
+      safety++;
     }
     return periods;
   }
 
   if (granularity === 'month') {
-    let current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-    while (current <= endDate) {
+    const MAX_MONTHS = 120;
+    while (startOfDay(current).getTime() <= endLimitTime && safety < MAX_MONTHS) {
       const monthStart = new Date(current.getFullYear(), current.getMonth(), 1);
       monthStart.setHours(0, 0, 0, 0);
-      const monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+      const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
       monthEnd.setHours(23, 59, 59, 999);
+
       periods.push({
         startDate: monthStart,
         endDate: monthEnd,
         label: monthStart.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })
       });
-      current.setMonth(current.getMonth() + 1);
+
+      current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
+      safety++;
     }
     return periods;
   }
 
   if (granularity === 'year') {
-    let current = new Date(startDate.getFullYear(), 0, 1);
-    while (current <= endDate) {
-      const yearStart = new Date(current.getFullYear(), 0, 1);
+    const MAX_YEARS = 100;
+    const endYear = endDate.getFullYear();
+    let currentYear = startDate.getFullYear();
+    while (currentYear <= endYear && safety < MAX_YEARS) {
+      const yearStart = new Date(currentYear, 0, 1);
       yearStart.setHours(0, 0, 0, 0);
-      const yearEnd = new Date(current.getFullYear(), 11, 31);
+      const yearEnd = new Date(currentYear, 11, 31);
       yearEnd.setHours(23, 59, 59, 999);
+
       periods.push({
         startDate: yearStart,
         endDate: yearEnd,
-        label: yearStart.getFullYear().toString()
+        label: currentYear.toString()
       });
-      current.setFullYear(current.getFullYear() + 1);
+
+      currentYear++;
+      safety++;
     }
     return periods;
   }
